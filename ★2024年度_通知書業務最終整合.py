@@ -377,116 +377,6 @@ def program_2():
 
     root.mainloop()
 
-def program_3():
-    def show_info():
-        selected_name = combo_name.get()
-        if not selected_name:
-            messagebox.showerror("錯誤", "請選擇姓名")
-            return
-
-        try:
-            # 打開Excel文件
-            workbook = load_workbook(r'\\Apbitwsh02\public\Project\TDD2\設計業務依頼\2024年度設計業務依頼台帳.xlsx')
-            sheet = workbook['2024年度']
-
-            # 清除現有的Treeview數據
-            for item in tree_info.get_children():
-                tree_info.delete(item)
-
-            # 遍歷從L12開始的列，查找符合條件的行
-            data = extract_data(sheet, selected_name)
-            update_treeview(data)
-
-            if not data:
-                messagebox.showinfo("結果", "未找到符合條件的記錄")
-        except Exception as e:
-            messagebox.showerror("錯誤", f"讀取文件時發生錯誤: {e}")
-
-    def extract_data(sheet, selected_name):
-        data = []
-        for row in sheet.iter_rows(min_row=12, min_col=1, max_col=17):  # A to Q columns
-            if row[11].value == selected_name and not row[15].value:  # L and P columns
-                account_number = row[0].value
-                content = row[6].value
-                business_status = row[13].value if isinstance(row[13].value, datetime) else row[13].value
-                remarks = row[16].value
-                business_status = business_status.strftime('%Y/%m/%d') if isinstance(business_status, datetime) else business_status
-                data.append((account_number, content, business_status, remarks))
-        return data
-
-    def update_treeview(data):
-        for i, (account_number, content, business_status, remarks) in enumerate(data):
-            tree_info.insert('', 'end', values=(i + 1, account_number, content, business_status, remarks))
-
-        # 自動調整其他欄位寬度
-        for col in tree_info['columns']:
-            if col != "No.":
-                max_width = tkfont.Font(font=font).measure(col)
-                for item in tree_info.get_children():
-                    cell_value = tree_info.set(item, col)
-                    max_width = max(max_width, tkfont.Font(font=font).measure(cell_value))
-                tree_info.column(col, width=max_width)
-
-    def setup_ui(root):
-        global font, combo_name, tree_info
-
-        # 設置字體
-        font = ("BIZ UDPゴシック", 12)
-
-        # 姓名區域
-        frame_name = tk.Frame(root)
-        frame_name.pack(pady=10, padx=10, fill='x')
-
-        label_name = tk.Label(frame_name, text="姓名:", font=font)
-        label_name.pack(side='left')
-
-        combo_name = ttk.Combobox(frame_name, font=font)
-        combo_name.pack(side='left', padx=5)
-
-        # 添加下拉式選單項目
-        name_list = ["許映儂", "葉羿廷", "何佳欣", "黄郁芸", "王文豪", "林宜增", "陳雅瑄", "呉汶珊", "陳沅郁", "李恩柔", "翁紹綺", "陳岳揚", "陳俞源"]
-        combo_name['values'] = name_list
-
-        button_show_info = tk.Button(frame_name, text="資訊顯示", font=font, command=show_info)
-        button_show_info.pack(side='left', padx=5)
-
-        countdown_label = tk.Label(frame_name, text="", font=font, fg="red")
-        countdown_label.pack(side='left', padx=5)
-
-        # 初始化倒數計時器
-        countdown_timer = CountdownTimer(countdown_label, 60, root)
-
-        # 未檢收通知書資訊區域
-        frame_info = tk.LabelFrame(root, text="未檢收通知書資訊", font=font)
-        frame_info.pack(pady=10, padx=10, fill='both', expand=True)
-
-        tree_info = ttk.Treeview(frame_info, columns=("No.", "台帳番號", "內容", "業務狀況", "備考"), show='headings', height=10)
-        tree_info.heading("No.", text="No.", anchor=tk.CENTER)
-        tree_info.heading("台帳番號", text="台帳番號", anchor=tk.CENTER)
-        tree_info.heading("內容", text="內容", anchor=tk.CENTER)
-        tree_info.heading("業務狀況", text="業務狀況", anchor=tk.CENTER)
-        tree_info.heading("備考", text="備考", anchor=tk.CENTER)
-        tree_info.column("No.", anchor=tk.CENTER, width=15)
-        tree_info.column("台帳番號", anchor=tk.CENTER)
-        tree_info.column("內容", anchor=tk.CENTER)
-        tree_info.column("業務狀況", anchor=tk.CENTER)
-        tree_info.column("備考", anchor=tk.CENTER)
-        tree_info.pack(fill='both', expand=True)
-
-        # 標記樣式
-        tree_info.tag_configure("highlight", background="lightblue")
-
-        # 調整Treeview字體
-        style = ttk.Style()
-        style.configure("Treeview.Heading", font=font)
-        style.configure("Treeview", font=font)
-
-    root = tk.Toplevel()
-    root.title("檢收日未登録")
-
-    setup_ui(root)
-    root.mainloop()
-
 main_root = tk.Tk()
 main_root.title("分室業務関連")
 
@@ -500,10 +390,6 @@ button2.pack(pady=10)
 
 button3 = tk.Button(main_root, text="未発行図面", command=program_2, font=button_font, width=15)
 button3.pack(pady=10)
-
-# 新增的按鈕
-button4 = tk.Button(main_root, text="台帳検収日未記入", command=program_3, font=button_font, width=15)
-button4.pack(pady=10)
 
 main_root.update_idletasks()
 frame_width = main_root.winfo_reqwidth()
