@@ -16,8 +16,20 @@ sys.stdout.reconfigure(encoding='utf-8')
 outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
 
 # 獲取收件箱和指定文件夾
-inbox = outlook.GetDefaultFolder(6)  # 6 表示收件箱
-japan_folder = inbox.Folders["★日本➡分室_業務依頼"]
+inbox = outlook.GetDefaultFolder(6)  # 6 表示收件箱(受信トレイ)
+
+# 更安全的文件夾存取方法
+japan_folder = None
+folder_name = "■BILの業務依頼"  # 新的資料夾名稱
+
+try:
+    japan_folder = inbox.Folders[folder_name]
+except Exception as e:
+    print(f"無法訪問文件夾 '{folder_name}': {str(e)}")
+    print("可用的文件夾列表:")
+    for folder in inbox.Folders:
+        print(f" - {folder.Name}")
+    sys.exit(1)
 
 # 設置目標文件夾路徑
 target_folder = r"D:\業務依賴信件"
@@ -47,7 +59,12 @@ def get_filtered_messages(folder):
     return filtered
 
 # 獲取所有符合條件的郵件
-all_messages = get_filtered_messages(inbox) + get_filtered_messages(japan_folder)
+# 1. 從收件匣(受信トレイ)本身獲取郵件
+inbox_messages = get_filtered_messages(inbox)
+# 2. 從BIL的業務依頼資料夾獲取郵件
+japan_messages = get_filtered_messages(japan_folder)
+# 合併所有郵件
+all_messages = inbox_messages + japan_messages
 
 try:
     print("開始處理Excel文件...")
@@ -76,6 +93,10 @@ try:
     last_row = 1
 
     print("開始記錄郵件信息...")
+    print(f"從收件匣(受信トレイ)獲取的郵件數: {len(inbox_messages)}")
+    print(f"從{folder_name}資料夾獲取的郵件數: {len(japan_messages)}")
+    print(f"總共處理的郵件數: {len(all_messages)}")
+
     # 保存符合條件的郵件並記錄到Excel
     for message in all_messages:
         received_time = message.ReceivedTime.replace(tzinfo=None)
@@ -125,7 +146,7 @@ try:
     # 顯示完成消息
     root = tk.Tk()
     root.withdraw()  # 隱藏主窗口
-    messagebox.showinfo("完成", "信件資訊轉記成功")
+    messagebox.showinfo("完成", f"信件資訊轉記成功，共處理 {len(all_messages)} 封郵件")
 
     print("程序完成")
 
