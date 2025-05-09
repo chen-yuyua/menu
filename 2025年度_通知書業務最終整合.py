@@ -303,7 +303,7 @@ def program_1():
         else:
             root.destroy()
 
-    file_path = r"\\Apngo-peach\public\Dev_Share\【進捗】仕様新設進捗管理\2025仕様新設未発行図面.xlsx"
+    file_path = r"\\Apngo-peach\public\Dev_Share\【進捗】仕様新設進捗管理\2025仕様新設未発行図面【自動転記トライアルVer.】.xlsm"
     excel_data = read_excel_data(file_path)
 
     root = tk.Toplevel()
@@ -410,7 +410,7 @@ def program_2():
         else:
             root.destroy()
 
-    file_path = r"\\Apngo-peach\public\Dev_Share\【進捗】仕様新設進捗管理\2025仕様新設未発行図面.xlsx"
+    file_path = r"\\Apngo-peach\public\Dev_Share\【進捗】仕様新設進捗管理\2025仕様新設未発行図面【自動転記トライアルVer.】.xlsm"
     excel_data = read_excel_data(file_path)
 
     root = tk.Toplevel()
