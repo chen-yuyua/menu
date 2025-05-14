@@ -138,8 +138,14 @@ def run_program_1():
         static_info_frame = tk.Frame(canvas_frame, bg=MUJI_COLORS["bg"])
         static_info_frame.grid(row=0, column=0, columnspan=6, pady=10, sticky="nsew")
 
+        # 計算總件數
+        total_count = 0
+        for key, value in specific_cells.items():
+            if isinstance(value, (int, float)):
+                total_count += value
+
         static_info_text = [
-            ["■ボール業務件数：", "", ""],
+            ["■ボール業務件数：", "", "", "", f"總件數:{total_count}"],
             ["メカ1", "", "メカ2", "", "メカ∞"],
             [f"許映儂:{specific_cells['M1']}", "", f"陳雅瑄:{specific_cells['O3']}", "", f"陳俞源:{specific_cells['O1']}"],
             [f"葉羿廷:{specific_cells['M2']}", "", f"呉汶珊:{specific_cells['O2']}"],
@@ -159,6 +165,10 @@ def run_program_1():
                     label = tk.Label(static_info_frame, text=text,
                                     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_large"]),
                                     fg=MUJI_COLORS["accent"], bg=MUJI_COLORS["bg"])
+                elif text.startswith("總件數:"):
+                    label = tk.Label(static_info_frame, text=text,
+                                    font=(MUJI_FONT["family_alt"], MUJI_FONT["size_large"], "bold"),
+                                    fg=MUJI_COLORS["warning"], bg=MUJI_COLORS["bg"])
                 else:
                     label = tk.Label(static_info_frame, text=text,
                                     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_normal"]),
@@ -561,7 +571,7 @@ footer_frame.pack(fill="x")
 # 版權資訊
 copyright_label = tk.Label(
     footer_frame,
-    text="© 2025 分室業務関連 Ver 1.0\n作成者：陳兪源",
+    text="© 2025 分室業務関連 Ver 1.2\n作成者：陳兪源",
     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_small"]),
     fg=MUJI_COLORS["accent"],
     bg=MUJI_COLORS["bg"]
