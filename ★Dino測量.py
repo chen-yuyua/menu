@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Dino-Lite AM3111 Safe Chinese Version
+Dino-Lite AM3111 Safe Chinese Version with Barcode Scanning
+增強版 - 包含條碼掃描功能
 Avoid all encoding issues
 """
 
@@ -12,6 +13,9 @@ import math
 from datetime import datetime
 import os
 import sys
+import json
+import threading
+import queue
 
 # Force UTF-8 encoding for stdout
 if sys.platform == "win32":
@@ -27,11 +31,31 @@ except ImportError:
     PIL_AVAILABLE = False
     print("PIL not available")
 
+# Check barcode scanning libraries
+BARCODE_AVAILABLE = False
+BARCODE_LIBRARY = None
+
+# Try zxing-cpp first (recommended)
+try:
+    import zxingcpp
+    BARCODE_AVAILABLE = True
+    BARCODE_LIBRARY = "zxing-cpp"
+    print("zxing-cpp available (primary barcode library)")
+except ImportError:
+    try:
+        from pyzbar import pyzbar
+        BARCODE_AVAILABLE = True
+        BARCODE_LIBRARY = "pyzbar"
+        print("pyzbar available (fallback barcode library)")
+    except ImportError:
+        print("No barcode scanning library available")
+        print("Please install: pip install zxing-cpp or pip install pyzbar")
+
 class DinoLiteApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Dino-Lite AM3111 Measurement System")
-        self.root.geometry("1000x700")
+        self.root.title("Dino-Lite AM3111 Measurement System with Barcode Scanner")
+        self.root.geometry("1200x800")  # 增大視窗以容納新功能
 
         print("Initializing...")
 
@@ -59,20 +83,41 @@ class DinoLiteApp:
         self.display_scale = 1.0
         self.display_offset = (0, 0)
 
+        # Barcode scanning variables
+        self.barcode_scanning_enabled = False
+        self.current_barcode = None
+        self.barcode_history = []
+        self.barcode_scan_interval = 3  # 每3幀掃描一次條碼
+        self.frame_count = 0
+        self.last_barcode_time = 0
+        self.barcode_queue = queue.Queue()
+        self.barcode_processing = False
+
+        # Handheld scanner support variables
+        self.handheld_scanner_enabled = False
+        self.barcode_input_buffer = ""
+        self.last_input_time = 0
+        self.input_timeout = 100  # ms - 掃描器輸入超時時間
+        self.min_barcode_length = 3  # 最小條碼長度
+
+        # File saving variables
+        self.default_save_directory = os.getcwd()
+        self.selected_save_directory = self.default_save_directory
+
         print("Setup UI...")
         self.setup_ui()
         self.calculate_pixel_size()
         print("Init complete")
 
     def setup_ui(self):
-        """Setup UI with Chinese text"""
+        """Setup UI with Chinese text and barcode scanning controls"""
         try:
             # Main frame
             main_frame = ttk.Frame(self.root)
             main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-            # Left control panel
-            control_frame = ttk.LabelFrame(main_frame, text="控制面板", width=250)
+            # Left control panel (增大寬度以容納新控制項)
+            control_frame = ttk.LabelFrame(main_frame, text="控制面板", width=300)
             control_frame.pack(side="left", fill="y", padx=(0, 10))
             control_frame.pack_propagate(False)
 
@@ -103,6 +148,66 @@ class DinoLiteApp:
 
             self.camera_status = ttk.Label(camera_frame, text="攝影機未啟動", foreground="red")
             self.camera_status.pack(pady=5)
+
+            # Barcode scanning control frame
+            barcode_frame = ttk.LabelFrame(control_frame, text="條碼掃描功能")
+            barcode_frame.pack(fill="x", padx=5, pady=5)
+
+            if BARCODE_AVAILABLE:
+                # Barcode scanning toggle
+                self.barcode_var = tk.BooleanVar()
+                self.barcode_checkbox = ttk.Checkbutton(
+                    barcode_frame,
+                    text=f"啟用攝影機條碼掃描 ({BARCODE_LIBRARY})",
+                    variable=self.barcode_var,
+                    command=self.toggle_barcode_scanning
+                )
+                self.barcode_checkbox.pack(pady=2, fill="x")
+
+                # Handheld scanner toggle
+                self.handheld_var = tk.BooleanVar()
+                self.handheld_checkbox = ttk.Checkbutton(
+                    barcode_frame,
+                    text="啟用手持掃描器輸入",
+                    variable=self.handheld_var,
+                    command=self.toggle_handheld_scanner
+                )
+                self.handheld_checkbox.pack(pady=2, fill="x")
+
+                # Scanner status display
+                self.scanner_status = ttk.Label(barcode_frame, text="掃描器狀態: 待機",
+                                              foreground="gray", font=("Arial", 8))
+                self.scanner_status.pack(pady=2, fill="x")
+
+                # Current barcode display
+                ttk.Label(barcode_frame, text="目前掃描到的條碼:").pack(pady=(5,2))
+                self.barcode_display = ttk.Label(barcode_frame, text="無", foreground="blue",
+                                               font=("Arial", 10, "bold"))
+                self.barcode_display.pack(pady=2, fill="x")
+
+                # Barcode history
+                ttk.Label(barcode_frame, text="條碼歷史記錄:").pack(pady=(5,2))
+                self.barcode_listbox = tk.Listbox(barcode_frame, height=4, font=("Arial", 9))
+                barcode_scroll = ttk.Scrollbar(barcode_frame, orient="vertical")
+                self.barcode_listbox.config(yscrollcommand=barcode_scroll.set)
+                barcode_scroll.config(command=self.barcode_listbox.yview)
+
+                barcode_list_frame = ttk.Frame(barcode_frame)
+                barcode_list_frame.pack(fill="x", pady=2)
+                self.barcode_listbox.pack(side="left", fill="both", expand=True)
+                barcode_scroll.pack(side="right", fill="y")
+
+                # Clear barcode history button
+                self.clear_barcode_btn = ttk.Button(barcode_frame, text="清除條碼歷史",
+                                                   command=self.clear_barcode_history)
+                self.clear_barcode_btn.pack(pady=2, fill="x")
+
+            else:
+                no_barcode_label = ttk.Label(barcode_frame, text="條碼掃描功能不可用", foreground="red")
+                no_barcode_label.pack(pady=5)
+                install_label = ttk.Label(barcode_frame, text="請安裝: pip install zxing-cpp",
+                                        font=("Arial", 8))
+                install_label.pack(pady=2)
 
             # AM3111 settings
             settings_frame = ttk.LabelFrame(control_frame, text="AM3111 設定")
@@ -185,6 +290,28 @@ class DinoLiteApp:
             self.accuracy_btn = ttk.Button(verify_frame, text="精度指南", command=self.show_accuracy_guide)
             self.accuracy_btn.pack(pady=2, fill="x")
 
+            # File operations (修改為包含路徑選擇)
+            file_frame = ttk.LabelFrame(control_frame, text="檔案操作")
+            file_frame.pack(fill="x", padx=5, pady=5)
+
+            # Save directory selection
+            self.save_dir_btn = ttk.Button(file_frame, text="選擇保存位置", command=self.select_save_directory)
+            self.save_dir_btn.pack(pady=2, fill="x")
+
+            self.save_dir_label = ttk.Label(file_frame, text=f"目前路徑: {self.selected_save_directory[:30]}...",
+                                          font=("Arial", 8))
+            self.save_dir_label.pack(pady=2, fill="x")
+
+            # Save buttons
+            save_buttons_frame = ttk.Frame(file_frame)
+            save_buttons_frame.pack(fill="x", pady=2)
+
+            self.save_btn = ttk.Button(save_buttons_frame, text="儲存影像", command=self.save_image, width=12)
+            self.save_btn.pack(side="left", padx=2)
+
+            self.export_btn = ttk.Button(save_buttons_frame, text="匯出結果", command=self.export_results, width=12)
+            self.export_btn.pack(side="right", padx=2)
+
             # Results display
             results_frame = ttk.LabelFrame(control_frame, text="測量結果")
             results_frame.pack(fill="both", expand=True, padx=5, pady=5)
@@ -195,16 +322,6 @@ class DinoLiteApp:
 
             self.results_text.pack(side="left", fill="both", expand=True)
             scrollbar.pack(side="right", fill="y")
-
-            # File operations
-            file_frame = ttk.Frame(control_frame)
-            file_frame.pack(fill="x", padx=5, pady=5)
-
-            self.save_btn = ttk.Button(file_frame, text="儲存影像", command=self.save_image, width=12)
-            self.save_btn.pack(side="left", padx=2)
-
-            self.export_btn = ttk.Button(file_frame, text="匯出結果", command=self.export_results, width=12)
-            self.export_btn.pack(side="right", padx=2)
 
             # Right side image display
             self.image_frame = ttk.LabelFrame(main_frame, text="影像顯示")
@@ -233,6 +350,10 @@ class DinoLiteApp:
             self.crosshair_x = 0
             self.crosshair_y = 0
 
+            # Bind keyboard events for handheld scanner
+            self.root.bind('<KeyPress>', self.on_key_press)
+            self.root.focus_set()  # 確保窗口能接收鍵盤事件
+
             # Status bar
             self.status_bar = ttk.Label(self.root, text="準備就緒")
             self.status_bar.pack(side="bottom", fill="x")
@@ -245,6 +366,227 @@ class DinoLiteApp:
                 messagebox.showerror("Error", "UI setup failed")
             except:
                 print("Cannot show error message")
+
+    def toggle_barcode_scanning(self):
+        """切換攝影機條碼掃描功能"""
+        self.barcode_scanning_enabled = self.barcode_var.get()
+        if self.barcode_scanning_enabled:
+            self.log_message("攝影機條碼掃描功能已啟用")
+            self.update_scanner_status()
+        else:
+            self.log_message("攝影機條碼掃描功能已停用")
+            self.update_scanner_status()
+
+    def toggle_handheld_scanner(self):
+        """切換手持掃描器功能"""
+        self.handheld_scanner_enabled = self.handheld_var.get()
+        if self.handheld_scanner_enabled:
+            self.log_message("手持掃描器輸入已啟用")
+            self.log_message("請將游標焦點保持在主視窗上以接收掃描器輸入")
+        else:
+            self.log_message("手持掃描器輸入已停用")
+        self.update_scanner_status()
+
+    def update_scanner_status(self):
+        """更新掃描器狀態顯示"""
+        try:
+            status_parts = []
+            if self.barcode_scanning_enabled:
+                status_parts.append("攝影機掃描")
+            if self.handheld_scanner_enabled:
+                status_parts.append("手持掃描器")
+
+            if status_parts:
+                status_text = f"掃描器狀態: {' + '.join(status_parts)} 啟用"
+                color = "green"
+            else:
+                status_text = "掃描器狀態: 待機"
+                color = "gray"
+
+            self.scanner_status.config(text=status_text, foreground=color)
+
+            # 更新主狀態列
+            if not hasattr(self, 'current_barcode') or not self.current_barcode:
+                self.status_bar.config(text=status_text)
+
+        except Exception as e:
+            print(f"Update scanner status error: {str(e)}")
+
+    def on_key_press(self, event):
+        """處理鍵盤輸入（手持掃描器）"""
+        if not self.handheld_scanner_enabled:
+            return
+
+        try:
+            current_time = datetime.now().timestamp() * 1000  # 轉換為毫秒
+
+            # 檢查輸入超時（如果間隔太長，清空緩衝區）
+            if current_time - self.last_input_time > self.input_timeout:
+                self.barcode_input_buffer = ""
+
+            self.last_input_time = current_time
+
+            # 處理 Enter 鍵（掃描器通常在最後發送 Enter）
+            if event.keysym == 'Return' or event.keysym == 'KP_Enter':
+                if len(self.barcode_input_buffer) >= self.min_barcode_length:
+                    # 處理掃描到的條碼
+                    barcode_data = {
+                        'text': self.barcode_input_buffer.strip(),
+                        'format': 'HANDHELD_SCANNER',
+                        'source': 'handheld'
+                    }
+                    self.process_barcode_result(barcode_data)
+                    self.log_message(f"手持掃描器輸入: {self.barcode_input_buffer.strip()}")
+
+                # 清空緩衝區
+                self.barcode_input_buffer = ""
+                return
+
+            # 處理一般字符輸入
+            if len(event.char) == 1 and event.char.isprintable():
+                self.barcode_input_buffer += event.char
+
+                # 限制緩衝區長度避免記憶體問題
+                if len(self.barcode_input_buffer) > 100:
+                    self.barcode_input_buffer = self.barcode_input_buffer[-50:]
+
+        except Exception as e:
+            print(f"Key press handling error: {str(e)}")
+
+    def process_barcode_result(self, barcode_data):
+        """統一處理條碼掃描結果（攝影機和手持掃描器）"""
+        if barcode_data and barcode_data['text']:
+            current_time = datetime.now()
+
+            # 避免重複掃描同一條碼（2秒內）
+            if (self.current_barcode != barcode_data['text'] or
+                (current_time.timestamp() - self.last_barcode_time) > 2):
+
+                self.current_barcode = barcode_data['text']
+                self.last_barcode_time = current_time.timestamp()
+
+                # 更新顯示
+                display_text = barcode_data['text']
+                if len(display_text) > 30:  # 限制顯示長度
+                    display_text = display_text[:27] + "..."
+                self.barcode_display.config(text=display_text)
+
+                # 添加到歷史記錄
+                timestamp = current_time.strftime("%H:%M:%S")
+                source_icon = "📷" if barcode_data.get('source') != 'handheld' else "🔫"
+                history_entry = f"[{timestamp}] {source_icon} {barcode_data['format']}: {barcode_data['text']}"
+
+                # 避免重複條目
+                if not any(barcode_data['text'] in entry for entry in self.barcode_history[-3:]):
+                    self.barcode_history.append(history_entry)
+                    self.barcode_listbox.insert(tk.END, history_entry)
+                    self.barcode_listbox.see(tk.END)
+
+                    # 限制歷史記錄數量
+                    if len(self.barcode_history) > 50:
+                        self.barcode_history.pop(0)
+                        self.barcode_listbox.delete(0)
+
+                # 更新狀態列顯示條碼資訊
+                status_text = f"條碼: {barcode_data['text'][:20]}{'...' if len(barcode_data['text']) > 20 else ''}"
+                self.status_bar.config(text=status_text)
+
+    def scan_barcode(self, frame):
+        """掃描條碼"""
+        if not BARCODE_AVAILABLE or not self.barcode_scanning_enabled:
+            return None
+
+        try:
+            # 將圖像轉換為灰階以提高掃描準確度
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # 使用可用的條碼掃描庫
+            if BARCODE_LIBRARY == "zxing-cpp":
+                results = zxingcpp.read_barcodes(gray)
+                if results:
+                    # 取第一個掃描結果
+                    result = results[0]
+                    barcode_data = {
+                        'text': result.text,
+                        'format': result.format.name,
+                        'position': {
+                            'top_left': (result.position.top_left.x, result.position.top_left.y),
+                            'top_right': (result.position.top_right.x, result.position.top_right.y),
+                            'bottom_left': (result.position.bottom_left.x, result.position.bottom_left.y),
+                            'bottom_right': (result.position.bottom_right.x, result.position.bottom_right.y)
+                        }
+                    }
+                    return barcode_data
+
+            elif BARCODE_LIBRARY == "pyzbar":
+                results = pyzbar.decode(gray)
+                if results:
+                    # 取第一個掃描結果
+                    result = results[0]
+                    # 轉換多邊形座標
+                    polygon = result.polygon
+                    barcode_data = {
+                        'text': result.data.decode('utf-8'),
+                        'format': result.type,
+                        'position': {
+                            'polygon': [(point.x, point.y) for point in polygon]
+                        }
+                    }
+                    return barcode_data
+
+        except Exception as e:
+            print(f"條碼掃描錯誤: {str(e)}")
+
+        return None
+
+    def clear_barcode_history(self):
+        """清除條碼歷史記錄"""
+        self.barcode_history.clear()
+        self.barcode_listbox.delete(0, tk.END)
+        self.current_barcode = None
+        self.barcode_display.config(text="無")
+        self.log_message("條碼歷史記錄已清除")
+
+    def select_save_directory(self):
+        """選擇保存目錄"""
+        directory = filedialog.askdirectory(
+            title="選擇照片保存位置",
+            initialdir=self.selected_save_directory
+        )
+        if directory:
+            self.selected_save_directory = directory
+            # 截斷顯示路徑
+            display_path = directory if len(directory) <= 40 else directory[:37] + "..."
+            self.save_dir_label.config(text=f"目前路徑: {display_path}")
+            self.log_message(f"保存路徑已設定: {directory}")
+
+    def draw_barcode_overlay(self, frame):
+        """在影像上繪製條碼掃描覆蓋層"""
+        if not self.barcode_scanning_enabled or not self.current_barcode:
+            return
+
+        try:
+            # 在左上角繪製條碼資訊
+            text = f"Barcode: {self.current_barcode}"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.6
+            thickness = 2
+
+            # 計算文字尺寸
+            text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+            text_width, text_height = text_size
+
+            # 繪製白色背景
+            cv2.rectangle(frame, (10, 10), (20 + text_width, 20 + text_height), (255, 255, 255), -1)
+
+            # 繪製黑色邊框
+            cv2.rectangle(frame, (10, 10), (20 + text_width, 20 + text_height), (0, 0, 0), 1)
+
+            # 繪製黑色文字
+            cv2.putText(frame, text, (15, 15 + text_height), font, font_scale, (0, 0, 0), thickness)
+
+        except Exception as e:
+            print(f"繪製條碼覆蓋層錯誤: {str(e)}")
 
     def calculate_pixel_size(self):
         """Calculate pixel size"""
@@ -570,7 +912,7 @@ class DinoLiteApp:
             print(f"LED adjustment error: {str(e)}")
 
     def update_frame(self):
-        """Update frame"""
+        """Update frame with barcode scanning"""
         if self.is_running and self.cap and self.cap.isOpened():
             try:
                 ret, frame = self.cap.read()
@@ -578,8 +920,21 @@ class DinoLiteApp:
                     self.current_frame = frame.copy()
                     self.display_frame = frame.copy()
 
+                    # 條碼掃描 (每N幀掃描一次以提高性能)
+                    if BARCODE_AVAILABLE and self.barcode_scanning_enabled:
+                        self.frame_count += 1
+                        if self.frame_count % self.barcode_scan_interval == 0:
+                            barcode_result = self.scan_barcode(frame)
+                            if barcode_result:
+                                # 添加來源標識
+                                barcode_result['source'] = 'camera'
+                                self.process_barcode_result(barcode_result)
+
                     # Draw measurement marks
                     self.draw_measurements()
+
+                    # Draw barcode overlay
+                    self.draw_barcode_overlay(self.display_frame)
 
                     # Show image
                     self.show_frame()
@@ -1508,15 +1863,16 @@ Assessment: {assessment}"""
             # 修正為中文顯示
             counter_text = f"Record Size Count: {len(self.measurement_results)}/{self.max_measurements}"
 
-            # 在左上角顯示計數器
-            cv2.rectangle(self.display_frame, (10, 10), (280, 40), (0, 0, 0), -1)
-            cv2.putText(self.display_frame, counter_text, (15, 30),
+            # 在左上角顯示計數器（預留條碼顯示空間）
+            y_offset = 60 if self.current_barcode else 10  # 如果有條碼則往下移
+            cv2.rectangle(self.display_frame, (10, y_offset), (280, y_offset + 30), (0, 0, 0), -1)
+            cv2.putText(self.display_frame, counter_text, (15, y_offset + 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
             # 如果接近上限，顯示警告
             if len(self.measurement_results) >= self.max_measurements - 1:
                 warning_text = "Next measurement will clear all data"
-                cv2.putText(self.display_frame, warning_text, (15, 55),
+                cv2.putText(self.display_frame, warning_text, (15, y_offset + 45),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
         except Exception as e:
@@ -1555,55 +1911,220 @@ Assessment: {assessment}"""
             print(f"Clear measurements error: {str(e)}")
 
     def capture_image(self):
-        """Capture image"""
+        """Capture image with barcode information and success notification"""
         try:
             if self.current_frame is not None:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                # 建立完整的檔案路徑
                 filename = f"dinolite_capture_{timestamp}.jpg"
-                cv2.imwrite(filename, self.display_frame)
+                full_path = os.path.join(self.selected_save_directory, filename)
+
+                # 保存帶有條碼資訊的影像
+                cv2.imwrite(full_path, self.display_frame)
+
+                # 如果有條碼資訊，同時保存 JSON 後設資料
+                metadata_saved = False
+                if self.current_barcode:
+                    metadata = {
+                        "timestamp": timestamp,
+                        "barcode": self.current_barcode,
+                        "barcode_history": self.barcode_history,
+                        "image_file": filename,
+                        "measurement_data": self.measurement_results,
+                        "calibration_status": "calibrated" if self.is_calibrated else "not_calibrated",
+                        "magnification": self.current_magnification,
+                        "scanner_enabled": {
+                            "camera": self.barcode_scanning_enabled,
+                            "handheld": self.handheld_scanner_enabled
+                        }
+                    }
+
+                    metadata_filename = f"dinolite_metadata_{timestamp}.json"
+                    metadata_path = os.path.join(self.selected_save_directory, metadata_filename)
+
+                    try:
+                        with open(metadata_path, 'w', encoding='utf-8') as f:
+                            json.dump(metadata, f, indent=2, ensure_ascii=False)
+                        metadata_saved = True
+                    except Exception as e:
+                        print(f"Metadata save error: {str(e)}")
+
+                # 顯示拍照成功通知
+                success_message = f"拍照成功！\n\n檔案名稱: {filename}\n保存位置: {self.selected_save_directory}"
+                if self.current_barcode:
+                    success_message += f"\n條碼資訊: {self.current_barcode}"
+                if metadata_saved:
+                    success_message += "\n✓ 已同時保存後設資料"
+
+                messagebox.showinfo("拍照成功", success_message)
+
                 self.status_bar.config(text=f"影像已儲存: {filename}")
+                self.log_message(f"影像已儲存: {filename}")
+
         except Exception as e:
             print(f"Capture image error: {str(e)}")
+            error_message = f"拍照失敗！\n\n錯誤訊息: {str(e)}"
+            messagebox.showerror("拍照失敗", error_message)
+            self.log_message(f"儲存影像失敗: {str(e)}")
 
     def save_image(self):
-        """Save image"""
+        """Save image with directory selection, barcode information and success notification"""
         try:
             if self.current_frame is not None:
+                # 建議檔名包含時間戳記
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                default_filename = f"dinolite_capture_{timestamp}.jpg"
+
                 filename = filedialog.asksaveasfilename(
+                    title="儲存影像",
+                    initialdir=self.selected_save_directory,
+                    initialfile=default_filename,
                     defaultextension=".jpg",
                     filetypes=[("JPEG files", "*.jpg"), ("PNG files", "*.png"), ("All files", "*.*")]
                 )
+
                 if filename:
+                    # 保存影像
                     cv2.imwrite(filename, self.display_frame)
-                    self.log_message(f"影像已儲存: {filename}")
+
+                    metadata_saved = False
+                    # 如果有條碼資訊，詢問是否同時保存後設資料
+                    if self.current_barcode:
+                        save_metadata = messagebox.askyesno(
+                            "保存後設資料",
+                            "是否要同時保存條碼和測量資料為 JSON 檔案？"
+                        )
+
+                        if save_metadata:
+                            metadata = {
+                                "timestamp": timestamp,
+                                "barcode": self.current_barcode,
+                                "barcode_history": self.barcode_history,
+                                "image_file": os.path.basename(filename),
+                                "measurement_data": self.measurement_results,
+                                "calibration_status": "calibrated" if self.is_calibrated else "not_calibrated",
+                                "magnification": self.current_magnification,
+                                "pixel_size_um": self.pixel_size_um,
+                                "scanner_enabled": {
+                                    "camera": self.barcode_scanning_enabled,
+                                    "handheld": self.handheld_scanner_enabled
+                                }
+                            }
+
+                            # 建立 JSON 檔案路徑（與影像同名）
+                            base_filename = os.path.splitext(filename)[0]
+                            json_filename = f"{base_filename}_metadata.json"
+
+                            try:
+                                with open(json_filename, 'w', encoding='utf-8') as f:
+                                    json.dump(metadata, f, indent=2, ensure_ascii=False)
+                                metadata_saved = True
+                            except Exception as e:
+                                print(f"Metadata save error: {str(e)}")
+
+                    # 顯示儲存成功通知
+                    success_message = f"影像儲存成功！\n\n檔案位置: {filename}"
+                    if self.current_barcode:
+                        success_message += f"\n條碼資訊: {self.current_barcode}"
+                    if metadata_saved:
+                        success_message += "\n✓ 已同時保存後設資料檔案"
+                    elif self.current_barcode:
+                        success_message += "\n✗ 未保存後設資料檔案"
+
+                    messagebox.showinfo("儲存成功", success_message)
+
+                    if metadata_saved:
+                        self.log_message(f"影像和後設資料已儲存: {os.path.basename(filename)}")
+                    else:
+                        self.log_message(f"影像已儲存: {os.path.basename(filename)}")
+
         except Exception as e:
             print(f"Save image error: {str(e)}")
+            error_message = f"影像儲存失敗！\n\n錯誤訊息: {str(e)}"
+            messagebox.showerror("儲存失敗", error_message)
+            self.log_message(f"儲存影像失敗: {str(e)}")
 
     def export_results(self):
-        """Export results"""
+        """Export results with barcode information"""
         try:
             filename = filedialog.asksaveasfilename(
+                title="匯出測量結果",
+                initialdir=self.selected_save_directory,
                 defaultextension=".txt",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+                filetypes=[
+                    ("Text files", "*.txt"),
+                    ("JSON files", "*.json"),
+                    ("All files", "*.*")
+                ]
             )
             if filename:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write("Dino-Lite AM3111 測量結果\n")
-                    f.write("=" * 40 + "\n")
-                    f.write(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write("設備型號: AM3111\n")
-                    f.write(f"倍率: {int(self.current_magnification)}x\n")
-                    cal_status = "已校準" if self.is_calibrated else "未校準"
-                    f.write(f"校準狀態: {cal_status}\n")
+                file_extension = os.path.splitext(filename)[1].lower()
+
+                if file_extension == '.json':
+                    # JSON 格式匯出
+                    export_data = {
+                        "export_info": {
+                            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            "device_model": "AM3111",
+                            "magnification": int(self.current_magnification),
+                            "calibration_status": "已校準" if self.is_calibrated else "未校準",
+                            "pixel_size_um": self.pixel_size_um
+                        },
+                        "barcode_data": {
+                            "current_barcode": self.current_barcode,
+                            "barcode_history": self.barcode_history,
+                            "scanning_enabled": self.barcode_scanning_enabled
+                        },
+                        "measurement_results": self.measurement_results,
+                        "raw_results_text": self.results_text.get(1.0, tk.END)
+                    }
+
                     if self.is_calibrated:
-                        f.write(f"比例因子: {self.scale_factor:.6f} mm/pixel\n")
-                    f.write(f"像素尺寸: {self.pixel_size_um:.3f} μm\n")
-                    f.write("\n測量結果:\n")
-                    f.write("-" * 30 + "\n")
-                    f.write(self.results_text.get(1.0, tk.END))
-                self.log_message(f"結果已匯出: {filename}")
+                        export_data["export_info"]["scale_factor"] = self.scale_factor
+
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+                else:
+                    # 文字格式匯出
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        f.write("Dino-Lite AM3111 測量結果報告\n")
+                        f.write("=" * 50 + "\n")
+                        f.write(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write("設備型號: AM3111\n")
+                        f.write(f"倍率: {int(self.current_magnification)}x\n")
+                        cal_status = "已校準" if self.is_calibrated else "未校準"
+                        f.write(f"校準狀態: {cal_status}\n")
+                        if self.is_calibrated:
+                            f.write(f"比例因子: {self.scale_factor:.6f} mm/pixel\n")
+                        f.write(f"像素尺寸: {self.pixel_size_um:.3f} μm\n")
+
+                        # 條碼資訊
+                        f.write("\n條碼掃描資訊:\n")
+                        f.write("-" * 30 + "\n")
+                        if BARCODE_AVAILABLE:
+                            f.write(f"掃描功能: 可用 ({BARCODE_LIBRARY})\n")
+                            f.write(f"掃描狀態: {'啟用' if self.barcode_scanning_enabled else '停用'}\n")
+                            f.write(f"目前條碼: {self.current_barcode if self.current_barcode else '無'}\n")
+                            f.write(f"歷史記錄數量: {len(self.barcode_history)}\n")
+
+                            if self.barcode_history:
+                                f.write("\n條碼掃描歷史:\n")
+                                for entry in self.barcode_history:
+                                    f.write(f"  {entry}\n")
+                        else:
+                            f.write("掃描功能: 不可用\n")
+
+                        f.write("\n測量結果:\n")
+                        f.write("-" * 30 + "\n")
+                        f.write(self.results_text.get(1.0, tk.END))
+
+                self.log_message(f"結果已匯出: {os.path.basename(filename)}")
+
         except Exception as e:
             print(f"Export results error: {str(e)}")
+            self.log_message(f"匯出結果失敗: {str(e)}")
 
     def add_result(self, result):
         """Add result"""
@@ -1638,7 +2159,7 @@ Assessment: {assessment}"""
 def main():
     """Main function"""
     try:
-        print("Starting application...")
+        print("Starting enhanced Dino-Lite application with barcode scanning...")
 
         # Create root window
         root = tk.Tk()
@@ -1658,9 +2179,32 @@ def main():
 
         # Show welcome message (safe version)
         try:
-            welcome_text = """Dino-Lite AM3111 測量系統
+            welcome_text = """Dino-Lite AM3111 增強版測量系統
 
-功能特色:
+新增功能:
+• 即時條碼掃描功能 (攝影機)
+• 手持掃描器支援
+• 條碼歷史記錄與來源識別
+• 拍照成功通知視窗
+• 自訂照片保存位置
+• 條碼資訊嵌入照片
+• JSON 格式資料匯出
+
+條碼掃描功能:
+• 攝影機掃描: 支援多種條碼格式 (QR碼、Code128、Code39等)
+• 手持掃描器: 支援任何USB/藍牙掃描器
+• 即時顯示掃描結果 (左上角白底黑字)
+• 自動避免重複掃描
+• 條碼資訊保存到照片
+
+使用說明:
+• 攝影機掃描: 勾選「啟用攝影機條碼掃描」
+• 手持掃描器: 勾選「啟用手持掃描器輸入」
+• 使用手持掃描器時請保持視窗焦點
+• 拍照成功後會顯示確認通知
+• 📷 表示攝影機掃描，🔫 表示手持掃描器
+
+原有功能特色:
 • 攝影機控制與影像顯示
 • 距離和角度測量
 • 精確校準系統
@@ -1671,26 +2215,16 @@ def main():
 
 使用步驟:
 1. 點擊「開啟攝影機」
-2. 調整適當倍率 (建議50x-100x)
-3. 調整LED亮度獲得最佳照明
-4. 進行校準 (建議使用1mm標準距離)
-5. 選擇測量工具
-6. 在影像上點擊進行測量
+2. 啟用條碼掃描功能（可選）
+3. 調整適當倍率 (建議50x-100x)
+4. 調整LED亮度獲得最佳照明
+5. 進行校準 (建議使用1mm標準距離)
+6. 選擇測量工具
+7. 在影像上點擊進行測量
 
-測量技巧:
-• 校準後測量精度更高
-• 選擇清晰的測量點
-• 適當的照明很重要
-• 可進行重複性測試驗證精度
+開始您的精密測量和條碼掃描！"""
 
-AM3111 規格:
-• 倍率範圍: 20x-200x
-• 最佳測量倍率: 50x-100x
-• 內建LED照明
-
-開始您的精密測量！"""
-
-            messagebox.showinfo("Dino-Lite AM3111", welcome_text)
+            messagebox.showinfo("Dino-Lite AM3111 增強版", welcome_text)
         except Exception as e:
             print(f"Welcome message error: {str(e)}")
 
@@ -1706,6 +2240,35 @@ AM3111 規格:
             print("Cannot show error dialog")
 
 if __name__ == "__main__":
-    print("=== Dino-Lite AM3111 Measurement System ===")
+    print("=== Dino-Lite AM3111 Enhanced Measurement System with Barcode Scanning ===")
+
+    # 顯示系統資訊
+    print(f"Python 版本: {sys.version}")
+    print(f"OpenCV 可用: {cv2.__version__ if 'cv2' in globals() else 'Not available'}")
+    print(f"PIL 可用: {PIL_AVAILABLE}")
+    print(f"條碼掃描可用: {BARCODE_AVAILABLE}")
+    if BARCODE_AVAILABLE:
+        print(f"條碼掃描庫: {BARCODE_LIBRARY}")
+
+    # 檢查必要套件並提供安裝指導
+    missing_packages = []
+
+    if not PIL_AVAILABLE:
+        missing_packages.append("pillow")
+
+    if not BARCODE_AVAILABLE:
+        missing_packages.append("zxing-cpp (或 pyzbar)")
+
+    if missing_packages:
+        print("\n建議安裝以下套件以獲得完整功能:")
+        for package in missing_packages:
+            if package == "zxing-cpp (或 pyzbar)":
+                print("  pip install zxing-cpp")
+                print("  或者:")
+                print("  pip install pyzbar")
+            else:
+                print(f"  pip install {package}")
+        print()
+
     main()
     print("Program ended")
