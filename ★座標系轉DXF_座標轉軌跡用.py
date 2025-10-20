@@ -21,9 +21,9 @@ class JapaneseStyleDXFConverter:
     def __init__(self, root):
         self.root = root
         self.root.title("座標系ファイル(.txt/.csv)➜軌跡図転換(.dxfコンバーター)")
-        self.root.geometry("800x650")
+        self.root.geometry("900x700")  # 稍微增加寬度和高度
         self.root.resizable(True, True)
-        self.root.minsize(750, 600)
+        self.root.minsize(850, 650)  # 調整最小尺寸
 
         # 日系配色テーマ（図2から）
         self.colors = {
@@ -52,7 +52,11 @@ class JapaneseStyleDXFConverter:
         self.input_file_path = tk.StringVar()
         self.output_file_path = tk.StringVar()
 
-        # 単位オプション
+        # 新增：起始角度和圓心距離變數
+        self.start_angle = tk.DoubleVar(value=0.00)  # 起始角度，預設0.00度
+        self.center_distance = tk.DoubleVar(value=0.0000)  # 圓心距離，預設0.0000
+
+        # 單位オプション
         self.unit_options = {
             "ミリメートル (mm)": 4,
             "センチメートル (cm)": 5,
@@ -222,6 +226,7 @@ class JapaneseStyleDXFConverter:
 
         # 左側：入力設定
         self.create_input_section(left_column)
+        self.create_cam_parameters_section(left_column)  # 新增：凸輪參數設定
         self.create_output_section(left_column)
         self.create_button_section(left_column)
 
@@ -298,7 +303,7 @@ class JapaneseStyleDXFConverter:
 
         # ファイル形式説明
         info_frame = tk.Frame(input_card, bg=self.colors['bg_card'])
-        info_frame.pack(fill=tk.X, padx=25, pady=(0, 20))
+        info_frame.pack(fill=tk.X, padx=25, pady=(0, 15))
 
         tk.Label(info_frame,
                 text="📝 対応形式: TXT, CSV | 📐 データ形式: x,y (カンマ区切り)",
@@ -313,6 +318,181 @@ class JapaneseStyleDXFConverter:
                                       fg=self.colors['text_secondary'],
                                       bg=self.colors['bg_card'])
         self.analysis_label.pack(padx=25, pady=(0, 20))
+
+    def create_cam_parameters_section(self, parent):
+        """新增：凸輪參數設定セクションを作成"""
+        cam_card = self.create_rounded_frame(parent)
+        cam_card.pack(fill=tk.X, pady=(0, 20))
+
+        # セクションタイトル
+        title_frame = tk.Frame(cam_card, bg=self.colors['bg_card'])
+        title_frame.pack(fill=tk.X, padx=25, pady=(20, 15))
+
+        tk.Label(title_frame,
+                text="🔧 凸輪參數設定",
+                font=('BIZ UDPゴシック', 14, 'bold'),
+                fg=self.colors['text_primary'],
+                bg=self.colors['bg_card']).pack(anchor=tk.W)
+
+        # 參數輸入區域
+        params_frame = tk.Frame(cam_card, bg=self.colors['bg_card'])
+        params_frame.pack(fill=tk.X, padx=25, pady=(0, 20))
+        params_frame.columnconfigure(0, weight=1)
+        params_frame.columnconfigure(1, weight=1)
+
+        # 起始角度設定
+        angle_frame = tk.Frame(params_frame, bg=self.colors['bg_card'])
+        angle_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+
+        tk.Label(angle_frame,
+                text="起始角度 (度):",
+                font=('BIZ UDPゴシック', 11, 'bold'),
+                fg=self.colors['text_primary'],
+                bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(0, 8))
+
+        # 起始角度輸入框，支援小數點第二位
+        angle_var = tk.StringVar()
+        angle_var.trace('w', lambda *args: self.validate_angle_input(angle_var))
+        self.angle_entry = tk.Entry(angle_frame,
+                                   textvariable=angle_var,
+                                   width=12,
+                                   font=('BIZ UDPゴシック', 10),
+                                   bg='white',
+                                   relief='solid',
+                                   bd=2,
+                                   highlightthickness=1,
+                                   highlightcolor=self.colors['border_focus'],
+                                   highlightbackground=self.colors['border'])
+        self.angle_entry.pack(anchor=tk.W)
+        self.angle_var = angle_var
+
+        # 說明文字
+        tk.Label(angle_frame,
+                text="(例: 0.00, 15.75, 90.25)",
+                font=('BIZ UDPゴシック', 8),
+                fg=self.colors['text_light'],
+                bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(2, 0))
+
+        # 圓心距離設定
+        distance_frame = tk.Frame(params_frame, bg=self.colors['bg_card'])
+        distance_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(10, 0))
+
+        tk.Label(distance_frame,
+                text="圓心距離:",
+                font=('BIZ UDPゴシック', 11, 'bold'),
+                fg=self.colors['text_primary'],
+                bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(0, 8))
+
+        # 圓心距離輸入框，支援小數點第四位
+        distance_var = tk.StringVar()
+        distance_var.trace('w', lambda *args: self.validate_distance_input(distance_var))
+        self.distance_entry = tk.Entry(distance_frame,
+                                      textvariable=distance_var,
+                                      width=15,
+                                      font=('BIZ UDPゴシック', 10),
+                                      bg='white',
+                                      relief='solid',
+                                      bd=2,
+                                      highlightthickness=1,
+                                      highlightcolor=self.colors['border_focus'],
+                                      highlightbackground=self.colors['border'])
+        self.distance_entry.pack(anchor=tk.W)
+        self.distance_var = distance_var
+
+        # 說明文字
+        tk.Label(distance_frame,
+                text="(例: 0.0000, 25.1234)",
+                font=('BIZ UDPゴシック', 8),
+                fg=self.colors['text_light'],
+                bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(2, 0))
+
+        # 使用提示
+        tip_frame = tk.Frame(cam_card, bg=self.colors['bg_card'])
+        tip_frame.pack(fill=tk.X, padx=25, pady=(10, 20))
+
+        tip_label = tk.Label(tip_frame,
+                            text="💡 起始角度：第一個座標點對應的角度位置｜圓心距離：第一個座標到凸輪轉動圓心的距離",
+                            font=('BIZ UDPゴシック', 9),
+                            fg=self.colors['text_light'],
+                            bg=self.colors['bg_card'],
+                            wraplength=350,
+                            justify=tk.LEFT)
+        tip_label.pack(anchor=tk.W)
+
+    def validate_angle_input(self, angle_var):
+        """驗證起始角度輸入（支援小數點第二位）"""
+        try:
+            value = angle_var.get()
+            if value == "" or value == ".":
+                return
+
+            # 允許負號
+            if value.startswith('-'):
+                if len(value) == 1:
+                    return
+                value = value[1:]
+
+            # 檢查是否為有效數字格式
+            if '.' in value:
+                parts = value.split('.')
+                if len(parts) > 2:
+                    # 多於一個小數點，截取到第一個小數點
+                    corrected = parts[0] + '.' + ''.join(parts[1:])
+                    angle_var.set(('-' if angle_var.get().startswith('-') else '') + corrected[:corrected.find('.') + 3])
+                    return
+                if len(parts[1]) > 2:
+                    # 小數點後超過2位，截取到2位
+                    angle_var.set(('-' if angle_var.get().startswith('-') else '') + parts[0] + '.' + parts[1][:2])
+                    return
+
+            # 轉換為浮點數驗證
+            float(angle_var.get())
+        except ValueError:
+            # 移除無效字符
+            current = angle_var.get()
+            valid_chars = "0123456789.-"
+            filtered = ''.join(c for c in current if c in valid_chars)
+            if filtered != current:
+                angle_var.set(filtered)
+
+    def validate_distance_input(self, distance_var):
+        """驗證圓心距離輸入（支援小數點第四位）"""
+        try:
+            value = distance_var.get()
+            if value == "" or value == ".":
+                return
+
+            # 檢查是否為有效數字格式
+            if '.' in value:
+                parts = value.split('.')
+                if len(parts) > 2:
+                    # 多於一個小數點，截取到第一個小數點
+                    corrected = parts[0] + '.' + ''.join(parts[1:])
+                    distance_var.set(corrected[:corrected.find('.') + 5])
+                    return
+                if len(parts[1]) > 4:
+                    # 小數點後超過4位，截取到4位
+                    distance_var.set(parts[0] + '.' + parts[1][:4])
+                    return
+
+            # 轉換為浮點數驗證
+            float(distance_var.get())
+        except ValueError:
+            # 移除無效字符
+            current = distance_var.get()
+            valid_chars = "0123456789."
+            filtered = ''.join(c for c in current if c in valid_chars)
+            if filtered != current:
+                distance_var.set(filtered)
+
+    def get_cam_parameters(self):
+        """獲取凸輪參數"""
+        try:
+            angle = float(self.angle_var.get()) if self.angle_var.get() else 0.0
+            distance = float(self.distance_var.get()) if self.distance_var.get() else 0.0
+            return angle, distance
+        except ValueError:
+            return 0.0, 0.0
 
     def create_output_section(self, parent):
         """出力設定セクションを作成"""
@@ -520,9 +700,10 @@ class JapaneseStyleDXFConverter:
         self.log_message("💡 座標ファイルを選択して軌跡図変換を開始してください")
         self.log_message("📝 手順:")
         self.log_message("   1. 座標ファイル(.txt/.csv)を選択")
-        self.log_message("   2. 保存先を指定")
-        self.log_message("   3. 出力設定を調整")
-        self.log_message("   4. 変換ボタンをクリック")
+        self.log_message("   2. 凸輪參數を設定（起始角度、圓心距離）")
+        self.log_message("   3. 保存先を指定")
+        self.log_message("   4. 出力設定を調整")
+        self.log_message("   5. 変換ボタンをクリック")
         self.log_message("")
 
     def create_info_section(self, parent):
@@ -693,6 +874,9 @@ class JapaneseStyleDXFConverter:
         if not coordinates:
             return
 
+        # 獲取凸輪參數
+        start_angle, center_distance = self.get_cam_parameters()
+
         info_text = f"""変換完了情報：
 
 📊 座標点数: {len(coordinates)} 点
@@ -700,6 +884,10 @@ class JapaneseStyleDXFConverter:
 📐 座標範囲:
    X: {min(coord[0] for coord in coordinates):.3f} ～ {max(coord[0] for coord in coordinates):.3f}
    Y: {min(coord[1] for coord in coordinates):.3f} ～ {max(coord[1] for coord in coordinates):.3f}
+
+🔧 凸輪參數:
+   起始角度: {start_angle:.2f}°
+   圓心距離: {center_distance:.4f}
 
 ✅ DXFファイルが正常に作成されました。
 📁 指定した保存先でファイルを確認してください。
@@ -974,6 +1162,11 @@ class JapaneseStyleDXFConverter:
         self.selected_unit.set("ミリメートル (mm)")
         self.selected_angle.set("ファイル選択後に表示されます")
         self.selected_output_type.set("スプライン曲線（推奨）")
+
+        # 重置凸輪參數
+        self.angle_var.set("")
+        self.distance_var.set("")
+
         self.status_text.delete(1.0, tk.END)
         self.update_progress(0, "変換準備完了")
 
@@ -1020,8 +1213,12 @@ class JapaneseStyleDXFConverter:
         self.convert_btn.config(state='disabled')
 
         try:
+            # 獲取凸輪參數
+            start_angle, center_distance = self.get_cam_parameters()
+
             self.log_message("=" * 50)
             self.log_message("🚀 軌跡図変換を開始します...")
+            self.log_message(f"🔧 凸輪參數設定: 起始角度={start_angle:.2f}°, 圓心距離={center_distance:.4f}")
             self.update_progress(10, "DXFファイル初期化中...")
 
             # DXFファイルを作成
@@ -1130,7 +1327,9 @@ class JapaneseStyleDXFConverter:
                                    f"📁 保存場所:\n{output_file}\n\n"
                                    f"📊 使用点数: {len(coordinates)} 点\n"
                                    f"📐 角度設定: {self.selected_angle.get()}\n"
-                                   f"🎨 曲線タイプ: {self.selected_output_type.get()}")
+                                   f"🎨 曲線タイプ: {self.selected_output_type.get()}\n"
+                                   f"🔧 起始角度: {start_angle:.2f}°\n"
+                                   f"🔧 圓心距離: {center_distance:.4f}")
 
             else:
                 error_msg = "有効な座標データが見つかりませんでした。"
