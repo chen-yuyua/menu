@@ -239,14 +239,40 @@ class JapaneseStyleDXFConverter:
         else:
             self.create_info_section(right_column)
 
+
+
     def create_header(self, parent):
         """ヘッダーセクションを作成"""
         header_frame = self.create_rounded_frame(parent)
         header_frame.pack(fill=tk.X, pady=(0, 25))
 
+        # ヘッダー内容コンテナ
+        header_content = tk.Frame(header_frame, bg=self.colors['bg_card'])
+        header_content.pack(fill=tk.X, pady=30, padx=30)
+
+        # 版本資訊區域（右上角）
+        version_frame = tk.Frame(header_content, bg=self.colors['bg_card'])
+        version_frame.pack(side=tk.RIGHT, anchor=tk.NE)
+
+        # 版本號標籤
+        version_label = tk.Label(version_frame,
+                                text="Ver.1.1",
+                                font=('BIZ UDPゴシック', 9, 'bold'),
+                                fg=self.colors['text_light'],
+                                bg=self.colors['bg_card'])
+        version_label.pack(anchor=tk.E)
+
+        # 更新日期標籤
+        update_date_label = tk.Label(version_frame,
+                                    text="更新日:2025/10/22",
+                                    font=('BIZ UDPゴシック', 8),
+                                    fg=self.colors['text_light'],
+                                    bg=self.colors['bg_card'])
+        update_date_label.pack(anchor=tk.E, pady=(2, 0))
+
         # メインタイトル
-        title_container = tk.Frame(header_frame, bg=self.colors['bg_card'])
-        title_container.pack(pady=30)
+        title_container = tk.Frame(header_content, bg=self.colors['bg_card'])
+        title_container.pack(side=tk.LEFT, expand=True)
 
         # アイコンとタイトル
         icon_label = tk.Label(title_container,
@@ -378,7 +404,7 @@ class JapaneseStyleDXFConverter:
         distance_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(10, 0))
 
         tk.Label(distance_frame,
-                text="圓心距離:",
+                text="中心からの距離:",
                 font=('BIZ UDPゴシック', 11, 'bold'),
                 fg=self.colors['text_primary'],
                 bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(0, 8))
@@ -401,7 +427,7 @@ class JapaneseStyleDXFConverter:
 
         # 說明文字
         tk.Label(distance_frame,
-                text="(例: 0.0000, 25.1234)",
+                text="(例: 33.7162, 25.1234)",
                 font=('BIZ UDPゴシック', 8),
                 fg=self.colors['text_light'],
                 bg=self.colors['bg_card']).pack(anchor=tk.W, pady=(2, 0))
@@ -411,7 +437,7 @@ class JapaneseStyleDXFConverter:
         tip_frame.pack(fill=tk.X, padx=25, pady=(10, 20))
 
         tip_label = tk.Label(tip_frame,
-                            text="💡 起始角度：第一個座標點對應的角度位置｜圓心距離：第一個座標到凸輪轉動圓心的距離",
+                            text="💡 起始角度：第一個座標點的角度位置｜第一點距離：第一個座標點到圓心的直線距離（單位：mm）",
                             font=('BIZ UDPゴシック', 9),
                             fg=self.colors['text_light'],
                             bg=self.colors['bg_card'],
@@ -488,10 +514,28 @@ class JapaneseStyleDXFConverter:
     def get_cam_parameters(self):
         """獲取凸輪參數"""
         try:
-            angle = float(self.angle_var.get()) if self.angle_var.get() else 0.0
-            distance = float(self.distance_var.get()) if self.distance_var.get() else 0.0
+            # 從UI輸入框獲取數值
+            angle_input = self.angle_var.get().strip()
+            distance_input = self.distance_var.get().strip()
+            
+            # 處理角度值
+            if angle_input:
+                angle = float(angle_input)
+            else:
+                angle = 0.0
+                
+            # 處理距離值
+            if distance_input:
+                distance = float(distance_input)
+            else:
+                distance = 0.0
+                
+            self.log_message(f"🔧 參數讀取: 角度輸入='{angle_input}' -> {angle}°")
+            self.log_message(f"🔧 參數讀取: 距離輸入='{distance_input}' -> {distance}mm")
+            
             return angle, distance
-        except ValueError:
+        except ValueError as e:
+            self.log_message(f"❌ 參數讀取錯誤: {str(e)}")
             return 0.0, 0.0
 
     def create_output_section(self, parent):
@@ -1194,6 +1238,169 @@ class JapaneseStyleDXFConverter:
         self.status_text.see(tk.END)
         self.root.update()
 
+    def transform_coordinates_with_cam_parameters(self, coordinates, start_angle, center_distance):
+        """根據凸輪參數轉換座標 - 正確的凸輪理論"""
+        if not coordinates:
+            return coordinates
+        
+        # 如果沒有設定凸輪參數，直接返回原座標
+        if start_angle == 0.0 and center_distance == 0.0:
+            return coordinates
+            
+        transformed_coords = []
+        start_angle_rad = math.radians(start_angle)
+        
+        self.log_message(f"🔧 凸輪理論轉換: 起始角度={start_angle}°, 基圓半徑={center_distance}mm")
+        
+        # 判斷輸入資料格式
+        total_points = len(coordinates)
+        angle_step = 360.0 / total_points  # 每點對應的角度間隔
+        
+        for i, (x, y) in enumerate(coordinates):
+            # 計算當前點的角度位置
+            current_angle_deg = start_angle + (i * angle_step)
+            current_angle_rad = math.radians(current_angle_deg)
+            
+            # 凸輪理論：
+            # 1. 原始座標通常是位移量或半徑值
+            # 2. 基圓半徑 + 位移量 = 實際凸輪半徑
+            
+            if abs(y) <= 360.0 and len(str(int(y))) <= 3:  # 可能是角度值
+                # 格式：(半徑值, 角度值)
+                cam_radius = center_distance + x  # 基圓半徑 + 位移
+                angle_rad = math.radians(y + start_angle)
+                
+                new_x = cam_radius * math.cos(angle_rad)
+                new_y = cam_radius * math.sin(angle_rad)
+                
+            else:
+                # 格式：(x位移, y位移) 或 (半徑, 位移)
+                if abs(x) > abs(y) * 10:  # 可能是半徑格式
+                    # x是半徑值，y是位移量
+                    cam_radius = center_distance + y  # 基圓 + 位移
+                    new_x = cam_radius * math.cos(current_angle_rad)
+                    new_y = cam_radius * math.sin(current_angle_rad)
+                else:
+                    # 直角座標位移格式
+                    # 將位移量轉換為極坐標，然後加上基圓
+                    displacement_radius = math.sqrt(x*x + y*y)
+                    cam_radius = center_distance + displacement_radius
+                    
+                    new_x = cam_radius * math.cos(current_angle_rad)
+                    new_y = cam_radius * math.sin(current_angle_rad)
+            
+            transformed_coords.append((new_x, new_y))
+            
+        return transformed_coords
+
+    def transform_coordinates_with_start_angle(self, coordinates, start_angle):
+        """根據起始角度旋轉整個軌跡"""
+        if not coordinates or start_angle == 0.0:
+            return coordinates
+        
+        transformed_coords = []
+        start_angle_rad = math.radians(start_angle)
+        
+        self.log_message(f"🔄 軌跡旋轉: 起始角度={start_angle}°")
+        
+        # 旋轉所有座標點
+        for x, y in coordinates:
+            # 應用旋轉矩陣
+            cos_angle = math.cos(start_angle_rad)
+            sin_angle = math.sin(start_angle_rad)
+            
+            new_x = x * cos_angle - y * sin_angle
+            new_y = x * sin_angle + y * cos_angle
+            
+            transformed_coords.append((new_x, new_y))
+        
+        return transformed_coords
+
+    def add_first_point_marker(self, msp, coordinates, start_angle, center_distance):
+        """在軌跡的第一個座標點位置添加標記"""
+        if not coordinates:
+            return
+        
+        # 取得旋轉後軌跡的第一個座標點
+        first_coord = coordinates[0]
+        first_x, first_y = first_coord
+        
+        # 如果有指定第一點距離，在該距離位置添加標記
+        if center_distance > 0:
+            # 計算第一點到圓心的實際距離
+            actual_distance = math.sqrt(first_x*first_x + first_y*first_y)
+            
+            # 如果指定距離與實際距離不同，在指定距離位置也添加標記
+            if abs(actual_distance - center_distance) > 0.1:  # 容差0.1mm
+                # 計算第一點的角度方向
+                angle_rad = math.atan2(first_y, first_x)
+                
+                # 在指定距離位置添加標記
+                specified_x = center_distance * math.cos(angle_rad)
+                specified_y = center_distance * math.sin(angle_rad)
+                
+                # 指定距離位置的標記（藍色圓圈）
+                specified_circle = msp.add_circle((specified_x, specified_y), 1.5)
+                specified_circle.dxf.color = 5  # 藍色
+                specified_circle.dxf.linetype = "CONTINUOUS"
+                
+                # 添加參考線到指定距離位置
+                specified_line = msp.add_line((0, 0), (specified_x, specified_y))
+                specified_line.dxf.color = 5  # 藍色
+                specified_line.dxf.linetype = "DASHED"
+                
+                self.log_message(f"📍 指定距離標記: ({specified_x:.3f}, {specified_y:.3f}), 距離={center_distance}mm")
+        
+        # 軌跡第一點標記（紅色圓圈，直徑3mm）
+        marker_circle = msp.add_circle((first_x, first_y), 1.5)
+        marker_circle.dxf.color = 1  # 紅色
+        marker_circle.dxf.linetype = "CONTINUOUS"
+        
+        # 添加從圓心到第一點的參考線
+        reference_line = msp.add_line((0, 0), (first_x, first_y))
+        reference_line.dxf.color = 3  # 綠色
+        reference_line.dxf.linetype = "DASHED"
+        
+        # 計算並顯示第一點資訊
+        actual_distance = math.sqrt(first_x*first_x + first_y*first_y)
+        actual_angle = math.degrees(math.atan2(first_y, first_x))
+        if actual_angle < 0:
+            actual_angle += 360
+        
+        self.log_message(f"📍 軌跡第一點位置: ({first_x:.3f}, {first_y:.3f})")
+        self.log_message(f"📍 第一點角度: {actual_angle:.2f}°, 距離: {actual_distance:.3f}mm")
+        
+        return actual_distance, actual_angle
+
+    def add_center_circle_if_needed(self, msp, coordinates):
+        """根據軌跡形狀自動添加中心基圓"""
+        if not coordinates:
+            return
+            
+        # 計算所有點到原點的距離
+        distances = []
+        for x, y in coordinates:
+            distance = math.sqrt(x*x + y*y)
+            distances.append(distance)
+        
+        min_distance = min(distances)
+        max_distance = max(distances)
+        avg_distance = sum(distances) / len(distances)
+        
+        # 如果軌跡是類似凸輪形狀（有內外變化），添加基圓參考
+        distance_variation = max_distance - min_distance
+        if distance_variation > avg_distance * 0.1:  # 變化超過平均距離的10%
+            # 使用最小距離作為基圓半徑
+            base_radius = min_distance * 0.9  # 稍微小一點以確保可見
+            if base_radius > 0:
+                base_circle = msp.add_circle((0, 0), base_radius)
+                base_circle.dxf.color = 8  # 灰色
+                base_circle.dxf.linetype = "DASHED"  # 虛線
+                self.log_message(f"📐 自動添加基圓參考線 (半徑: {base_radius:.3f}mm)")
+                return base_radius
+        
+        return 0
+
     def convert_to_dxf(self):
         """DXF変換を実行"""
         # 入力チェック
@@ -1213,12 +1420,12 @@ class JapaneseStyleDXFConverter:
         self.convert_btn.config(state='disabled')
 
         try:
-            # 獲取凸輪參數
+            # 在開始處獲取凸輪參數
             start_angle, center_distance = self.get_cam_parameters()
 
             self.log_message("=" * 50)
             self.log_message("🚀 軌跡図変換を開始します...")
-            self.log_message(f"🔧 凸輪參數設定: 起始角度={start_angle:.2f}°, 圓心距離={center_distance:.4f}")
+            self.log_message(f"🔧 凸輪參數設定: 起始角度={start_angle:.2f}°, 第一點距離={center_distance:.4f}mm")
             self.update_progress(10, "DXFファイル初期化中...")
 
             # DXFファイルを作成
@@ -1281,7 +1488,11 @@ class JapaneseStyleDXFConverter:
             self.update_progress(70, "軌跡図作成中...")
 
             if coordinates:
-                # 軌跡図を作成
+                # 不進行座標轉換，保持原始軌跡
+                self.log_message("📊 保持原始座標軌跡...")
+                self.update_progress(75, "軌跡準備完成...")
+                
+                # 建立凸輪軌跡圖
                 curve_type = self.output_types[self.selected_output_type.get()]
                 self.log_message(f"🎨 使用曲線タイプ: {self.selected_output_type.get()}")
 
@@ -1289,6 +1500,37 @@ class JapaneseStyleDXFConverter:
                 if success:
                     self.log_message(f"✨ 軌跡図作成完了: {len(coordinates)} 点")
                     self.update_progress(80, "軌跡図作成完了...")
+
+                # 自動添加基圓參考線（如果軌跡有變化）
+                base_radius = self.add_center_circle_if_needed(msp, coordinates)
+                
+                # 添加第一座標點標記（直徑3mm圓圈）
+                if start_angle != 0.0 or center_distance != 0.0:
+                    self.add_first_point_marker(msp, coordinates, start_angle, center_distance)
+                
+                # 添加圓心標記
+                # 計算適當的標記大小
+                if coordinates:
+                    x_coords = [coord[0] for coord in coordinates]
+                    y_coords = [coord[1] for coord in coordinates]
+                    max_range = max(max(x_coords) - min(x_coords), max(y_coords) - min(y_coords))
+                    cross_size = max_range * 0.02  # 標記大小為圖形範圍的2%
+                    circle_radius = max_range * 0.01  # 圓圈半徑為圖形範圍的1%
+                else:
+                    cross_size = 1.0
+                    circle_radius = 0.5
+                
+                # 添加圓心標記（十字線）
+                center_line_h = msp.add_line((-cross_size, 0), (cross_size, 0))  # 水平線
+                center_line_v = msp.add_line((0, -cross_size), (0, cross_size))  # 垂直線
+                center_circle = msp.add_circle((0, 0), circle_radius)
+                
+                # 設定圓心標記顏色
+                center_line_h.dxf.color = 2  # 黃色
+                center_line_v.dxf.color = 2  # 黃色  
+                center_circle.dxf.color = 2  # 黃色
+                
+                self.log_message(f"📍 已添加圓心標記 (大小: {cross_size:.3f})")
 
                 # 輪郭を閉じるか確認
                 if len(coordinates) > 2 and curve_type != "spline":
