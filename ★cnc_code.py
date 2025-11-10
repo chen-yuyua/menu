@@ -262,20 +262,20 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D CAM可視化工具 (圓弧修正版)</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); min-height: 100vh; padding: 20px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', 'Segoe UI', sans-serif; }
+        body { font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); min-height: 100vh; padding: 20px; }
         .container { max-width: 1600px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
         .header { background: linear-gradient(135deg, #3d4e60 0%, #4a5568 100%); color: white; padding: 20px 30px; text-align: center; }
-        .header h1 { font-size: 2.2em; margin-bottom: 8px; font-weight: 300; }
-        .header p { opacity: 0.8; font-size: 1em; }
+        .header h1 { font-size: 2.2em; margin-bottom: 8px; font-weight: 300; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        .header p { opacity: 0.8; font-size: 1em; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .main-content { display: grid; grid-template-columns: 350px 1fr; min-height: 700px; }
         .left-panel { background: #f8f9fa; padding: 25px; border-right: 1px solid #e9ecef; overflow-y: auto; max-height: 700px; }
         .input-section { margin-bottom: 25px; }
-        .input-section h3 { color: #2c3e50; margin-bottom: 12px; font-size: 1.2em; }
-        textarea { width: 100%; height: 180px; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.2; resize: vertical; transition: border-color 0.3s ease; }
+        .input-section h3 { color: #2c3e50; margin-bottom: 12px; font-size: 1.2em; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        textarea { width: 100%; height: 180px; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; font-family: 'BIZ UDPゴシック', 'Consolas', 'Courier New', monospace; font-size: 10px; line-height: 1.2; resize: vertical; transition: border-color 0.3s ease; }
         textarea:focus { outline: none; border-color: #667eea; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-align: center; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-align: center; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3); }
         .btn-secondary { background: #6c757d; color: white; }
@@ -285,33 +285,33 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
         #canvas { display: block; cursor: grab; }
         #canvas:active { cursor: grabbing; }
         .canvas-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 10; flex-wrap: wrap; }
-        .canvas-btn { background: rgba(255, 255, 255, 0.95); border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px; transition: all 0.2s ease; white-space: nowrap; }
+        .canvas-btn { background: rgba(255, 255, 255, 0.95); border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px; transition: all 0.2s ease; white-space: nowrap; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .canvas-btn:hover { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .canvas-btn.active { background: #007bff; color: white; }
-        .view-controls { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); color: white; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; }
+        .view-controls { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); color: white; padding: 10px; border-radius: 6px; font-size: 12px; font-family: 'BIZ UDPゴシック', 'Consolas', 'Courier New', monospace; }
         .view-info { margin-bottom: 5px; }
-        .view-controls button { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 3px 8px; margin: 2px; border-radius: 3px; cursor: pointer; font-size: 10px; }
+        .view-controls button { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 3px 8px; margin: 2px; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .view-controls button:hover { background: rgba(255,255,255,0.3); }
         .info-panel { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .info-item { text-align: center; padding: 8px; background: white; border-radius: 6px; border: 1px solid #e9ecef; }
-        .info-item .label { color: #6c757d; font-size: 11px; margin-bottom: 4px; }
-        .info-item .value { color: #2c3e50; font-weight: 600; font-size: 14px; }
+        .info-item .label { color: #6c757d; font-size: 11px; margin-bottom: 4px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        .info-item .value { color: #2c3e50; font-weight: 600; font-size: 14px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .legend { display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap; }
-        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .legend-color { width: 16px; min-width: 16px; height: 3px; border-radius: 2px; }
-        .error-message { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; margin-top: 8px; border: 1px solid #f5c6cb; font-size: 12px; }
-        .success-message { background: #d1edff; color: #0c5460; padding: 10px; border-radius: 6px; margin-top: 8px; border: 1px solid #bee5eb; font-size: 12px; }
-        .debug-info { background: #fff3cd; color: #856404; padding: 8px; border-radius: 4px; margin-top: 8px; border: 1px solid #ffeaa7; font-size: 11px; font-family: monospace; }
+        .error-message { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; margin-top: 8px; border: 1px solid #f5c6cb; font-size: 12px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        .success-message { background: #d1edff; color: #0c5460; padding: 10px; border-radius: 6px; margin-top: 8px; border: 1px solid #bee5eb; font-size: 12px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        .debug-info { background: #fff3cd; color: #856404; padding: 8px; border-radius: 4px; margin-top: 8px; border: 1px solid #ffeaa7; font-size: 11px; font-family: 'BIZ UDPゴシック', 'Consolas', 'Courier New', monospace; }
         .zoom-info { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-family: monospace; }
-        .trajectory-info { position: absolute; top: 10px; right: 200px; background: rgba(0,0,0,0.85); color: white; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-family: 'Microsoft JhengHei', sans-serif; min-width: 180px; max-width: 250px; z-index: 15; border: 2px solid #007bff; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
-        .operations-info { background: #e8f5e8; border: 1px solid #c3e6c3; border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 11px; }
+        .trajectory-info { position: absolute; top: 10px; right: 200px; background: rgba(0,0,0,0.9); color: white; padding: 12px 16px; border-radius: 8px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; min-width: 220px; max-width: 300px; z-index: 15; border: 2px solid #007bff; box-shadow: 0 6px 12px rgba(0,0,0,0.4); }
+        .operations-info { background: #e8f5e8; border: 1px solid #c3e6c3; border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 11px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .operation-item { display: flex; justify-content: space-between; margin: 2px 0; padding: 2px 5px; background: white; border-radius: 3px; }
-        .animation-controls { position: absolute; bottom: 50px; left: 10px; background: rgba(0, 0, 0, 0.85); color: white; padding: 12px; border-radius: 6px; font-size: 11px; font-family: monospace; display: none; min-width: 200px; max-width: 280px; }
+        .animation-controls { position: absolute; bottom: 50px; left: 10px; background: rgba(0, 0, 0, 0.85); color: white; padding: 12px; border-radius: 6px; font-size: 11px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; display: none; min-width: 200px; max-width: 280px; }
         .animation-progress { width: 180px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; margin: 5px 0; overflow: hidden; }
         .animation-progress-bar { height: 100%; background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000); width: 0%; transition: width 0.1s ease; }
         .speed-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin: 5px 0; }
-        .speed-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 9px; font-weight: 600; transition: all 0.2s ease; text-align: center; }
+        .speed-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 9px; font-weight: 600; transition: all 0.2s ease; text-align: center; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
         .speed-btn:hover { background: rgba(255,255,255,0.3); }
         .speed-btn.active { background: #3498db; border-color: #2980b9; box-shadow: 0 1px 2px rgba(52, 152, 219, 0.3); }
         .speed-btn.active:hover { background: #2980b9; }
@@ -429,12 +429,12 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
 
                     <!-- 新增：軌跡資訊顯示區域 -->
                     <div class="trajectory-info" id="trajectoryInfo" style="display: none;">
-                        <div style="font-weight: bold; margin-bottom: 3px; color: #fff;">軌跡資訊</div>
-                        <div style="font-size: 10px; margin-bottom: 2px;">指令: <span id="trajCommand">G01</span></div>
-                        <div style="font-size: 10px; margin-bottom: 2px;">行號: <span id="trajLineNumber">123</span></div>
-                        <div style="font-size: 10px; margin-bottom: 2px;">座標: <span id="trajCoords">X10.5 Y20.3</span></div>
-                        <div style="font-size: 9px; color: #ccc; margin-bottom: 2px;">原始程式碼:</div>
-                        <div style="font-size: 9px; font-family: monospace; background: rgba(0,0,0,0.5); padding: 3px; border-radius: 2px; max-width: 200px; word-wrap: break-word;" id="trajOriginal">G01 X10.5 Y20.3 F1000</div>
+                        <div style="font-weight: bold; margin-bottom: 6px; color: #fff; font-size: 16px;">軌跡資訊</div>
+                        <div style="font-size: 14px; margin-bottom: 4px; color: #e0e0e0;">指令: <span id="trajCommand" style="color: #FFD700; font-weight: bold;">G01</span></div>
+                        <div style="font-size: 14px; margin-bottom: 4px; color: #e0e0e0;">行號: <span id="trajLineNumber" style="color: #87CEEB; font-weight: bold;">123</span></div>
+                        <div style="font-size: 14px; margin-bottom: 4px; color: #e0e0e0;">座標: <span id="trajCoords" style="color: #98FB98; font-weight: bold;">X10.5 Y20.3</span></div>
+                        <div style="font-size: 13px; color: #ccc; margin-bottom: 4px; border-top: 1px solid #555; padding-top: 4px;">原始程式碼:</div>
+                        <div style="font-size: 12px; font-family: 'Consolas', 'Courier New', monospace; background: rgba(255,255,255,0.1); color: #F0F8FF; padding: 6px 8px; border-radius: 4px; max-width: 260px; word-wrap: break-word; line-height: 1.4;" id="trajOriginal">G01 X10.5 Y20.3 F1000</div>
                     </div>
                 </div>
 
@@ -779,7 +779,7 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
 
                 // Labels
                 ctx.fillStyle = '#2c3e50';
-                ctx.font = '14px Arial';
+                ctx.font = '14px "BIZ UDPゴシック", "Yu Gothic", "Microsoft JhengHei", Arial';
                 ctx.fillText('X', xEnd.x + 5, xEnd.y);
                 ctx.fillText('Y', yEnd.x + 5, yEnd.y);
                 ctx.fillText('Z', zEnd.x + 5, zEnd.y);
@@ -815,7 +815,7 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                     ctx.lineWidth = 2;
                     ctx.stroke();
                     ctx.fillStyle = '#2c3e50';
-                    ctx.font = '12px Arial';
+                    ctx.font = '12px "BIZ UDPゴシック", "Yu Gothic", "Microsoft JhengHei", Arial';
                     ctx.fillText('START', startProj.x + 10, startProj.y - 10);
                 }
 
