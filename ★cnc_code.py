@@ -146,13 +146,18 @@ class SafeMultiOperationCAMParser:
         # Extract G-code command
         gcode = None
         try:
+            # 首先查找當前行是否有明確的G指令
             g_match = re.search(r'G(\d+)', line)
             if g_match:
                 g_num = int(g_match.group(1))
                 if g_num in [0, 1, 2, 3]:
                     gcode = f'G{g_num:02d}'
-                    if gcode in ['G00', 'G01', 'G02', 'G03']:
-                        self.current_g_mode = gcode
+                    # 更新當前G模式
+                    self.current_g_mode = gcode
+
+            # 如果當前行沒有G指令，但有座標移動，則使用當前G模式
+            # 但要確保模式的正確性
+
         except:
             pass
 
@@ -218,8 +223,25 @@ class SafeMultiOperationCAMParser:
 
             if abs(new_x - self.current_x) > 0.001 or abs(new_y - self.current_y) > 0.001:
                 try:
+                    # 確保使用正確的G指令類型
+                    final_gcode = gcode if gcode else self.current_g_mode
+
+                    # 調試：檢查圓弧參數是否存在
+                    has_arc_params = (arc_params.get('R', 0) != 0 or
+                                     arc_params.get('I', 0) != 0 or
+                                     arc_params.get('J', 0) != 0)
+
+                    # 如果沒有圓弧參數但使用了G02/G03，改為G01
+                    if (final_gcode in ['G02', 'G03']) and not has_arc_params:
+                        self.safe_print(f"警告：第{line_num}行 {final_gcode} 指令無圓弧參數，改為G01: {original_line}")
+                        final_gcode = 'G01'
+
+                    # 如果有圓弧參數但使用了G01，檢查是否應該是圓弧指令
+                    if final_gcode == 'G01' and has_arc_params:
+                        self.safe_print(f"注意：第{line_num}行 G01指令包含圓弧參數: {original_line}")
+
                     cmd = {
-                        'type': gcode,
+                        'type': final_gcode,
                         'from': {'x': self.current_x, 'y': self.current_y, 'z': self.current_z},
                         'to': {'x': new_x, 'y': new_y, 'z': self.current_z},
                         'feed_rate': self.feed_rate,
@@ -233,12 +255,13 @@ class SafeMultiOperationCAMParser:
                         'tool_diameter': tool_diameter
                     }
 
-                    if self.is_cutting or gcode == 'G00':
+                    if self.is_cutting or final_gcode == 'G00':
                         self.current_operation.append(cmd)
 
                     self.current_x = new_x
                     self.current_y = new_y
-                except:
+                except Exception as e:
+                    self.safe_print(f"創建指令時發生錯誤，第{line_num}行: {e}")
                     pass
 
         return None
@@ -624,6 +647,31 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                             showMessage('成功顯示 ' + currentCommands.length + ' 個CAM指令！圓弧計算已修正。', 'success');
                             const debugInfo = gcode.split('\\n').length + '行程式碼 → ' + currentCommands.length + '個3D移動指令（圓弧修正版）';
                             document.getElementById('messageArea').innerHTML += '<div class="debug-info">' + debugInfo + '</div>';
+
+                            // 添加指令類型統計
+                            let g00Count = 0, g01Count = 0, g02Count = 0, g03Count = 0;
+                            console.log('=== 指令解析結果 ===');
+
+                            for (let i = 0; i < currentCommands.length; i++) {
+                                const cmd = currentCommands[i];
+                                switch(cmd.type) {
+                                    case 'G00': g00Count++; break;
+                                    case 'G01': g01Count++; break;
+                                    case 'G02': g02Count++; break;
+                                    case 'G03': g03Count++; break;
+                                }
+
+                                // 輸出前10個指令的詳細資訊用於調試
+                                if (i < 10) {
+                                    console.log(`指令${i+1}: ${cmd.type} | 線號:${cmd.line_number} | 原始:${cmd.original_line}`);
+                                }
+                            }
+
+                            console.log(`G00(快速移動-紅色): ${g00Count}個`);
+                            console.log(`G01(直線插補-藍色): ${g01Count}個`);
+                            console.log(`G02(順時針圓弧-橙色): ${g02Count}個`);
+                            console.log(`G03(逆時針圓弧-紫色): ${g03Count}個`);
+                            console.log('如果看到G01顯示錯誤顏色，請檢查Console輸出');
                         } else {
                             showMessage('未找到移動指令。請確認G-code包含移動指令。', 'error');
                         }
@@ -822,28 +870,36 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                 // Draw paths and collect trajectory segments
                 for (let i = 0; i < toDraw.length; i++) {
                     const cmd = toDraw[i];
-                    const color = colors[cmd.operation_id % colors.length];
+                    const operationColor = colors[cmd.operation_id % colors.length];
 
+                    // 明確設定每種指令的顏色和樣式
                     switch (cmd.type) {
                         case 'G00':
-                            ctx.strokeStyle = '#e74c3c';
+                            ctx.strokeStyle = '#e74c3c';  // 紅色 - 快速移動
                             ctx.lineWidth = 2;
                             ctx.setLineDash([6, 6]);
                             break;
                         case 'G01':
-                            ctx.strokeStyle = color;
+                            ctx.strokeStyle = '#3498db';  // 藍色 - 直線插補 (固定藍色，不使用操作顏色)
                             ctx.lineWidth = 3;
                             ctx.setLineDash([]);
                             break;
                         case 'G02':
-                            ctx.strokeStyle = '#f39c12';
+                            ctx.strokeStyle = '#f39c12';  // 橙色 - 順時針圓弧
                             ctx.lineWidth = 4;
                             ctx.setLineDash([]);
                             break;
                         case 'G03':
-                            ctx.strokeStyle = '#9b59b6';
+                            ctx.strokeStyle = '#9b59b6';  // 紫色 - 逆時針圓弧
                             ctx.lineWidth = 4;
                             ctx.setLineDash([]);
+                            break;
+                        default:
+                            // 預設情況
+                            ctx.strokeStyle = operationColor;
+                            ctx.lineWidth = 2;
+                            ctx.setLineDash([]);
+                            console.warn('Unknown G-code type:', cmd.type);
                             break;
                     }
 
@@ -869,6 +925,11 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                     }
 
                     ctx.stroke();
+
+                    // 調試：輸出指令類型和顏色資訊
+                    if (i < 10) { // 只輸出前10個指令的調試資訊
+                        console.log(`Command ${i}: ${cmd.type}, Color: ${ctx.strokeStyle}, Original: ${cmd.original_line}`);
+                    }
                 }
 
                 // Draw tool position
