@@ -339,6 +339,11 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
         .speed-btn.active { background: #3498db; border-color: #2980b9; box-shadow: 0 1px 2px rgba(52, 152, 219, 0.3); }
         .speed-btn.active:hover { background: #2980b9; }
         .compact-info { font-size: 10px; line-height: 1.2; margin: 2px 0; }
+        .tool-setting { background: #e8f4f8; border: 1px solid #b3d9e6; border-radius: 6px; padding: 10px; margin-top: 15px; }
+        .tool-setting h4 { color: #2c3e50; margin-bottom: 8px; font-size: 14px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
+        .tool-setting input[type="number"] { padding: 4px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 12px; text-align: center; font-family: 'BIZ UDPゴシック', 'Consolas', 'Courier New', monospace; }
+        .tool-setting input[type="number"]:focus { outline: none; border-color: #17a2b8; box-shadow: 0 0 3px rgba(23, 162, 184, 0.3); }
+        .tool-hint { font-size: 10px; color: #6c757d; margin-top: 4px; font-family: 'BIZ UDPゴシック', 'Yu Gothic', 'Microsoft JhengHei', sans-serif; }
     </style>
 </head>
 <body>
@@ -369,6 +374,22 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                         <button class="btn" style="background: #17a2b8; color: white; font-size: 12px;" onclick="testConnection()">🔍 連接測試</button>
                         <button class="btn" style="background: #28a745; color: white; font-size: 12px;" onclick="loadSampleCode()">📋 載入範例</button>
                         <button class="btn" style="background: #dc3545; color: white; font-size: 12px;" onclick="loadCAMCode()">📥 載入CAM程式</button>
+                    </div>
+
+                    <!-- 新增：刀徑設定區域 -->
+                    <div class="tool-setting">
+                        <h4>🔧 刀具設定</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 80px; gap: 8px; align-items: center;">
+                            <label style="font-size: 12px; color: #495057;">刀徑 (mm):</label>
+                            <input type="number" id="toolDiameter" value="6" min="0.1" max="50" step="0.1"
+                                   onchange="updateToolDiameter()" />
+                        </div>
+                        <div class="tool-hint">
+                            💡 動畫模式下會顯示刀具圓形和加工路徑
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <button class="btn" style="background: #6c757d; color: white; font-size: 11px; padding: 6px 12px;" onclick="clearToolPaths()">🗑️ 清除刀具路徑</button>
+                        </div>
                     </div>
 
                     <div id="messageArea"></div>
@@ -494,9 +515,14 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
         let drawnCommands = [], toolPosition = { x: 0, y: 0, z: 0 };
         let animationSpeed = 1, animationPaused = false;
 
-        // 新增：軌跡檢測相關變數
+        // 軌跡檢測相關變數
         let trajectorySegments = []; // 儲存所有軌跡線段資訊
         let hoveredSegment = null;   // 當前懸停的線段
+
+        // 新增：刀具相關變數
+        let toolDiameter = 6;        // 刀具直徑 (mm)
+        let toolPath = [];           // 刀具走過的路徑點
+        let machiningPaths = [];     // 加工路徑 (刀具中心到工件表面的平行路徑)
 
         window.addEventListener('load', function() {
             try {
@@ -932,13 +958,50 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                     }
                 }
 
-                // Draw tool position
-                if (isAnimating && toolPosition) {
+                // Tool position and machining paths (動畫中或動畫結束後)
+                if ((isAnimating || toolPath.length > 0) && toolPosition) {
+                    // 繪製刀具路徑（已走過的路徑）
+                    if (toolPath.length > 1) {
+                        ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([3, 3]);
+                        ctx.beginPath();
+                        for (let i = 0; i < toolPath.length; i++) {
+                            const pathPoint = project3D(toolPath[i].x, toolPath[i].y, toolPath[i].z);
+                            if (i === 0) {
+                                ctx.moveTo(pathPoint.x, pathPoint.y);
+                            } else {
+                                ctx.lineTo(pathPoint.x, pathPoint.y);
+                            }
+                        }
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+
+                    // 繪製加工路徑（刀具邊緣的平行路徑）
+                    if (machiningPaths.length > 0) {
+                        ctx.strokeStyle = 'rgba(128, 128, 128, 0.7)'; // 動畫結束後稍微加深
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([4, 4]);
+
+                        for (let path of machiningPaths) {
+                            const fromProj = project3D(path.from.x, path.from.y, path.from.z);
+                            const toProj = project3D(path.to.x, path.to.y, path.to.z);
+
+                            ctx.beginPath();
+                            ctx.moveTo(fromProj.x, fromProj.y);
+                            ctx.lineTo(toProj.x, toProj.y);
+                            ctx.stroke();
+                        }
+                        ctx.setLineDash([]);
+                    }
+
+                    // 繪製Z軸連線（從底面到刀具）
                     const toolProj = project3D(toolPosition.x, toolPosition.y, toolPosition.z);
                     const baseProj = project3D(toolPosition.x, toolPosition.y, 0);
 
-                    ctx.strokeStyle = 'rgba(255, 107, 107, 0.6)';
-                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = isAnimating ? 'rgba(255, 107, 107, 0.6)' : 'rgba(255, 107, 107, 0.8)';
+                    ctx.lineWidth = 2;
                     ctx.setLineDash([6, 6]);
                     ctx.beginPath();
                     ctx.moveTo(baseProj.x, baseProj.y);
@@ -946,18 +1009,30 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    ctx.fillStyle = '#ff6b6b';
+                    // 繪製刀具圓形（根據實際刀徑）
+                    const toolRadius3D = (toolDiameter / 2) * zoom3D * 3; // 與3D投影縮放一致
+
+                    // 刀具主體 - 動畫結束後稍微調整透明度
+                    const toolAlpha = isAnimating ? 0.7 : 0.8;
+                    ctx.fillStyle = `rgba(255, 215, 0, ${toolAlpha})`; // 金色刀具
                     ctx.strokeStyle = '#ff4757';
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(toolProj.x, toolProj.y, 8, 0, Math.PI * 2);
+                    ctx.arc(toolProj.x, toolProj.y, Math.max(3, toolRadius3D), 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
 
-                    ctx.fillStyle = 'rgba(255, 107, 107, 0.3)';
+                    // 刀具中心點
+                    ctx.fillStyle = '#ff4757';
                     ctx.beginPath();
-                    ctx.arc(toolProj.x, toolProj.y, 15, 0, Math.PI * 2);
+                    ctx.arc(toolProj.x, toolProj.y, 2, 0, Math.PI * 2);
                     ctx.fill();
+
+                    // 刀具資訊顯示
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.font = '10px "BIZ UDPゴシック", "Yu Gothic", "Microsoft JhengHei", Arial';
+                    const labelText = isAnimating ? `Ø${toolDiameter}mm` : `Ø${toolDiameter}mm (完成)`;
+                    ctx.fillText(labelText, toolProj.x + Math.max(3, toolRadius3D) + 5, toolProj.y - 5);
                 }
 
                 ctx.restore();
@@ -1235,10 +1310,16 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
             animationPaused = false;
             animationFrame = 0;
             drawnCommands = [];
+            toolPath = []; // 重置刀具路徑
+            machiningPaths = []; // 重置加工路徑
 
             if (currentCommands.length > 0) {
                 toolPosition = { x: currentCommands[0].from.x, y: currentCommands[0].from.y, z: currentCommands[0].from.z };
+                toolPath.push({ ...toolPosition }); // 記錄起始位置
             }
+
+            // 更新刀徑
+            updateToolDiameter();
 
             document.getElementById('animationBtn').textContent = '⏸️ 停止';
             document.getElementById('animationBtn').classList.add('active');
@@ -1248,6 +1329,8 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
 
             const interval = Math.max(25, 200 / animationSpeed);
             animationInterval = setInterval(animateStep, interval);
+
+            showMessage('3D CAM動畫已開始（包含刀具路徑顯示）。', 'success');
         }
 
         function stopAnimation() {
@@ -1264,7 +1347,21 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
             document.getElementById('animationControls').style.display = 'none';
 
             drawnCommands = currentCommands.slice();
+
+            // 保留刀具路徑和加工路徑 - 不清除
+            // toolPath = []; // 註解掉，保留刀具路徑
+            // machiningPaths = []; // 註解掉，保留加工路徑
+
+            // 計算完整的加工路徑（基於所有指令）
+            if (currentCommands.length > 0) {
+                calculateFullMachiningPaths();
+                // 保持刀具在最終位置
+                const lastCmd = currentCommands[currentCommands.length - 1];
+                toolPosition = { x: lastCmd.to.x, y: lastCmd.to.y, z: lastCmd.to.z };
+            }
+
             redraw3D();
+            showMessage('動畫結束，刀具路徑和加工範圍已保留。', 'success');
         }
 
         function pauseAnimation() {
@@ -1294,9 +1391,16 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
             const cmd = currentCommands[animationFrame];
             drawnCommands.push(cmd);
 
+            // 更新刀具位置
             toolPosition.x = cmd.to.x;
             toolPosition.y = cmd.to.y;
             toolPosition.z = cmd.to.z;
+
+            // 記錄刀具路徑
+            toolPath.push({ ...toolPosition });
+
+            // 更新加工路徑
+            updateMachiningPaths();
 
             document.getElementById('animationProgress').textContent = animationFrame + 1;
             document.getElementById('currentX').textContent = cmd.to.x.toFixed(2);
@@ -1317,9 +1421,15 @@ CLEAN_CAM_HTML = '''<!DOCTYPE html>
             document.getElementById('gcodeInput').value = '';
             currentCommands = [];
             drawnCommands = [];
+            toolPath = [];
+            machiningPaths = [];
             animationFrame = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             resetView3D();
+
+            // 重置刀徑為預設值
+            document.getElementById('toolDiameter').value = 6;
+            toolDiameter = 6;
 
             ['totalCommands', 'operationCount', 'totalDistance', 'workVolume'].forEach(id => {
                 const el = document.getElementById(id);
@@ -1515,7 +1625,249 @@ M30`;
             }
         }
 
-        // 新增：軌跡檢測相關函數
+        // 新增：刀具相關函數
+        function updateToolDiameter() {
+            try {
+                const input = document.getElementById('toolDiameter');
+                toolDiameter = parseFloat(input.value) || 6;
+                toolDiameter = Math.max(0.1, Math.min(50, toolDiameter)); // 限制範圍
+                input.value = toolDiameter; // 確保顯示正確的值
+
+                console.log('刀徑已更新為:', toolDiameter + 'mm');
+
+                // 如果正在動畫中，重新計算加工路徑
+                if (isAnimating) {
+                    updateMachiningPaths();
+                    redraw3D();
+                }
+            } catch (e) {
+                console.error('更新刀徑錯誤:', e);
+            }
+        }
+
+        // 計算加工路徑（刀具邊緣路徑）
+        function updateMachiningPaths() {
+            machiningPaths = [];
+            const radius = toolDiameter / 2;
+
+            try {
+                for (let i = 0; i < drawnCommands.length; i++) {
+                    const cmd = drawnCommands[i];
+
+                    if (cmd.type === 'G01') {
+                        // 直線加工路徑
+                        const dx = cmd.to.x - cmd.from.x;
+                        const dy = cmd.to.y - cmd.from.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+
+                        if (length > 0.001) {
+                            // 垂直向量（法向量）
+                            const nx = -dy / length;
+                            const ny = dx / length;
+
+                            // 刀具左側和右側邊緣點
+                            const leftFrom = {
+                                x: cmd.from.x + nx * radius,
+                                y: cmd.from.y + ny * radius,
+                                z: cmd.from.z
+                            };
+                            const leftTo = {
+                                x: cmd.to.x + nx * radius,
+                                y: cmd.to.y + ny * radius,
+                                z: cmd.to.z
+                            };
+                            const rightFrom = {
+                                x: cmd.from.x - nx * radius,
+                                y: cmd.from.y - ny * radius,
+                                z: cmd.from.z
+                            };
+                            const rightTo = {
+                                x: cmd.to.x - nx * radius,
+                                y: cmd.to.y - ny * radius,
+                                z: cmd.to.z
+                            };
+
+                            machiningPaths.push({
+                                type: 'line',
+                                from: leftFrom,
+                                to: leftTo,
+                                side: 'left'
+                            });
+                            machiningPaths.push({
+                                type: 'line',
+                                from: rightFrom,
+                                to: rightTo,
+                                side: 'right'
+                            });
+                        }
+                    } else if (cmd.type === 'G02' || cmd.type === 'G03') {
+                        // 圓弧加工路徑（簡化處理）
+                        const segments = 8; // 圓弧分段數
+                        for (let j = 0; j <= segments; j++) {
+                            const t = j / segments;
+                            const angle = t * Math.PI / 4; // 簡化角度計算
+
+                            const nx = Math.cos(angle);
+                            const ny = Math.sin(angle);
+
+                            const centerX = cmd.from.x + (cmd.to.x - cmd.from.x) * t;
+                            const centerY = cmd.from.y + (cmd.to.y - cmd.from.y) * t;
+
+                            if (j > 0) {
+                                const prevT = (j - 1) / segments;
+                                const prevX = cmd.from.x + (cmd.to.x - cmd.from.x) * prevT;
+                                const prevY = cmd.from.y + (cmd.to.y - cmd.from.y) * prevT;
+
+                                machiningPaths.push({
+                                    type: 'line',
+                                    from: {
+                                        x: prevX + nx * radius,
+                                        y: prevY + ny * radius,
+                                        z: cmd.from.z
+                                    },
+                                    to: {
+                                        x: centerX + nx * radius,
+                                        y: centerY + ny * radius,
+                                        z: cmd.to.z
+                                    },
+                                    side: 'arc'
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('計算加工路徑錯誤:', e);
+            }
+        }
+
+        // 新增：計算完整的加工路徑（用於動畫結束後）
+        function calculateFullMachiningPaths() {
+            machiningPaths = [];
+            toolPath = []; // 重新計算完整路徑
+
+            const radius = toolDiameter / 2;
+
+            try {
+                // 重新計算完整的刀具路徑
+                if (currentCommands.length > 0) {
+                    toolPath.push({ x: currentCommands[0].from.x, y: currentCommands[0].from.y, z: currentCommands[0].from.z });
+
+                    for (let cmd of currentCommands) {
+                        toolPath.push({ x: cmd.to.x, y: cmd.to.y, z: cmd.to.z });
+                    }
+                }
+
+                // 計算完整的加工路徑
+                for (let i = 0; i < currentCommands.length; i++) {
+                    const cmd = currentCommands[i];
+
+                    if (cmd.type === 'G01' && cmd.is_cutting) {
+                        // 只為切削移動計算加工路徑
+                        const dx = cmd.to.x - cmd.from.x;
+                        const dy = cmd.to.y - cmd.from.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+
+                        if (length > 0.001) {
+                            // 垂直向量（法向量）
+                            const nx = -dy / length;
+                            const ny = dx / length;
+
+                            // 刀具左側和右側邊緣點
+                            machiningPaths.push({
+                                type: 'line',
+                                from: {
+                                    x: cmd.from.x + nx * radius,
+                                    y: cmd.from.y + ny * radius,
+                                    z: cmd.from.z
+                                },
+                                to: {
+                                    x: cmd.to.x + nx * radius,
+                                    y: cmd.to.y + ny * radius,
+                                    z: cmd.to.z
+                                },
+                                side: 'left'
+                            });
+                            machiningPaths.push({
+                                type: 'line',
+                                from: {
+                                    x: cmd.from.x - nx * radius,
+                                    y: cmd.from.y - ny * radius,
+                                    z: cmd.from.z
+                                },
+                                to: {
+                                    x: cmd.to.x - nx * radius,
+                                    y: cmd.to.y - ny * radius,
+                                    z: cmd.to.z
+                                },
+                                side: 'right'
+                            });
+                        }
+                    } else if ((cmd.type === 'G02' || cmd.type === 'G03') && cmd.is_cutting) {
+                        // 圓弧加工路徑的詳細計算
+                        addArcMachiningPath(cmd, radius);
+                    }
+                }
+
+                console.log('完整加工路徑計算完成:', machiningPaths.length, '條路徑');
+                console.log('完整刀具路徑計算完成:', toolPath.length, '個點');
+
+            } catch (e) {
+                console.error('計算完整加工路徑錯誤:', e);
+            }
+        }
+
+        // 新增：為圓弧添加加工路徑
+        function addArcMachiningPath(cmd, radius) {
+            try {
+                // 簡化的圓弧邊界計算
+                const segments = Math.max(8, Math.ceil(Math.abs(cmd.r || 10) / 2));
+
+                for (let j = 0; j < segments; j++) {
+                    const t1 = j / segments;
+                    const t2 = (j + 1) / segments;
+
+                    // 簡單的線性插值（可以改進為真正的圓弧計算）
+                    const x1 = cmd.from.x + (cmd.to.x - cmd.from.x) * t1;
+                    const y1 = cmd.from.y + (cmd.to.y - cmd.from.y) * t1;
+                    const x2 = cmd.from.x + (cmd.to.x - cmd.from.x) * t2;
+                    const y2 = cmd.from.y + (cmd.to.y - cmd.from.y) * t2;
+
+                    const dx = x2 - x1;
+                    const dy = y2 - y1;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+
+                    if (length > 0.001) {
+                        const nx = -dy / length;
+                        const ny = dx / length;
+
+                        machiningPaths.push({
+                            type: 'line',
+                            from: { x: x1 + nx * radius, y: y1 + ny * radius, z: cmd.from.z },
+                            to: { x: x2 + nx * radius, y: y2 + ny * radius, z: cmd.to.z },
+                            side: 'arc-left'
+                        });
+                        machiningPaths.push({
+                            type: 'line',
+                            from: { x: x1 - nx * radius, y: y1 - ny * radius, z: cmd.from.z },
+                            to: { x: x2 - nx * radius, y: y2 - ny * radius, z: cmd.to.z },
+                            side: 'arc-right'
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('圓弧加工路徑計算錯誤:', e);
+            }
+        }
+        // 新增：清除刀具路徑函數
+        function clearToolPaths() {
+            toolPath = [];
+            machiningPaths = [];
+            toolPosition = null;
+            redraw3D();
+            showMessage('刀具路徑已清除。', 'info');
+        }
+
         function checkTrajectoryHover(event) {
             if (trajectorySegments.length === 0) return;
 
