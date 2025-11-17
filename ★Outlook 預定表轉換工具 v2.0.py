@@ -79,7 +79,7 @@ class OutlookExportApp:
 
     def _setup_window(self):
         """設置主窗口屬性"""
-        self.master.title("📅 Outlook 預定表轉換工具 v2.0")
+        self.master.title("📅 Outlook 預定表轉換工具 v2.1")
         self.master.geometry("800x650")
         self.master.minsize(600, 500)
 
@@ -207,7 +207,8 @@ class OutlookExportApp:
         quick_buttons = [
             ("本週", self._set_this_week),
             ("下週", self._set_next_week),
-            ("下個月", self._set_next_month)
+            ("下個月", self._set_next_month),
+            ("今天", self._set_today)
         ]
 
         for text, command in quick_buttons:
@@ -320,6 +321,12 @@ class OutlookExportApp:
     def _setup_layout(self):
         """設置佈局管理"""
         pass  # 佈局已在 _create_widgets 中設置
+
+    def _set_today(self):
+        """設置為今天"""
+        today = datetime.now().date()
+        self.start_date_entry.set_date(today)
+        self.end_date_entry.set_date(today)
 
     def _set_this_week(self):
         """設置為本週"""
@@ -439,7 +446,7 @@ class OutlookExportApp:
             items = calendar.Items
             items.Sort("[Start]", False)
             items.IncludeRecurrences = True
-            items.SetColumns("Start,Subject,Location,AllDayEvent")
+            items.SetColumns("Start,End,Subject,Location,AllDayEvent")
 
             self._update_progress(50)
 
@@ -463,11 +470,35 @@ class OutlookExportApp:
                         # 清理 Teams 會議相關字樣
                         subject = self._clean_meeting_subject(subject)
 
-                        # 只使用主題，不顯示任何位置資訊
-                        display_text = subject
+                        # 獲取時間資訊
+                        start_time = appointment.Start
 
-                        if display_text not in appointments_data[appointment_date]:
-                            appointments_data[appointment_date].append(display_text)
+                        # 檢查是否為全天事件
+                        is_all_day = getattr(appointment, 'AllDayEvent', False)
+
+                        if is_all_day:
+                            end_time = None
+                            time_info = None
+                        else:
+                            try:
+                                end_time = appointment.End
+                                time_info = (start_time, end_time)
+                            except:
+                                end_time = None
+                                time_info = None
+
+                        # 建立約會物件包含主題和時間資訊
+                        appointment_info = {
+                            'subject': subject,
+                            'time_info': time_info,
+                            'is_all_day': is_all_day
+                        }
+
+                        # 檢查是否已存在相同的約會（避免重複）
+                        existing = [appt for appt in appointments_data[appointment_date]
+                                  if appt['subject'] == subject]
+                        if not existing:
+                            appointments_data[appointment_date].append(appointment_info)
 
                     # 更新進度
                     if total_items > 0:
@@ -557,6 +588,69 @@ class OutlookExportApp:
         if not appointments_data:
             return "📝 指定期間內沒有找到任何行事曆項目。\n\n💡 提示：\n• 請確認選擇的日期範圍正確\n• 檢查 Outlook 中是否有相應的約會記錄"
 
+        # 檢查是否為單日查詢
+        is_single_day = start_date.date() == end_date.date()
+
+        if is_single_day:
+            return self._format_single_day_data(appointments_data, start_date)
+        else:
+            return self._format_multi_day_data(appointments_data, start_date, end_date)
+
+    def _format_single_day_data(self, appointments_data: Dict, target_date: datetime) -> str:
+        """格式化單日約會資料為時間表格式"""
+        target_date_obj = target_date.date()
+        appointments = appointments_data.get(target_date_obj, [])
+
+        if not appointments:
+            weekday_index = target_date_obj.weekday()
+            weekday_str = WEEKDAY_MAP.get(weekday_index, '')
+            return f"📝 {target_date_obj.strftime('%Y/%m/%d')} {weekday_str} 沒有找到任何行事曆項目。"
+
+        # 分離全天事件和時間事件
+        timed_appointments = []
+        all_day_appointments = []
+
+        for appt in appointments:
+            if appt['is_all_day']:
+                all_day_appointments.append(appt)
+            else:
+                timed_appointments.append(appt)
+
+        # 按開始時間排序時間事件
+        timed_appointments.sort(key=lambda x: x['time_info'][0] if x['time_info'] else datetime.min)
+
+        # 建立輸出
+        weekday_index = target_date_obj.weekday()
+        weekday_str = WEEKDAY_MAP.get(weekday_index, '')
+
+        output_lines = []
+        output_lines.append(f"📅 {target_date_obj.strftime('%Y/%m/%d')} {weekday_str} 預定表")
+        output_lines.append("=" * 50)
+
+        if all_day_appointments:
+            output_lines.append("🌅 全天事件:")
+            for appt in all_day_appointments:
+                output_lines.append(f"　　　　　　　　　{appt['subject']}")
+            output_lines.append("")
+
+        if timed_appointments:
+            output_lines.append("🕐 時間事件:")
+            output_lines.append("起始時間\t結束時間\t預定件名")
+            output_lines.append("-" * 40)
+
+            for appt in timed_appointments:
+                if appt['time_info']:
+                    start_time, end_time = appt['time_info']
+                    start_str = start_time.strftime('%H:%M')
+                    end_str = end_time.strftime('%H:%M') if end_time else "未知"
+                    output_lines.append(f"{start_str}\t～{end_str}\t{appt['subject']}")
+                else:
+                    output_lines.append(f"時間未定\t\t\t{appt['subject']}")
+
+        return "\n".join(output_lines)
+
+    def _format_multi_day_data(self, appointments_data: Dict, start_date: datetime, end_date: datetime) -> str:
+        """格式化多日約會資料為原始格式"""
         output_lines = []
         current_date = start_date.date()
         end_date_date = end_date.date()
@@ -572,10 +666,11 @@ class OutlookExportApp:
             line_prefix = f"{date_str} {weekday_str}\t"
 
             # 獲取當天的約會列表
-            subjects = appointments_data.get(current_date, [])
+            appointments = appointments_data.get(current_date, [])
 
-            if subjects:
-                total_appointments += len(subjects)
+            if appointments:
+                total_appointments += len(appointments)
+                subjects = [appt['subject'] for appt in appointments]
                 subjects_str = '、'.join(subjects)
                 output_lines.append(f"{line_prefix} {subjects_str}")
             else:
@@ -624,12 +719,18 @@ class OutlookExportApp:
             # 顯示結果
             self.result_text.insert(tk.END, formatted_output)
             self._update_progress(100)
-            self._update_status("🎉 轉換完成！您可以複製下方結果使用")
+
+            # 檢查是否為單日格式
+            is_single_day = start_date.date() == end_date.date()
+            if is_single_day:
+                self._update_status("🎉 單日時間表轉換完成！您可以複製下方結果使用")
+            else:
+                self._update_status("🎉 多日行程轉換完成！您可以複製下方結果使用")
 
             # 顯示完成訊息
             messagebox.showinfo(
                 "轉換完成",
-                f"✅ 預定表內容已成功轉換！\n\n📊 處理結果：\n• 日期範圍：{start_date.strftime('%Y/%m/%d')} ~ {end_date.strftime('%Y/%m/%d')}\n• 資料已顯示在下方文字區域\n• 您可以直接複製使用"
+                f"✅ 預定表內容已成功轉換！\n\n📊 處理結果：\n• 日期範圍：{start_date.strftime('%Y/%m/%d')} ~ {end_date.strftime('%Y/%m/%d')}\n• 格式：{'單日時間表' if is_single_day else '多日行程表'}\n• 資料已顯示在下方文字區域\n• 您可以直接複製使用"
             )
 
         except ValueError as e:
