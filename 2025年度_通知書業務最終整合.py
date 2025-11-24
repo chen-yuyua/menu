@@ -20,7 +20,8 @@ MUJI_COLORS = {
     "warning": "#E38B95",      # 警告色彩 (柔和紅)
     "success": "#708EB3",      # 成功色彩 (柔和藍，原為綠色)
     "border": "#DFDCD7",       # 邊框色彩
-    "header": "#908C85"        # 表頭色彩
+    "header": "#908C85",       # 表頭色彩
+    "overdue": "#B71C1C"       # 超過納期的深紅色
 }
 
 # 定義無印良品風格的字體
@@ -58,7 +59,8 @@ def read_excel_data(file_path):
     for row_idx, row in enumerate(sheet.iter_rows(min_row=12, max_row=1000, min_col=1, max_col=14), start=1):
         if isinstance(row[9].value, datetime) and row[13].value is None:
             delivery_date = row[9].value.date()
-            if current_date <= delivery_date <= current_date + timedelta(days=7):
+            # 修改條件：包含超過當天的納期項目
+            if delivery_date <= current_date + timedelta(days=7):
                 values = [cell.value for cell in row]
                 if all(values[i] not in (None, "") for i in [0, 6, 11]):
                     group = assign_group(values[11])
@@ -231,10 +233,14 @@ def run_program_1():
 
                 if j == 0:
                     value = i
-                if j == 3 and value == datetime.today().date():
-                    font_color = MUJI_COLORS["warning"]
-                    # 納期欄位(當天)使用背景色突顯
-                    bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
+                if j == 3:  # 納期欄位
+                    current_date_obj = datetime.today().date()
+                    if value < current_date_obj:  # 超過納期
+                        font_color = "white"
+                        bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
+                    elif value == current_date_obj:  # 當天納期
+                        font_color = MUJI_COLORS["warning"]
+                        bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
                 elif j == 4 and value in ["呉汶珊", "陳雅瑄", "陳沅郁", "李恩柔", "翁紹綺", "陳岳揚"]:
                     font_color = MUJI_COLORS["success"]
                     font = (MUJI_FONT["family_alt"], MUJI_FONT["size_normal"], "bold")
@@ -298,7 +304,7 @@ def program_1():
             if (isinstance(data_date, datetime) and
                 (check_column_l is None or check_column_l == "") and
                 (check_column_n is None or check_column_n == "") and
-                current_date <= data_date.date() <= end_date):
+                data_date.date() <= end_date):  # 修改：包含超過當天的項目
                 row_data = [row[0].value, row[0].value, row[1].value, row[3].value, row[5].value, row[6].value, row[8].value, data_date.date()]
                 data.append(row_data)
 
@@ -364,18 +370,19 @@ def program_1():
     separator2 = ttk.Separator(main_frame, orient="horizontal")
     separator2.grid(row=3, column=0, columnspan=9, sticky="ew", pady=(10, 0))
 
+    # 修改後的日期顯示邏輯 - データ予定日早見表
     for row_idx, row_data in enumerate(excel_data, start=1):
         row_data[0] = row_idx
         for col_idx, cell_value in enumerate(row_data):
             font_color = MUJI_COLORS["text"]
             bg_color = MUJI_COLORS["bg"]
 
-            if col_idx == 7:
+            if col_idx == 7:  # データ予定日欄位
                 days_diff = (cell_value - datetime.today().date()).days
-                if days_diff < 0:
-                    bg_color = "#FFCDD2"  # 更明顯但仍柔和的紅色背景
-                    font_color = "#B71C1C"  # 深紅色文字
-                elif 0 <= days_diff <= 7:
+                if days_diff < 0:  # 超過納期
+                    bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
+                    font_color = "white"  # 白色字體
+                elif 0 <= days_diff <= 7:  # 7日內
                     font_color = MUJI_COLORS["warning"]
                     bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
 
@@ -399,13 +406,12 @@ def program_2():
         sheet = workbook["2025年 未発行図面"]
         data = []
         current_date = datetime.today()
-        start_date = current_date - timedelta(days=7)
-        end_date = current_date + timedelta(days=14)
+        end_date = current_date + timedelta(days=14)  # 修改：包含超過當天的項目
 
         for row in sheet.iter_rows(min_row=3):
             if row[11].value in (None, ""):  # L 列為空格
                 data_date = row[9].value  # J 列的日期
-                if isinstance(data_date, datetime) and start_date.date() <= data_date.date() <= end_date.date():
+                if isinstance(data_date, datetime) and data_date.date() <= end_date.date():  # 修改條件
                     row_data = [None, row[0].value, row[1].value, row[3].value, row[5].value, row[6].value, row[8].value, data_date.date()]
                     data.append(row_data)
 
@@ -471,18 +477,19 @@ def program_2():
     separator2 = ttk.Separator(main_frame, orient="horizontal")
     separator2.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(10, 0))
 
+    # 修改後的日期顯示邏輯 - 未発行図面
     for row_idx, row_data in enumerate(excel_data, start=1):
         row_data[0] = row_idx
         for col_idx, cell_value in enumerate(row_data):
             font_color = MUJI_COLORS["text"]
             bg_color = MUJI_COLORS["bg"]
 
-            if col_idx == 7:
+            if col_idx == 7:  # 納期欄位
                 days_diff = (cell_value - datetime.today().date()).days
-                if days_diff < 0:
-                    bg_color = "#FFCDD2"  # 更明顯但仍柔和的紅色背景
-                    font_color = "#B71C1C"  # 深紅色文字
-                elif 0 <= days_diff <= 7:
+                if days_diff < 0:  # 超過納期
+                    bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
+                    font_color = "white"  # 白色字體
+                elif 0 <= days_diff <= 7:  # 7日內
                     font_color = MUJI_COLORS["warning"]
                     bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
 
@@ -571,7 +578,7 @@ footer_frame.pack(fill="x")
 # 版權資訊
 copyright_label = tk.Label(
     footer_frame,
-    text="© 2025 分室業務関連 Ver 1.2\n作成者：陳兪源",
+    text="© 2025 分室業務関連 Ver 1.3\n更新日:2025/11/24\n作成者：陳兪源",
     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_small"]),
     fg=MUJI_COLORS["accent"],
     bg=MUJI_COLORS["bg"]
