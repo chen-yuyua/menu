@@ -8,24 +8,21 @@ from pathlib import Path
 class BatchRenameApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("批次檔名變更工具 - Ver.1.0")
-        self.root.geometry("850x650")
+        self.root.title("批次檔名變更工具 - Ver.1.1")
+        self.root.geometry("700x600")
 
         # 版本資訊
-        self.version = "Ver.1.0"
-        self.update_date = "2025/10/18"
+        self.version = "Ver.1.1"
+        self.update_date = "2025/12/01"
 
-        # 日系柔和風格色彩配置
+        # 色彩配置 - 接近圖片風格
         self.colors = {
-            'bg_main': '#F8F4F0',      # 溫暖的米白色
-            'bg_secondary': '#E8E2D5',  # 淺米色
-            'accent': '#D4B5A0',       # 溫暖的卡其色
-            'button': '#C8A882',       # 淺棕色
-            'button_hover': '#B8986E', # 深一點的棕色
-            'text': '#2C2C2C',         # 深灰黑色
-            'success': '#8FBC8F',      # 淺綠色
-            'warning': '#DDA0A0',      # 淺紅色
-            'version_text': '#8B8B8B'  # 版本資訊灰色
+            'bg_main': '#FFFFFF',           # 白色背景
+            'bg_frame': '#FFFFFF',          # 框架背景
+            'border': '#000000',            # 黑色邊框
+            'accent': '#FFE4C4',            # 淺橘色（按鈕）
+            'button_execute': '#E0FFFF',    # 淺藍色（執行按鈕）
+            'text': '#000000',              # 黑色文字
         }
 
         # 設定主背景色
@@ -39,11 +36,10 @@ class BatchRenameApp:
             self.font_family = "Microsoft JhengHei"
 
         self.fonts = {
-            'title': (self.font_family, 16, 'bold'),
+            'title': (self.font_family, 14, 'bold'),
             'normal': (self.font_family, 10),
             'button': (self.font_family, 11),
             'small': (self.font_family, 9),
-            'version': (self.font_family, 8)
         }
 
         self.selected_folder = ""
@@ -52,199 +48,213 @@ class BatchRenameApp:
         self.setup_ui()
 
     def setup_ui(self):
-        # 頂部容器（標題和版本資訊）
-        top_container = tk.Frame(self.root, bg=self.colors['bg_main'])
-        top_container.pack(fill='x', pady=(20, 10))
+        # 主容器
+        main_frame = tk.Frame(self.root, bg=self.colors['bg_main'],
+                             highlightbackground=self.colors['border'],
+                             highlightthickness=1)
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
 
-        # 主標題（左側）
-        title_frame = tk.Frame(top_container, bg=self.colors['bg_main'])
-        title_frame.pack(side='left', fill='both', expand=True)
-
+        # 標題
         title_label = tk.Label(
-            title_frame,
-            text="📁 批次檔名變更工具",
+            main_frame,
+            text="批次檔名變更工具",
             font=self.fonts['title'],
             fg=self.colors['text'],
             bg=self.colors['bg_main']
         )
-        title_label.pack(anchor='w', padx=(30, 0))
+        title_label.pack(anchor='w', padx=15, pady=(15, 10))
 
-        # 版本資訊（右側）
-        version_frame = tk.Frame(top_container, bg=self.colors['bg_main'])
-        version_frame.pack(side='right', padx=(0, 30))
-
-        version_label = tk.Label(
-            version_frame,
-            text=self.version,
-            font=self.fonts['version'],
-            fg=self.colors['version_text'],
-            bg=self.colors['bg_main']
-        )
-        version_label.pack(anchor='e')
-
-        update_label = tk.Label(
-            version_frame,
-            text=f"更新日期: {self.update_date}",
-            font=self.fonts['version'],
-            fg=self.colors['version_text'],
-            bg=self.colors['bg_main']
-        )
-        update_label.pack(anchor='e')
-
-        # 主容器
-        main_frame = tk.Frame(self.root, bg=self.colors['bg_main'])
-        main_frame.pack(fill='both', expand=True, padx=30, pady=(0, 10))
-
-        # 資料夾選擇區域
+        # ===== 選擇資料夾區域 =====
         folder_frame = tk.LabelFrame(
             main_frame,
-            text="📂 選擇資料夾",
+            text="選擇資料夾:",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
-            relief='flat',
-            bd=2
+            bg=self.colors['bg_frame'],
+            relief='solid',
+            bd=1
         )
-        folder_frame.pack(fill='x', pady=(0, 15))
+        folder_frame.pack(fill='x', padx=15, pady=(0, 10))
 
-        folder_inner = tk.Frame(folder_frame, bg=self.colors['bg_secondary'])
-        folder_inner.pack(fill='x', padx=15, pady=10)
+        folder_inner = tk.Frame(folder_frame, bg=self.colors['bg_frame'])
+        folder_inner.pack(fill='x', padx=10, pady=10)
 
-        self.folder_var = tk.StringVar(value="尚未選擇資料夾...")
+        self.folder_var = tk.StringVar(value="C:/.........................")
         folder_label = tk.Label(
             folder_inner,
             textvariable=self.folder_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
+            bg=self.colors['bg_frame'],
             anchor='w'
         )
         folder_label.pack(side='left', fill='x', expand=True)
 
-        select_button = self.create_rounded_button(
+        select_button = tk.Button(
             folder_inner,
-            "選擇資料夾",
-            self.select_folder,
-            width=12
+            text="選擇資料夾",
+            command=self.select_folder,
+            font=self.fonts['button'],
+            fg=self.colors['text'],
+            bg=self.colors['accent'],
+            relief='solid',
+            bd=1,
+            width=12,
+            cursor='hand2'
         )
         select_button.pack(side='right', padx=(10, 0))
 
-        # 檔案列表區域
+        # ===== 檔案列表區域 =====
         files_frame = tk.LabelFrame(
             main_frame,
-            text="📄 檔案列表",
+            text="檔案列表",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
-            relief='flat',
-            bd=2
+            bg=self.colors['bg_frame'],
+            relief='solid',
+            bd=1
         )
-        files_frame.pack(fill='both', expand=True, pady=(0, 15))
+        files_frame.pack(fill='both', expand=True, padx=15, pady=(0, 10))
 
         # 檔案列表文字區域
         self.files_text = scrolledtext.ScrolledText(
             files_frame,
-            height=8,
+            height=6,
             font=self.fonts['small'],
             fg=self.colors['text'],
             bg='#FFFFFF',
-            relief='flat',
+            relief='solid',
             bd=1,
             state='disabled'
         )
-        self.files_text.pack(fill='both', expand=True, padx=15, pady=10)
+        self.files_text.pack(fill='both', expand=True, padx=10, pady=10)
 
-        # 檔名變更設定區域
+        # ===== 檔名變更設定區域 =====
         rename_frame = tk.LabelFrame(
             main_frame,
-            text="✏️ 檔名變更設定",
+            text="檔名變更設定",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
-            relief='flat',
-            bd=2
+            bg=self.colors['bg_frame'],
+            relief='solid',
+            bd=1
         )
-        rename_frame.pack(fill='x', pady=(0, 15))
+        rename_frame.pack(fill='x', padx=15, pady=(0, 10))
 
-        rename_inner = tk.Frame(rename_frame, bg=self.colors['bg_secondary'])
-        rename_inner.pack(fill='x', padx=15, pady=10)
+        rename_inner = tk.Frame(rename_frame, bg=self.colors['bg_frame'])
+        rename_inner.pack(fill='x', padx=10, pady=10)
 
         # 範例顯示
-        example_frame = tk.Frame(rename_inner, bg=self.colors['bg_secondary'])
+        example_frame = tk.Frame(rename_inner, bg=self.colors['bg_frame'])
         example_frame.pack(fill='x', pady=(0, 10))
 
         example_label = tk.Label(
             example_frame,
-            text="例: ",
+            text="例:",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary']
+            bg=self.colors['bg_frame']
         )
         example_label.pack(side='left')
 
-        self.example_var = tk.StringVar(value="YYYY2025005_01")
+        self.example_var = tk.StringVar(value="YYYYXXXXXXXX.01")
         example_display = tk.Label(
             example_frame,
             textvariable=self.example_var,
             font=self.fonts['normal'],
-            fg='#1E90FF',  # 藍色
-            bg=self.colors['bg_secondary']
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame']
         )
-        example_display.pack(side='left')
+        example_display.pack(side='left', padx=(5, 0))
 
-        # 檔名和帳號輸入
-        input_frame = tk.Frame(rename_inner, bg=self.colors['bg_secondary'])
+        # ===== 勾選框與輸入欄位 =====
+        input_frame = tk.Frame(rename_inner, bg=self.colors['bg_frame'])
         input_frame.pack(fill='x', pady=(0, 10))
 
-        # 檔名輸入
-        filename_label = tk.Label(
+        # 檔名勾選框和輸入
+        self.filename_check_var = tk.BooleanVar(value=False)
+        self.filename_check_var.trace('w', self.update_example)
+        filename_check = tk.Checkbutton(
             input_frame,
             text="檔名:",
+            variable=self.filename_check_var,
             font=self.fonts['normal'],
-            fg='#DC143C',  # 紅色
-            bg=self.colors['bg_secondary']
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame'],
+            selectcolor='#FFFFFF'
         )
-        filename_label.grid(row=0, column=0, sticky='w', pady=5, padx=(0, 10))
+        filename_check.grid(row=0, column=0, sticky='w', pady=5)
 
         self.filename_var = tk.StringVar()
         self.filename_var.trace('w', self.update_example)
-        filename_entry = tk.Entry(
+        self.filename_entry = tk.Entry(
             input_frame,
             textvariable=self.filename_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            relief='flat',
-            bd=2,
-            width=20
+            relief='solid',
+            bd=1,
+            width=10
         )
-        filename_entry.grid(row=0, column=1, sticky='w', pady=5)
+        self.filename_entry.grid(row=0, column=1, sticky='w', pady=5, padx=(0, 20))
 
-        # 編號輸入
-        account_label = tk.Label(
+        # 編號勾選框和輸入
+        self.account_check_var = tk.BooleanVar(value=False)
+        self.account_check_var.trace('w', self.update_example)
+        account_check = tk.Checkbutton(
             input_frame,
             text="編號:",
+            variable=self.account_check_var,
             font=self.fonts['normal'],
-            fg='#1E90FF',  # 藍色
-            bg=self.colors['bg_secondary']
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame'],
+            selectcolor='#FFFFFF'
         )
-        account_label.grid(row=0, column=2, sticky='w', pady=5, padx=(30, 10))
+        account_check.grid(row=0, column=2, sticky='w', pady=5)
 
         self.account_var = tk.StringVar()
         self.account_var.trace('w', self.update_example)
-        account_entry = tk.Entry(
+        self.account_entry = tk.Entry(
             input_frame,
             textvariable=self.account_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            relief='flat',
-            bd=2,
-            width=15
+            relief='solid',
+            bd=1,
+            width=10
         )
-        account_entry.grid(row=0, column=3, sticky='w', pady=5)
+        self.account_entry.grid(row=0, column=3, sticky='w', pady=5, padx=(0, 20))
 
-        # 序號變更選項
-        options_frame = tk.Frame(rename_inner, bg=self.colors['bg_secondary'])
-        options_frame.pack(fill='x', pady=(10, 0))
+        # 流水號勾選框和輸入
+        self.serial_check_var = tk.BooleanVar(value=False)
+        self.serial_check_var.trace('w', self.update_example)
+        serial_check = tk.Checkbutton(
+            input_frame,
+            text="流水號:",
+            variable=self.serial_check_var,
+            font=self.fonts['normal'],
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame'],
+            selectcolor='#FFFFFF'
+        )
+        serial_check.grid(row=0, column=4, sticky='w', pady=5)
+
+        self.serial_var = tk.StringVar()
+        self.serial_var.trace('w', self.update_example)
+        self.serial_entry = tk.Entry(
+            input_frame,
+            textvariable=self.serial_var,
+            font=self.fonts['normal'],
+            fg=self.colors['text'],
+            relief='solid',
+            bd=1,
+            width=6
+        )
+        self.serial_entry.grid(row=0, column=5, sticky='w', pady=5)
+
+        # ===== 序號變更選項 =====
+        options_frame = tk.Frame(rename_inner, bg=self.colors['bg_frame'])
+        options_frame.pack(fill='x', pady=(5, 0))
 
         self.sequence_mode = tk.StringVar(value="no_change")
 
@@ -256,25 +266,25 @@ class BatchRenameApp:
             value="no_change",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
-            selectcolor=self.colors['accent'],
+            bg=self.colors['bg_frame'],
+            selectcolor='#FFFFFF',
             command=self.on_sequence_mode_change
         )
         option1.pack(anchor='w', pady=2)
 
         # 選項2: 最末尾數變動
-        option2_frame = tk.Frame(options_frame, bg=self.colors['bg_secondary'])
+        option2_frame = tk.Frame(options_frame, bg=self.colors['bg_frame'])
         option2_frame.pack(fill='x', pady=2)
 
         option2 = tk.Radiobutton(
             option2_frame,
-            text="最末尾數變動，每隔",
+            text="最末尾數變動、每隔",
             variable=self.sequence_mode,
             value="change",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary'],
-            selectcolor=self.colors['accent'],
+            bg=self.colors['bg_frame'],
+            selectcolor='#FFFFFF',
             command=self.on_sequence_mode_change
         )
         option2.pack(side='left')
@@ -286,8 +296,8 @@ class BatchRenameApp:
             textvariable=self.interval_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            relief='flat',
-            bd=2,
+            relief='solid',
+            bd=1,
             width=5
         )
         interval_entry.pack(side='left', padx=(5, 5))
@@ -297,85 +307,75 @@ class BatchRenameApp:
             text="個跳一號",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_secondary']
+            bg=self.colors['bg_frame']
         ).pack(side='left')
 
         # 範例說明
         self.example_explanation = tk.Label(
             options_frame,
-            text="序號末位數保持不變，流水號連續",
+            text="序號末位數保持不變、流水號連續",
             font=self.fonts['small'],
             fg='#666666',
-            bg=self.colors['bg_secondary']
+            bg=self.colors['bg_frame']
         )
         self.example_explanation.pack(anchor='w', pady=(5, 0))
 
         # 預覽按鈕
-        preview_button = self.create_rounded_button(
+        preview_button = tk.Button(
             rename_inner,
-            "🔍 預覽變更",
-            self.preview_changes,
-            width=15
-        )
-        preview_button.pack(pady=(15, 0))
-
-        # 執行按鈕區域
-        button_frame = tk.Frame(main_frame, bg=self.colors['bg_main'])
-        button_frame.pack(fill='x')
-
-        execute_button = self.create_rounded_button(
-            button_frame,
-            "🚀 開始批次處理",
-            self.execute_rename,
-            width=20,
-            is_primary=True
-        )
-        execute_button.pack(pady=10)
-
-    def create_rounded_button(self, parent, text, command, width=10, is_primary=False):
-        """建立圓角按鈕樣式"""
-        if is_primary:
-            bg_color = self.colors['accent']
-            hover_color = self.colors['button_hover']
-        else:
-            bg_color = self.colors['button']
-            hover_color = self.colors['button_hover']
-
-        button = tk.Button(
-            parent,
-            text=text,
-            command=command,
+            text="預覽變更",
+            command=self.preview_changes,
             font=self.fonts['button'],
             fg=self.colors['text'],
-            bg=bg_color,
-            relief='flat',
-            bd=0,
-            width=width,
+            bg=self.colors['accent'],
+            relief='solid',
+            bd=1,
+            width=12,
             cursor='hand2'
         )
+        preview_button.pack(pady=(15, 5))
 
-        # 滑鼠懸停效果
-        def on_enter(e):
-            button.configure(bg=hover_color)
-        def on_leave(e):
-            button.configure(bg=bg_color)
-
-        button.bind("<Enter>", on_enter)
-        button.bind("<Leave>", on_leave)
-
-        return button
+        # ===== 執行按鈕 =====
+        execute_button = tk.Button(
+            main_frame,
+            text="開始批次處理",
+            command=self.execute_rename,
+            font=self.fonts['button'],
+            fg=self.colors['text'],
+            bg=self.colors['button_execute'],
+            relief='solid',
+            bd=1,
+            width=18,
+            cursor='hand2'
+        )
+        execute_button.pack(pady=(5, 15))
 
     def update_example(self, *args):
-        """更新範例顯示"""
-        filename = self.filename_var.get()
-        account = self.account_var.get()
+        """更新範例顯示 - 只顯示勾選的項目"""
+        parts = []
 
-        if filename and account:
-            self.example_var.set(f"{filename}{account}_01")
-        elif filename:
-            self.example_var.set(f"{filename}XXXXXX_01")
+        # 檔名部分
+        if self.filename_check_var.get():
+            filename = self.filename_var.get().strip()
+            parts.append(filename if filename else "YYYY")
+
+        # 編號部分
+        if self.account_check_var.get():
+            account = self.account_var.get().strip()
+            parts.append(account if account else "XXXXXXXX")
+
+        # 組合檔名和編號
+        base_name = "".join(parts) if parts else "YYYYXXXXXXXX"
+
+        # 流水號部分
+        if self.serial_check_var.get():
+            serial = self.serial_var.get().strip()
+            if serial:
+                self.example_var.set(f"{base_name}.{serial}")
+            else:
+                self.example_var.set(f"{base_name}.01")
         else:
-            self.example_var.set("YYYYXXXXXX_01")
+            self.example_var.set(base_name)
 
     def on_sequence_mode_change(self, *args):
         """當序號模式改變時更新範例說明"""
@@ -383,29 +383,12 @@ class BatchRenameApp:
         interval = self.interval_var.get()
 
         if mode == "no_change":
-            self.example_explanation.config(text="序號末位數保持不變，流水號連續")
+            self.example_explanation.config(text="序號末位數保持不變、流水號連續")
         else:
             if interval.isdigit() and int(interval) > 0:
-                # 生成範例 - 跳號後流水號重新從01開始
-                base_name = "YYYY"
-                account_base = "202500"
-                examples = []
-                current_last_digit = 5
-
-                for i in range(6):  # 顯示6個範例
-                    # 計算當前組內的流水號（跳號後重新開始）
-                    seq_in_group = (i % int(interval)) + 1
-
-                    # 計算末位數增量
-                    if i > 0 and i % int(interval) == 0:
-                        current_last_digit += 1
-
-                    seq_num = f"{seq_in_group:02d}"
-                    full_account = f"{account_base}{current_last_digit}"
-                    examples.append(f"{base_name}{full_account}_{seq_num}")
-
-                example_text = f"Ex:設定每隔{interval}個→" + ", ".join(examples)
-                self.example_explanation.config(text=example_text)
+                self.example_explanation.config(
+                    text=f"每{interval}個檔案後，編號末位數+1，流水號重新開始"
+                )
             else:
                 self.example_explanation.config(text="請輸入有效的間隔數字")
 
@@ -449,63 +432,92 @@ class BatchRenameApp:
             messagebox.showerror("錯誤", f"無法載入資料夾：{str(e)}")
 
     def generate_new_filename(self, index, file):
-        """根據設定生成新檔名"""
-        filename = self.filename_var.get().strip()
-        account = self.account_var.get().strip()
-
-        if not filename or not account:
-            return None
-
+        """根據設定生成新檔名 - 只包含勾選的項目"""
         # 取得副檔名
         _, ext = os.path.splitext(file)
 
-        # 根據序號模式計算帳號末位數和流水號
-        if self.sequence_mode.get() == "no_change":
-            # 末位數不變，流水號連續
-            seq_num = f"{index + 1:02d}"
-            new_filename = f"{filename}{account}_{seq_num}{ext}"
-        else:
-            # 末位數變動，流水號在跳號後重新開始
-            try:
-                interval = int(self.interval_var.get())
-                if interval <= 0:
-                    interval = 1
+        parts = []
 
-                # 計算當前應該使用的末位數增量
-                last_digit_increment = index // interval
+        # 檔名部分
+        if self.filename_check_var.get():
+            filename = self.filename_var.get().strip()
+            if filename:
+                parts.append(filename)
 
-                # 計算在當前帳號組內的流水號（跳號後重新從1開始）
-                seq_in_group = (index % interval) + 1
-                seq_num = f"{seq_in_group:02d}"
+        # 編號部分（需要處理序號模式）
+        if self.account_check_var.get():
+            account = self.account_var.get().strip()
+            if account:
+                if self.sequence_mode.get() == "change":
+                    # 末位數變動模式
+                    try:
+                        interval = int(self.interval_var.get())
+                        if interval <= 0:
+                            interval = 1
 
-                # 從帳號中提取數字部分和末位數
-                if account.isdigit():
-                    # 純數字帳號
-                    base_account = account[:-1] if len(account) > 1 else "0"
-                    original_last_digit = int(account[-1]) if account else 1
-                else:
-                    # 混合字母數字，嘗試找到最後的數字部分
-                    digit_match = re.search(r'(\d+)$', account)
-                    if digit_match:
-                        num_part = digit_match.group(1)
-                        base_account = account[:-len(num_part)]
-                        if len(num_part) > 1:
-                            base_account += num_part[:-1]
-                            original_last_digit = int(num_part[-1])
+                        # 計算末位數增量
+                        last_digit_increment = index // interval
+
+                        # 處理帳號末位數
+                        if account.isdigit():
+                            base_account = account[:-1] if len(account) > 1 else ""
+                            original_last_digit = int(account[-1]) if account else 1
                         else:
-                            original_last_digit = int(num_part)
-                    else:
-                        base_account = account
-                        original_last_digit = 1
+                            digit_match = re.search(r'(\d+)$', account)
+                            if digit_match:
+                                num_part = digit_match.group(1)
+                                base_account = account[:-len(num_part)]
+                                if len(num_part) > 1:
+                                    base_account += num_part[:-1]
+                                    original_last_digit = int(num_part[-1])
+                                else:
+                                    original_last_digit = int(num_part)
+                            else:
+                                base_account = account
+                                original_last_digit = 1
 
-                new_last_digit = original_last_digit + last_digit_increment
-                new_account = f"{base_account}{new_last_digit}"
-                new_filename = f"{filename}{new_account}_{seq_num}{ext}"
+                        new_last_digit = original_last_digit + last_digit_increment
+                        account = f"{base_account}{new_last_digit}"
+                    except ValueError:
+                        pass
 
-            except ValueError:
-                # 如果間隔不是有效數字，使用預設行為
-                seq_num = f"{index + 1:02d}"
-                new_filename = f"{filename}{account}_{seq_num}{ext}"
+                parts.append(account)
+
+        # 組合基本檔名
+        base_name = "".join(parts)
+
+        if not base_name:
+            return None
+
+        # 流水號部分
+        if self.serial_check_var.get():
+            # 計算流水號
+            if self.sequence_mode.get() == "change":
+                try:
+                    interval = int(self.interval_var.get())
+                    if interval <= 0:
+                        interval = 1
+                    seq_num = (index % interval) + 1
+                except ValueError:
+                    seq_num = index + 1
+            else:
+                seq_num = index + 1
+
+            # 檢查是否有自訂起始流水號
+            serial_start = self.serial_var.get().strip()
+            if serial_start and serial_start.isdigit():
+                if self.sequence_mode.get() == "change":
+                    try:
+                        interval = int(self.interval_var.get())
+                        seq_num = int(serial_start) + (index % interval)
+                    except ValueError:
+                        seq_num = int(serial_start) + index
+                else:
+                    seq_num = int(serial_start) + index
+
+            new_filename = f"{base_name}.{seq_num:02d}{ext}"
+        else:
+            new_filename = f"{base_name}{ext}"
 
         return new_filename
 
@@ -515,15 +527,9 @@ class BatchRenameApp:
             messagebox.showwarning("警告", "請先選擇包含檔案的資料夾。")
             return
 
-        filename = self.filename_var.get().strip()
-        account = self.account_var.get().strip()
-
-        if not filename:
-            messagebox.showwarning("警告", "請輸入檔名。")
-            return
-
-        if not account:
-            messagebox.showwarning("警告", "請輸入編號。")
+        # 檢查是否至少勾選了一個項目
+        if not (self.filename_check_var.get() or self.account_check_var.get()):
+            messagebox.showwarning("警告", "請至少勾選「檔名」或「編號」。")
             return
 
         try:
@@ -559,15 +565,9 @@ class BatchRenameApp:
             messagebox.showwarning("警告", "請先選擇包含檔案的資料夾。")
             return
 
-        filename = self.filename_var.get().strip()
-        account = self.account_var.get().strip()
-
-        if not filename:
-            messagebox.showwarning("警告", "請輸入檔名。")
-            return
-
-        if not account:
-            messagebox.showwarning("警告", "請輸入編號。")
+        # 檢查是否至少勾選了一個項目
+        if not (self.filename_check_var.get() or self.account_check_var.get()):
+            messagebox.showwarning("警告", "請至少勾選「檔名」或「編號」。")
             return
 
         # 確認對話框
@@ -593,7 +593,7 @@ class BatchRenameApp:
                         os.rename(old_path, new_path)
                         success_count += 1
                     elif old_path == new_path:
-                        continue  # 檔名沒有改變
+                        continue
                     else:
                         error_files.append(f"{file} (目標檔案已存在)")
                 except Exception as e:
@@ -619,20 +619,12 @@ def main():
     root = tk.Tk()
     app = BatchRenameApp(root)
 
-    # 設定視窗圖示和其他屬性
-    try:
-        root.iconbitmap('icon.ico')
-    except:
-        pass
-
     # 設定視窗關閉事件
     def on_closing():
         if messagebox.askokcancel("結束程式", "確定要結束程式嗎？"):
             root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
-
-    # 啟動應用程式
     root.mainloop()
 
 if __name__ == "__main__":
