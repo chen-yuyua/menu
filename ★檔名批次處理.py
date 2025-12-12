@@ -8,12 +8,12 @@ from pathlib import Path
 class BatchRenameApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("批次檔名變更工具 - Ver.1.1")
+        self.root.title("批次檔名變更工具 - Ver.1.7")
         self.root.geometry("700x600")
 
         # 版本資訊
-        self.version = "Ver.1.1"
-        self.update_date = "2025/12/01"
+        self.version = "Ver.1.7"
+        self.update_date = "2025/12/11"
 
         # 色彩配置 - 接近圖片風格
         self.colors = {
@@ -23,6 +23,10 @@ class BatchRenameApp:
             'accent': '#FFE4C4',            # 淺橘色（按鈕）
             'button_execute': '#E0FFFF',    # 淺藍色（執行按鈕）
             'text': '#000000',              # 黑色文字
+            'filename_color': '#0066CC',    # 檔名顏色 - 藍色
+            'account_color': '#CC6600',     # 編號顏色 - 橘色
+            'serial_color': '#009900',      # 正反顏色 - 綠色
+            'separator_color': '#FF0066',   # 分隔符顏色 - 紫紅色
         }
 
         # 設定主背景色
@@ -157,33 +161,29 @@ class BatchRenameApp:
         )
         example_label.pack(side='left')
 
-        self.example_var = tk.StringVar(value="YYYYXXXXXXXX.01")
-        example_display = tk.Label(
-            example_frame,
-            textvariable=self.example_var,
-            font=self.fonts['normal'],
-            fg=self.colors['text'],
-            bg=self.colors['bg_frame']
-        )
-        example_display.pack(side='left', padx=(5, 0))
+        # 使用Frame來容納彩色範例
+        self.example_frame = tk.Frame(example_frame, bg=self.colors['bg_frame'])
+        self.example_frame.pack(side='left', padx=(5, 0))
+
+        # 初始化範例標籤
+        self.example_labels = {
+            'filename': None,
+            'account': None,
+            'serial': None
+        }
 
         # ===== 勾選框與輸入欄位 =====
         input_frame = tk.Frame(rename_inner, bg=self.colors['bg_frame'])
         input_frame.pack(fill='x', pady=(0, 10))
 
-        # 檔名勾選框和輸入
-        self.filename_check_var = tk.BooleanVar(value=False)
-        self.filename_check_var.trace('w', self.update_example)
-        filename_check = tk.Checkbutton(
+        # 檔名輸入
+        tk.Label(
             input_frame,
             text="檔名:",
-            variable=self.filename_check_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_frame'],
-            selectcolor='#FFFFFF'
-        )
-        filename_check.grid(row=0, column=0, sticky='w', pady=5)
+            bg=self.colors['bg_frame']
+        ).grid(row=0, column=0, sticky='w', pady=5)
 
         self.filename_var = tk.StringVar()
         self.filename_var.trace('w', self.update_example)
@@ -198,19 +198,14 @@ class BatchRenameApp:
         )
         self.filename_entry.grid(row=0, column=1, sticky='w', pady=5, padx=(0, 20))
 
-        # 編號勾選框和輸入
-        self.account_check_var = tk.BooleanVar(value=False)
-        self.account_check_var.trace('w', self.update_example)
-        account_check = tk.Checkbutton(
+        # 編號輸入
+        tk.Label(
             input_frame,
             text="編號:",
-            variable=self.account_check_var,
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_frame'],
-            selectcolor='#FFFFFF'
-        )
-        account_check.grid(row=0, column=2, sticky='w', pady=5)
+            bg=self.colors['bg_frame']
+        ).grid(row=0, column=2, sticky='w', pady=5)
 
         self.account_var = tk.StringVar()
         self.account_var.trace('w', self.update_example)
@@ -225,19 +220,52 @@ class BatchRenameApp:
         )
         self.account_entry.grid(row=0, column=3, sticky='w', pady=5, padx=(0, 20))
 
-        # 流水號勾選框和輸入
-        self.serial_check_var = tk.BooleanVar(value=False)
-        self.serial_check_var.trace('w', self.update_example)
-        serial_check = tk.Checkbutton(
-            input_frame,
-            text="流水號:",
-            variable=self.serial_check_var,
+        # 分隔符選項
+        separator_frame = tk.Frame(input_frame, bg=self.colors['bg_frame'])
+        separator_frame.grid(row=0, column=4, sticky='w', pady=5, padx=(0, 10))
+
+        tk.Label(
+            separator_frame,
+            text="分隔符:",
             font=self.fonts['normal'],
             fg=self.colors['text'],
-            bg=self.colors['bg_frame'],
-            selectcolor='#FFFFFF'
-        )
-        serial_check.grid(row=0, column=4, sticky='w', pady=5)
+            bg=self.colors['bg_frame']
+        ).pack(side='top', anchor='w')
+
+        # 分隔符選項按鈕
+        self.separator_var = tk.StringVar(value="_")
+
+        separator_options = [
+            ("_", "_"),
+            ("-", "-"),
+            ("無", "none")
+        ]
+
+        separator_radio_frame = tk.Frame(separator_frame, bg=self.colors['bg_frame'])
+        separator_radio_frame.pack(side='top', anchor='w')
+
+        for i, (text, value) in enumerate(separator_options):
+            radio = tk.Radiobutton(
+                separator_radio_frame,
+                text=text,
+                variable=self.separator_var,
+                value=value,
+                font=self.fonts['small'],
+                fg=self.colors['text'],
+                bg=self.colors['bg_frame'],
+                selectcolor='#FFFFFF',
+                command=self.update_example
+            )
+            radio.pack(side='left', padx=(0, 5))
+
+        # 正反輸入
+        tk.Label(
+            input_frame,
+            text="正反:",
+            font=self.fonts['normal'],
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame']
+        ).grid(row=0, column=5, sticky='w', pady=5)
 
         self.serial_var = tk.StringVar()
         self.serial_var.trace('w', self.update_example)
@@ -250,37 +278,61 @@ class BatchRenameApp:
             bd=1,
             width=6
         )
-        self.serial_entry.grid(row=0, column=5, sticky='w', pady=5)
+        self.serial_entry.grid(row=0, column=6, sticky='w', pady=5)
 
-        # ===== 序號變更選項 =====
+        # ===== 變更選項 =====
         options_frame = tk.Frame(rename_inner, bg=self.colors['bg_frame'])
         options_frame.pack(fill='x', pady=(5, 0))
 
-        self.sequence_mode = tk.StringVar(value="no_change")
+        self.sequence_mode = tk.StringVar(value="account_change")
 
-        # 選項1: 最末尾數不變動
+        # 選項1: 編號變動
+        option1_frame = tk.Frame(options_frame, bg=self.colors['bg_frame'])
+        option1_frame.pack(fill='x', pady=2)
+
         option1 = tk.Radiobutton(
-            options_frame,
-            text="最末尾數不變動",
+            option1_frame,
+            text="編號變動、每隔",
             variable=self.sequence_mode,
-            value="no_change",
+            value="account_change",
             font=self.fonts['normal'],
             fg=self.colors['text'],
             bg=self.colors['bg_frame'],
             selectcolor='#FFFFFF',
             command=self.on_sequence_mode_change
         )
-        option1.pack(anchor='w', pady=2)
+        option1.pack(side='left')
 
-        # 選項2: 最末尾數變動
+        self.account_interval_var = tk.StringVar(value="3")
+        self.account_interval_var.trace('w', self.on_sequence_mode_change)
+        account_interval_entry = tk.Entry(
+            option1_frame,
+            textvariable=self.account_interval_var,
+            font=self.fonts['normal'],
+            fg=self.colors['text'],
+            relief='solid',
+            bd=1,
+            width=5
+        )
+        account_interval_entry.pack(side='left', padx=(5, 5))
+
+        tk.Label(
+            option1_frame,
+            text="個跳一號",
+            font=self.fonts['normal'],
+            fg=self.colors['text'],
+            bg=self.colors['bg_frame']
+        ).pack(side='left')
+
+        # 選項2: 正反變動
         option2_frame = tk.Frame(options_frame, bg=self.colors['bg_frame'])
         option2_frame.pack(fill='x', pady=2)
 
         option2 = tk.Radiobutton(
             option2_frame,
-            text="最末尾數變動、每隔",
+            text="正反變動、每隔",
             variable=self.sequence_mode,
-            value="change",
+            value="serial_change",
             font=self.fonts['normal'],
             fg=self.colors['text'],
             bg=self.colors['bg_frame'],
@@ -313,7 +365,7 @@ class BatchRenameApp:
         # 範例說明
         self.example_explanation = tk.Label(
             options_frame,
-            text="序號末位數保持不變、流水號連續",
+            text="編號末位數保持不變、正反號連續",
             font=self.fonts['small'],
             fg='#666666',
             bg=self.colors['bg_frame']
@@ -351,43 +403,109 @@ class BatchRenameApp:
         execute_button.pack(pady=(5, 15))
 
     def update_example(self, *args):
-        """更新範例顯示 - 只顯示勾選的項目"""
+        """更新範例顯示 - 根據輸入內容自動判斷是否使用，並用顏色區分"""
+        # 清除舊的標籤
+        for widget in self.example_frame.winfo_children():
+            widget.destroy()
+
         parts = []
 
-        # 檔名部分
-        if self.filename_check_var.get():
-            filename = self.filename_var.get().strip()
-            parts.append(filename if filename else "YYYY")
+        # 檔名部分 - 如果有輸入就使用
+        filename = self.filename_var.get().strip()
+        if filename:
+            label = tk.Label(
+                self.example_frame,
+                text=filename,
+                font=self.fonts['normal'],
+                fg=self.colors['filename_color'],
+                bg=self.colors['bg_frame']
+            )
+            label.pack(side='left')
+            parts.append(filename)
 
-        # 編號部分
-        if self.account_check_var.get():
-            account = self.account_var.get().strip()
-            parts.append(account if account else "XXXXXXXX")
+        # 編號部分 - 如果有輸入就使用
+        account = self.account_var.get().strip()
+        if account:
+            label = tk.Label(
+                self.example_frame,
+                text=account,
+                font=self.fonts['normal'],
+                fg=self.colors['account_color'],
+                bg=self.colors['bg_frame']
+            )
+            label.pack(side='left')
+            parts.append(account)
 
-        # 組合檔名和編號
-        base_name = "".join(parts) if parts else "YYYYXXXXXXXX"
+        # 正反部分 - 如果有輸入就使用
+        serial = self.serial_var.get().strip()
+        if serial or (filename or account):  # 如果有正反輸入，或者有檔名或編號
+            # 分隔符
+            separator_value = self.separator_var.get()
+            if parts and separator_value != "none":  # 只有當前面有內容且不是"無"時才加分隔符
+                separator_text = separator_value if separator_value != "none" else ""
+                if separator_text:
+                    separator_label = tk.Label(
+                        self.example_frame,
+                        text=separator_text,
+                        font=self.fonts['normal'],
+                        fg=self.colors['separator_color'],
+                        bg=self.colors['bg_frame']
+                    )
+                    separator_label.pack(side='left')
 
-        # 流水號部分
-        if self.serial_check_var.get():
-            serial = self.serial_var.get().strip()
-            if serial:
-                self.example_var.set(f"{base_name}.{serial}")
-            else:
-                self.example_var.set(f"{base_name}.01")
-        else:
-            self.example_var.set(base_name)
+            # 正反號
+            serial_text = serial if serial else "01"
+            serial_label = tk.Label(
+                self.example_frame,
+                text=serial_text,
+                font=self.fonts['normal'],
+                fg=self.colors['serial_color'],
+                bg=self.colors['bg_frame']
+            )
+            serial_label.pack(side='left')
+
+        # 如果什麼都沒有輸入，顯示預設範例
+        if not (filename or account):
+            default_separator = self.separator_var.get()
+            separator_text = default_separator if default_separator != "none" else ""
+
+            default_parts = [
+                ("YYYY", self.colors['filename_color']),
+                ("XXXXXXXX", self.colors['account_color']),
+            ]
+
+            if separator_text:
+                default_parts.append((separator_text, self.colors['separator_color']))
+
+            default_parts.append(("01", self.colors['serial_color']))
+
+            for text, color in default_parts:
+                label = tk.Label(
+                    self.example_frame,
+                    text=text,
+                    font=self.fonts['normal'],
+                    fg=color,
+                    bg=self.colors['bg_frame']
+                )
+                label.pack(side='left')
 
     def on_sequence_mode_change(self, *args):
         """當序號模式改變時更新範例說明"""
         mode = self.sequence_mode.get()
-        interval = self.interval_var.get()
 
-        if mode == "no_change":
-            self.example_explanation.config(text="序號末位數保持不變、流水號連續")
-        else:
+        if mode == "account_change":
+            interval = self.account_interval_var.get()
             if interval.isdigit() and int(interval) > 0:
                 self.example_explanation.config(
-                    text=f"每{interval}個檔案後，編號末位數+1，流水號重新開始"
+                    text=f"每{interval}個檔案後，編號末位數+1，正反號重新開始"
+                )
+            else:
+                self.example_explanation.config(text="請輸入有效的間隔數字")
+        else:  # serial_change
+            interval = self.interval_var.get()
+            if interval.isdigit() and int(interval) > 0:
+                self.example_explanation.config(
+                    text=f"每{interval}個檔案後，正反號+1，編號重新開始"
                 )
             else:
                 self.example_explanation.config(text="請輸入有效的間隔數字")
@@ -432,56 +550,54 @@ class BatchRenameApp:
             messagebox.showerror("錯誤", f"無法載入資料夾：{str(e)}")
 
     def generate_new_filename(self, index, file):
-        """根據設定生成新檔名 - 只包含勾選的項目"""
+        """根據設定生成新檔名 - 根據輸入內容自動判斷是否使用"""
         # 取得副檔名
         _, ext = os.path.splitext(file)
 
         parts = []
 
-        # 檔名部分
-        if self.filename_check_var.get():
-            filename = self.filename_var.get().strip()
-            if filename:
-                parts.append(filename)
+        # 檔名部分 - 如果有輸入就使用
+        filename = self.filename_var.get().strip()
+        if filename:
+            parts.append(filename)
 
-        # 編號部分（需要處理序號模式）
-        if self.account_check_var.get():
-            account = self.account_var.get().strip()
-            if account:
-                if self.sequence_mode.get() == "change":
-                    # 末位數變動模式
-                    try:
-                        interval = int(self.interval_var.get())
-                        if interval <= 0:
-                            interval = 1
+        # 編號部分 - 如果有輸入就使用
+        account = self.account_var.get().strip()
+        if account:
+            if self.sequence_mode.get() == "account_change":
+                # 編號變動模式 - 每隔指定個數跳一號
+                try:
+                    interval = int(self.account_interval_var.get())
+                    if interval <= 0:
+                        interval = 1
 
-                        # 計算末位數增量
-                        last_digit_increment = index // interval
+                    # 計算末位數增量
+                    last_digit_increment = index // interval
 
-                        # 處理帳號末位數
-                        if account.isdigit():
-                            base_account = account[:-1] if len(account) > 1 else ""
-                            original_last_digit = int(account[-1]) if account else 1
-                        else:
-                            digit_match = re.search(r'(\d+)$', account)
-                            if digit_match:
-                                num_part = digit_match.group(1)
-                                base_account = account[:-len(num_part)]
-                                if len(num_part) > 1:
-                                    base_account += num_part[:-1]
-                                    original_last_digit = int(num_part[-1])
-                                else:
-                                    original_last_digit = int(num_part)
+                    # 處理帳號末位數
+                    if account.isdigit():
+                        base_account = account[:-1] if len(account) > 1 else ""
+                        original_last_digit = int(account[-1]) if account else 1
+                    else:
+                        digit_match = re.search(r'(\d+)$', account)
+                        if digit_match:
+                            num_part = digit_match.group(1)
+                            base_account = account[:-len(num_part)]
+                            if len(num_part) > 1:
+                                base_account += num_part[:-1]
+                                original_last_digit = int(num_part[-1])
                             else:
-                                base_account = account
-                                original_last_digit = 1
+                                original_last_digit = int(num_part)
+                        else:
+                            base_account = account
+                            original_last_digit = 1
 
-                        new_last_digit = original_last_digit + last_digit_increment
-                        account = f"{base_account}{new_last_digit}"
-                    except ValueError:
-                        pass
+                    new_last_digit = original_last_digit + last_digit_increment
+                    account = f"{base_account}{new_last_digit}"
+                except ValueError:
+                    pass
 
-                parts.append(account)
+            parts.append(account)
 
         # 組合基本檔名
         base_name = "".join(parts)
@@ -489,33 +605,57 @@ class BatchRenameApp:
         if not base_name:
             return None
 
-        # 流水號部分
-        if self.serial_check_var.get():
-            # 計算流水號
-            if self.sequence_mode.get() == "change":
+        # 正反部分 - 如果有輸入或者前面有內容就使用
+        serial_input = self.serial_var.get().strip()
+        if serial_input or parts:  # 如果有正反輸入，或者前面有檔名/編號
+            # 計算正反號
+            if self.sequence_mode.get() == "serial_change":
+                # 正反變動模式
                 try:
                     interval = int(self.interval_var.get())
                     if interval <= 0:
                         interval = 1
-                    seq_num = (index % interval) + 1
+
+                    # 每隔 interval 個檔案，正反號增加1
+                    serial_increment = index // interval
+
+                    # 檢查是否有自訂起始正反號
+                    if serial_input and serial_input.isdigit():
+                        base_serial = int(serial_input)
+                    else:
+                        base_serial = 1
+
+                    current_serial = base_serial + serial_increment
+
                 except ValueError:
-                    seq_num = index + 1
+                    current_serial = 1
             else:
-                seq_num = index + 1
+                # 編號變動模式 - 正反號在每組內重新開始
+                try:
+                    interval = int(self.account_interval_var.get())
+                    if interval <= 0:
+                        interval = 1
 
-            # 檢查是否有自訂起始流水號
-            serial_start = self.serial_var.get().strip()
-            if serial_start and serial_start.isdigit():
-                if self.sequence_mode.get() == "change":
-                    try:
-                        interval = int(self.interval_var.get())
-                        seq_num = int(serial_start) + (index % interval)
-                    except ValueError:
-                        seq_num = int(serial_start) + index
-                else:
-                    seq_num = int(serial_start) + index
+                    # 在每組內的位置
+                    file_in_group = index % interval
 
-            new_filename = f"{base_name}.{seq_num:02d}{ext}"
+                    # 檢查是否有自訂起始正反號
+                    if serial_input and serial_input.isdigit():
+                        base_serial = int(serial_input)
+                    else:
+                        base_serial = 1
+
+                    current_serial = base_serial + file_in_group
+
+                except ValueError:
+                    current_serial = index + 1
+
+            # 根據分隔符設定生成檔名
+            separator_value = self.separator_var.get()
+            if separator_value == "none":
+                new_filename = f"{base_name}{current_serial:02d}{ext}"
+            else:
+                new_filename = f"{base_name}{separator_value}{current_serial:02d}{ext}"
         else:
             new_filename = f"{base_name}{ext}"
 
@@ -527,9 +667,11 @@ class BatchRenameApp:
             messagebox.showwarning("警告", "請先選擇包含檔案的資料夾。")
             return
 
-        # 檢查是否至少勾選了一個項目
-        if not (self.filename_check_var.get() or self.account_check_var.get()):
-            messagebox.showwarning("警告", "請至少勾選「檔名」或「編號」。")
+        # 檢查是否至少輸入了檔名或編號
+        filename = self.filename_var.get().strip()
+        account = self.account_var.get().strip()
+        if not (filename or account):
+            messagebox.showwarning("警告", "請至少輸入「檔名」或「編號」。")
             return
 
         try:
@@ -538,12 +680,12 @@ class BatchRenameApp:
             for i, file in enumerate(self.files_list):
                 new_name = self.generate_new_filename(i, file)
                 if new_name:
-                    preview_text += f"{file} → {new_name}\n"
+                    preview_text += f"{i+1:3d}. {file} → {new_name}\n"
 
             # 顯示預覽視窗
             preview_window = tk.Toplevel(self.root)
             preview_window.title("預覽變更結果")
-            preview_window.geometry("700x400")
+            preview_window.geometry("800x500")
             preview_window.configure(bg=self.colors['bg_main'])
 
             preview_scroll = scrolledtext.ScrolledText(
@@ -565,9 +707,11 @@ class BatchRenameApp:
             messagebox.showwarning("警告", "請先選擇包含檔案的資料夾。")
             return
 
-        # 檢查是否至少勾選了一個項目
-        if not (self.filename_check_var.get() or self.account_check_var.get()):
-            messagebox.showwarning("警告", "請至少勾選「檔名」或「編號」。")
+        # 檢查是否至少輸入了檔名或編號
+        filename = self.filename_var.get().strip()
+        account = self.account_var.get().strip()
+        if not (filename or account):
+            messagebox.showwarning("警告", "請至少輸入「檔名」或「編號」。")
             return
 
         # 確認對話框
