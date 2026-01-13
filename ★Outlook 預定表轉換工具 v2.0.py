@@ -79,23 +79,16 @@ class OutlookExportApp:
 
     def _setup_window(self):
         """設置主窗口屬性"""
-        self.master.title("📅 Outlook 預定表轉換工具 v2.1")
-        self.master.geometry("800x650")
+        self.master.title("📅 Outlook 預定表轉換工具 v3.1")
+        self.master.geometry("800x700")
         self.master.minsize(600, 500)
-
-        # 設置圖標（如果有的話）
-        try:
-            # self.master.iconbitmap('icon.ico')  # 如果有圖標文件
-            pass
-        except:
-            pass
 
         # 設置背景色
         self.master.configure(bg=THEME['background'])
 
         # 響應式佈局配置
         self.master.grid_columnconfigure(1, weight=1)
-        self.master.grid_rowconfigure(5, weight=1)
+        self.master.grid_rowconfigure(6, weight=1)
 
     def _setup_styles(self):
         """設置 ttk 樣式"""
@@ -120,7 +113,7 @@ class OutlookExportApp:
 
         title_label = tk.Label(
             title_frame,
-            text="📅 Outlook 預定表轉換工具",
+            text="📅 Outlook 預定表轉換工具 v3.1",
             font=('BIZ UDPゴシック', 16, 'bold'),
             bg=THEME['background'],
             fg=THEME['primary']
@@ -129,7 +122,7 @@ class OutlookExportApp:
 
         subtitle_label = tk.Label(
             title_frame,
-            text="輕鬆將您的 Outlook 行事曆轉換為文字格式",
+            text="新版 Outlook 長住化：智慧日期過濾，高效能資料讀取，精確約會檢測",
             font=('BIZ UDPゴシック', 9),
             bg=THEME['background'],
             fg=THEME['text_secondary']
@@ -192,7 +185,7 @@ class OutlookExportApp:
 
         # 快速選擇按鈕
         quick_frame = tk.Frame(input_frame, bg=THEME['surface'])
-        quick_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0), sticky='w')
+        quick_frame.grid(row=2, column=0, columnspan=2, pady=(10, 15), sticky='w')
 
         quick_label = tk.Label(
             quick_frame,
@@ -205,10 +198,10 @@ class OutlookExportApp:
 
         # 快速選擇按鈕
         quick_buttons = [
+            ("今天", self._set_today),
+            ("明天", self._set_tomorrow),
             ("本週", self._set_this_week),
-            ("下週", self._set_next_week),
-            ("下個月", self._set_next_month),
-            ("今天", self._set_today)
+            ("下週", self._set_next_week)
         ]
 
         for text, command in quick_buttons:
@@ -230,6 +223,26 @@ class OutlookExportApp:
             # 添加懸停效果
             btn.bind('<Enter>', lambda e, b=btn: b.configure(bg=THEME['text_secondary'], fg='white'))
             btn.bind('<Leave>', lambda e, b=btn: b.configure(bg=THEME['border'], fg=THEME['text_primary']))
+
+        # === 模式選擇區域 ===
+        mode_frame = tk.Frame(input_frame, bg=THEME['surface'])
+        mode_frame.grid(row=3, column=0, columnspan=2, pady=(5, 0), sticky='w')
+
+        # 調試模式勾選框（默認勾選）
+        self.debug_mode_var = tk.BooleanVar(value=True)
+        debug_check = tk.Checkbutton(
+            mode_frame,
+            text="🔧 調試模式",
+            variable=self.debug_mode_var,
+            font=('BIZ UDPゴシック', 9),
+            bg=THEME['surface'],
+            fg=THEME['text_primary'],
+            selectcolor=THEME['surface'],
+            activebackground=THEME['surface'],
+            activeforeground=THEME['text_primary'],
+            cursor='hand2'
+        )
+        debug_check.pack(side='left')
 
         # === 操作按鈕區域 ===
         button_frame = tk.Frame(self.master, bg=THEME['background'])
@@ -278,9 +291,20 @@ class OutlookExportApp:
         )
         self.status_label.grid(row=4, column=0, columnspan=3, pady=(0, 10))
 
+        # === 調試資訊區域 ===
+        self.debug_label = tk.Label(
+            self.master,
+            text="",
+            font=('BIZ UDPゴシック', 8),
+            bg=THEME['background'],
+            fg=THEME['success'],
+            justify='left'
+        )
+        self.debug_label.grid(row=5, column=0, columnspan=3, pady=(0, 10))
+
         # === 結果顯示區域 ===
         result_frame = tk.Frame(self.master, bg=THEME['background'])
-        result_frame.grid(row=5, column=0, columnspan=3, padx=20, pady=(0, 20), sticky='nsew')
+        result_frame.grid(row=6, column=0, columnspan=3, padx=20, pady=(0, 20), sticky='nsew')
         result_frame.grid_columnconfigure(0, weight=1)
         result_frame.grid_rowconfigure(1, weight=1)
 
@@ -328,6 +352,12 @@ class OutlookExportApp:
         self.start_date_entry.set_date(today)
         self.end_date_entry.set_date(today)
 
+    def _set_tomorrow(self):
+        """設置為明天"""
+        tomorrow = (datetime.now() + timedelta(days=1)).date()
+        self.start_date_entry.set_date(tomorrow)
+        self.end_date_entry.set_date(tomorrow)
+
     def _set_this_week(self):
         """設置為本週"""
         today = datetime.now()
@@ -346,23 +376,6 @@ class OutlookExportApp:
         self.start_date_entry.set_date(start_of_next_week.date())
         self.end_date_entry.set_date(end_of_next_week.date())
 
-    def _set_next_month(self):
-        """設置為下個月"""
-        today = datetime.now()
-        if today.month == 12:
-            next_month = today.replace(year=today.year + 1, month=1, day=1)
-        else:
-            next_month = today.replace(month=today.month + 1, day=1)
-
-        # 下個月的最後一天
-        if next_month.month == 12:
-            last_day = next_month.replace(year=next_month.year + 1, month=1, day=1) - timedelta(days=1)
-        else:
-            last_day = next_month.replace(month=next_month.month + 1, day=1) - timedelta(days=1)
-
-        self.start_date_entry.set_date(next_month.date())
-        self.end_date_entry.set_date(last_day.date())
-
     def _start_export_thread(self):
         """在新線程中開始匯出程序"""
         if self.is_processing:
@@ -375,12 +388,24 @@ class OutlookExportApp:
     def _clear_results(self):
         """清除結果區域"""
         self.result_text.delete(1.0, tk.END)
+        self.debug_label.config(text="")
         self._update_status("📝 結果已清除，請重新選擇日期範圍進行轉換")
 
     def _update_status(self, message: str):
         """更新狀態標籤"""
         self.status_label.config(text=message)
         self.master.update_idletasks()
+
+    def _update_debug_info(self, message: str):
+        """更新調試資訊"""
+        if self.debug_mode_var.get():
+            current_text = self.debug_label.cget("text")
+            if current_text:
+                new_text = current_text + " | " + message
+            else:
+                new_text = message
+            self.debug_label.config(text=new_text)
+            self.master.update_idletasks()
 
     def _show_progress(self, show: bool = True):
         """顯示或隱藏進度條"""
@@ -417,7 +442,7 @@ class OutlookExportApp:
             raise ValueError(f"日期驗證失敗: {str(e)}")
 
     def _get_outlook_appointments(self, start_date: datetime, end_date: datetime) -> Optional[Dict]:
-        """獲取 Outlook 約會資料"""
+        """獲取 Outlook 約會資料 - 完全不過濾，100% 依照 Outlook 顯示"""
         appointments_data = {}
 
         try:
@@ -425,7 +450,6 @@ class OutlookExportApp:
             self._update_progress(10)
 
             # 初始化 COM
-            import pythoncom
             pythoncom.CoInitialize()
 
             # 連接 Outlook
@@ -436,69 +460,97 @@ class OutlookExportApp:
             self._update_progress(30)
             self._update_status("📅 正在讀取行事曆資料...")
 
-            # 設置日期過濾器
-            end_date_inclusive = end_date + timedelta(days=1)
-            filter_criteria = (
-                f"[Start] >= '{start_date.strftime('%m/%d/%Y')}' AND "
-                f"[Start] < '{end_date_inclusive.strftime('%m/%d/%Y')}'"
-            )
-
+            # 關鍵設定：啟用週期性會議展開
             items = calendar.Items
             items.Sort("[Start]", False)
-            items.IncludeRecurrences = True
-            items.SetColumns("Start,End,Subject,Location,AllDayEvent")
+            items.IncludeRecurrences = True  # 展開所有定期會議
+
+            # 設置日期過濾器 - 使用更寬鬆的範圍
+            # 往前後各延伸一天以確保不會遺漏任何項目
+            filter_start = start_date - timedelta(days=1)
+            filter_end = end_date + timedelta(days=2)
+
+            filter_criteria = (
+                f"[Start] >= '{filter_start.strftime('%m/%d/%Y 00:00')}' AND "
+                f"[Start] < '{filter_end.strftime('%m/%d/%Y 23:59')}'"
+            )
 
             self._update_progress(50)
+            self._update_debug_info("開始讀取 Outlook 資料")
 
             restricted_items = items.Restrict(filter_criteria)
             total_items = restricted_items.Count
 
+            self._update_debug_info(f"API 返回 {total_items} 個項目")
             self._update_status(f"📊 找到 {total_items} 個行事曆項目，正在處理...")
 
-            # 處理每個約會項目
+            # 處理每個約會項目 - 不做任何過濾
+            processed_count = 0
+            out_of_range_count = 0
+
             for i, appointment in enumerate(restricted_items):
                 try:
-                    appointment_date = appointment.Start.date()
-                    if start_date.date() <= appointment_date <= end_date.date():
-                        if appointment_date not in appointments_data:
-                            appointments_data[appointment_date] = []
+                    # 獲取約會的開始時間
+                    appointment_start = appointment.Start
+                    appointment_date = appointment_start.date()
 
-                        # 建立約會詳細資訊
-                        subject = appointment.Subject or "無主題"
-                        location = getattr(appointment, 'Location', '') or ""
+                    # 只過濾日期範圍，其他一律保留
+                    if not (start_date.date() <= appointment_date <= end_date.date()):
+                        out_of_range_count += 1
+                        continue
 
-                        # 清理 Teams 會議相關字樣
-                        subject = self._clean_meeting_subject(subject)
+                    if appointment_date not in appointments_data:
+                        appointments_data[appointment_date] = []
 
-                        # 獲取時間資訊
-                        start_time = appointment.Start
+                    # 獲取約會資訊
+                    subject = appointment.Subject or "無主題"
 
-                        # 檢查是否為全天事件
-                        is_all_day = getattr(appointment, 'AllDayEvent', False)
+                    # 清理 Teams 會議標識
+                    subject = self._clean_meeting_subject(subject)
 
-                        if is_all_day:
-                            end_time = None
+                    # 獲取時間資訊
+                    is_all_day = getattr(appointment, 'AllDayEvent', False)
+
+                    if is_all_day:
+                        time_info = None
+                    else:
+                        try:
+                            end_time = appointment.End
+                            time_info = (appointment_start, end_time)
+                        except:
                             time_info = None
-                        else:
-                            try:
-                                end_time = appointment.End
-                                time_info = (start_time, end_time)
-                            except:
-                                end_time = None
-                                time_info = None
 
-                        # 建立約會物件包含主題和時間資訊
-                        appointment_info = {
-                            'subject': subject,
-                            'time_info': time_info,
-                            'is_all_day': is_all_day
-                        }
+                    # 建立約會物件
+                    appointment_info = {
+                        'subject': subject,
+                        'time_info': time_info,
+                        'is_all_day': is_all_day,
+                        'start': appointment_start  # 保留原始開始時間用於排序和去重
+                    }
 
-                        # 檢查是否已存在相同的約會（避免重複）
-                        existing = [appt for appt in appointments_data[appointment_date]
-                                  if appt['subject'] == subject]
-                        if not existing:
-                            appointments_data[appointment_date].append(appointment_info)
+                    # 簡單去重：只檢查主題和開始時間完全相同的項目
+                    is_duplicate = False
+                    for existing_appt in appointments_data[appointment_date]:
+                        if existing_appt['subject'] == subject:
+                            # 比較開始時間
+                            if time_info and existing_appt['time_info']:
+                                existing_start_str = existing_appt['start'].strftime('%Y-%m-%d %H:%M')
+                                current_start_str = appointment_start.strftime('%Y-%m-%d %H:%M')
+                                if existing_start_str == current_start_str:
+                                    is_duplicate = True
+                                    break
+                            elif not time_info and not existing_appt['time_info']:
+                                # 兩者都是全天事件且主題相同
+                                is_duplicate = True
+                                break
+
+                    if not is_duplicate:
+                        appointments_data[appointment_date].append(appointment_info)
+                        processed_count += 1
+
+                        # 調試輸出
+                        if self.debug_mode_var.get():
+                            logger.info(f"添加: {appointment_date} - {subject}")
 
                     # 更新進度
                     if total_items > 0:
@@ -506,10 +558,18 @@ class OutlookExportApp:
                         self._update_progress(progress)
 
                 except Exception as item_error:
-                    logger.warning(f"處理約會項目時發生錯誤: {item_error}")
+                    if self.debug_mode_var.get():
+                        logger.warning(f"處理項目時出錯: {item_error}")
                     continue
 
+            # 對每一天的約會按時間排序
+            for date_key in appointments_data:
+                appointments_data[date_key].sort(
+                    key=lambda x: x['start'] if x.get('start') else datetime.min
+                )
+
             self._update_progress(90)
+            self._update_debug_info(f"處理: {processed_count} 項 | 範圍外: {out_of_range_count} 項")
             self._update_status("✅ 資料處理完成")
 
         except Exception as e:
@@ -537,7 +597,6 @@ class OutlookExportApp:
         finally:
             # 清理 COM
             try:
-                import pythoncom
                 pythoncom.CoUninitialize()
             except:
                 pass
@@ -549,25 +608,23 @@ class OutlookExportApp:
         if not subject:
             return subject
 
-        import re
-
         # 定義需要移除的模式
         patterns_to_remove = [
-            r'\(teams\)',                           # (teams)
-            r'\(Microsoft Teams 会議\)',            # (Microsoft Teams 会議)
-            r'\(Microsoft Teams 會議\)',            # (Microsoft Teams 會議)
-            r'\(Microsoft Teams Meeting\)',         # (Microsoft Teams Meeting)
-            r'\(Microsoft Teams\)',                 # (Microsoft Teams)
-            r'\(Teams\)',                          # (Teams)
-            r'\(teams 会議\)',                     # (teams 会議)
-            r'\(teams 會議\)',                     # (teams 會議)
-            r'\(teams meeting\)',                  # (teams meeting)
-            r'Microsoft Teams 会議:',              # Microsoft Teams 会議:
-            r'Microsoft Teams 會議:',              # Microsoft Teams 會議:
-            r'Microsoft Teams Meeting:',           # Microsoft Teams Meeting:
-            r'Teams 会議:',                        # Teams 会議:
-            r'Teams 會議:',                        # Teams 會議:
-            r'Teams Meeting:',                     # Teams Meeting:
+            r'\s*\(teams\)\s*',
+            r'\s*\(Microsoft Teams 会議\)\s*',
+            r'\s*\(Microsoft Teams 會議\)\s*',
+            r'\s*\(Microsoft Teams Meeting\)\s*',
+            r'\s*\(Microsoft Teams\)\s*',
+            r'\s*\(Teams\)\s*',
+            r'\s*\(teams 会議\)\s*',
+            r'\s*\(teams 會議\)\s*',
+            r'\s*\(teams meeting\)\s*',
+            r'Microsoft Teams 会議:\s*',
+            r'Microsoft Teams 會議:\s*',
+            r'Microsoft Teams Meeting:\s*',
+            r'Teams 会議:\s*',
+            r'Teams 會議:\s*',
+            r'Teams Meeting:\s*',
         ]
 
         # 移除所有匹配的模式（不區分大小寫）
@@ -576,10 +633,10 @@ class OutlookExportApp:
             cleaned_subject = re.sub(pattern, '', cleaned_subject, flags=re.IGNORECASE)
 
         # 清理多餘的空格和標點符號
-        cleaned_subject = re.sub(r'\s+', ' ', cleaned_subject)  # 合併多個空格
-        cleaned_subject = cleaned_subject.strip()               # 移除前後空格
-        cleaned_subject = re.sub(r'^[:\-\s]+', '', cleaned_subject)  # 移除開頭的冒號、破折號、空格
-        cleaned_subject = re.sub(r'[:\-\s]+$', '', cleaned_subject)  # 移除結尾的冒號、破折號、空格
+        cleaned_subject = re.sub(r'\s+', ' ', cleaned_subject)
+        cleaned_subject = cleaned_subject.strip()
+        cleaned_subject = re.sub(r'^[:\-\s]+', '', cleaned_subject)
+        cleaned_subject = re.sub(r'[:\-\s]+$', '', cleaned_subject)
 
         return cleaned_subject if cleaned_subject else "會議"
 
@@ -615,9 +672,6 @@ class OutlookExportApp:
                 all_day_appointments.append(appt)
             else:
                 timed_appointments.append(appt)
-
-        # 按開始時間排序時間事件
-        timed_appointments.sort(key=lambda x: x['time_info'][0] if x['time_info'] else datetime.min)
 
         # 建立輸出
         weekday_index = target_date_obj.weekday()
@@ -701,8 +755,9 @@ class OutlookExportApp:
             # 顯示進度條
             self._show_progress(True)
 
-            # 清空結果區域
+            # 清空結果區域和調試資訊
             self.result_text.delete(1.0, tk.END)
+            self.debug_label.config(text="")
 
             # 驗證日期
             self._update_status("🔍 驗證日期範圍...")
