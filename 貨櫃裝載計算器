@@ -20,8 +20,16 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
-    /* 避免觸控裝置上的預設拖曳行為影響畫布操作 */
     .touch-none { touch-action: none; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+      box-shadow: 0 0 2px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -30,7 +38,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- 圖示元件 ---
+    // --- 圖示元件 (已修復轉義字元錯誤) ---
     const Package = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
     const Plus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
     const Trash2 = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
@@ -44,6 +52,7 @@
     const Eye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
     const DownloadIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
     const Globe = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
+    const Ruler = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"></path><line x1="6" y1="18" x2="10.1" y2="13.9"></line><line x1="8" y1="20" x2="12.1" y2="15.9"></line><line x1="10" y1="22" x2="14.1" y2="17.9"></line><line x1="14" y1="20" x2="18.1" y2="15.9"></line><line x1="16" y1="18" x2="20.1" y2="13.9"></line></svg>;
 
     // --- 多語系翻譯字典 ---
     const translations = {
@@ -76,11 +85,11 @@
         viewFront: "前視",
         viewSide: "側視",
         controlsHint: "左鍵: 旋轉 | 右鍵: 平移 | 滾輪: 縮放",
-        playbackPrefix: "裝載順序檢視：",
+        playbackPrefix: "裝載順序：",
         boxUnit: "箱",
-        xrayLabel: "半透明透視",
-        innerLayer: "最內側 (底層)",
-        doorLayer: "門口 (外層)",
+        xrayLabel: "透視",
+        innerLayer: "最內側",
+        doorLayer: "門口",
         summaryTitle: "裝載結果摘要",
         exportDXF: "導出3視圖 (.dxf)",
         totalBoxes: "總裝載箱數",
@@ -106,10 +115,10 @@
           '40GP': "40呎標準櫃 (40' GP)",
           '40HQ': "40呎高櫃 (40' HQ)"
         },
-        remainingGapsTitle: "整體剩餘間隙",
-        remainL: "長",
-        remainW: "寬",
-        remainH: "高",
+        remainingGapsTitle: "整體剩餘間隙 (Remaining Gaps)",
+        remainL: "深度 (Z)",
+        remainW: "寬度 (X)",
+        remainH: "高度 (Y)",
         actualGap: "實際"
       },
       ja: {
@@ -122,7 +131,7 @@
         doorGapTitle: "ドア側余白 (mm)",
         rightGapTitle: "右側余白 (mm)",
         topGapTitle: "上部余白 (mm)",
-        innerDim: "内部総寸法 (奥行x幅x高さ)",
+        innerDim: "內部總寸法 (奥行x幅x高さ)",
         effectiveDepth: "有効積載奥行",
         effectiveWidth: "有効積載幅",
         effectiveHeight: "有効積載高さ",
@@ -140,12 +149,12 @@
         viewTop: "平面図",
         viewFront: "正面図",
         viewSide: "側面図",
-        controlsHint: "左ｸﾘｯｸ: 回転 | 右ｸﾘｯｸ: 移動 | ﾎｲｰﾙ: 縮尺",
-        playbackPrefix: "積載順序プレビュー：",
+        controlsHint: "左：回転 | 右：移動 | ﾎｲｰﾙ：縮尺",
+        playbackPrefix: "積載順序：",
         boxUnit: "箱",
-        xrayLabel: "半透明(X線)表示",
-        innerLayer: "最奥 (最下層)",
-        doorLayer: "ドア側 (最外層)",
+        xrayLabel: "透過",
+        innerLayer: "最奥",
+        doorLayer: "ドア",
         summaryTitle: "積載結果の概要",
         exportDXF: "3面図を出力 (.dxf)",
         totalBoxes: "総積載箱数",
@@ -171,1139 +180,439 @@
           '40GP': "40フィート標準 (40' GP)",
           '40HQ': "40フィートハイキューブ (40' HQ)"
         },
-        remainingGapsTitle: "残りスペース",
-        remainL: "長",
-        remainW: "幅",
-        remainH: "高",
-        actualGap: "実質"
+        remainingGapsTitle: "残りスペース (Remaining Gaps)",
+        remainL: "奥行 (Z)",
+        remainW: "幅 (X)",
+        remainH: "高さ (Y)",
+        actualGap: "實質"
       }
     };
 
-    // --- 常數定義 ---
+    // --- 常數與工具函數 ---
     const CONTAINERS = {
       '20GP': { id: '20GP', w: 2330, h: 2350, d: 5867, maxWeight: 28200 },
       '40GP': { id: '40GP', w: 2330, h: 2350, d: 11998, maxWeight: 28800 },
       '40HQ': { id: '40HQ', w: 2330, h: 2655, d: 11998, maxWeight: 28600 }
     };
-
     const DEFAULT_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
-
-    // --- 工具函數 ---
     const generateId = () => Math.random().toString(36).substr(2, 9);
-
     const isColliding = (x, y, z, w, h, d, packed) => {
       for (let b of packed) {
-        if (!(x >= b.x + b.w || x + w <= b.x ||
-              y >= b.y + b.h || y + h <= b.y ||
-              z >= b.z + b.d || z + d <= b.z)) {
-          return true;
-        }
+        if (!(x >= b.x + b.w || x + w <= b.x || y >= b.y + b.h || y + h <= b.y || z >= b.z + b.d || z + d <= b.z)) return true;
       }
       return false;
     };
-
     const isSupported = (x, y, z, w, h, d, packed) => {
       if (y === 0) return true; 
-      
       let supportedArea = 0;
       for (let b of packed) {
         if (Math.abs((b.y + b.h) - y) < 1.0) {
-          let ix1 = Math.max(x, b.x);
-          let iz1 = Math.max(z, b.z);
-          let ix2 = Math.min(x + w, b.x + b.w);
-          let iz2 = Math.min(z + d, b.z + b.d);
-          
-          if (ix1 < ix2 && iz1 < iz2) {
-            supportedArea += (ix2 - ix1) * (iz2 - iz1);
-          }
+          let ix1 = Math.max(x, b.x), iz1 = Math.max(z, b.z), ix2 = Math.min(x + w, b.x + b.w), iz2 = Math.min(z + d, b.z + b.d);
+          if (ix1 < ix2 && iz1 < iz2) supportedArea += (ix2 - ix1) * (iz2 - iz1);
         }
       }
-      const baseArea = w * d;
-      return (supportedArea / baseArea) >= 0.8; 
+      return (supportedArea / (w * d)) >= 0.8; 
     };
-
     const getOrientations = (b) => {
-      const unique = new Set();
-      const orientations = [];
-      const perms = [
-        [b.w, b.h, b.d], 
-        [b.d, b.h, b.w]  
-      ];
+      const unique = new Set(), orientations = [], perms = [[b.w, b.h, b.d], [b.d, b.h, b.w]];
       for (let p of perms) {
         const key = p.join(',');
-        if (!unique.has(key)) {
-          unique.add(key);
-          orientations.push({ w: p[0], h: p[1], d: p[2] });
-        }
+        if (!unique.has(key)) { unique.add(key); orientations.push({ w: p[0], h: p[1], d: p[2] }); }
       }
       return orientations;
     };
-
 
     // --- 主程式組件 ---
     function App() {
       const [lang, setLang] = useState('zh');
       const t = translations[lang];
-
       const [threeLoaded, setThreeLoaded] = useState(true);
       const [containerType, setContainerType] = useState('20GP');
       const [doorGap, setDoorGap] = useState(248);
       const [innerGap, setInnerGap] = useState(20);
       const [rightGap, setRightGap] = useState(10); 
       const [topGap, setTopGap] = useState(50); 
-      
       const [boxTypes, setBoxTypes] = useState([
         { id: generateId(), name: `${translations.zh.defaultBoxPrefix} A`, L: 600, W: 400, H: 400, color: DEFAULT_COLORS[0], qty: 0 }
       ]);
-
       const [packingResult, setPackingResult] = useState({ packed: [], error: null, stats: null });
       const [isCalculating, setIsCalculating] = useState(false);
-      
       const [renderStep, setRenderStep] = useState(0);
       const [isTransparent, setIsTransparent] = useState(false);
+      
       const meshesRef = useRef([]); 
       const dimGroupRef = useRef(null);
-
       const canvasRef = useRef(null);
       const sceneRef = useRef(null);
-      
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
 
       const runPacking = () => {
         setIsCalculating(true);
-        setPackingResult(prev => ({ ...prev, error: null }));
-
         setTimeout(() => {
           const c = CONTAINERS[containerType];
-          const maxZ_limit = Math.max(0, c.d - doorGap);
-          const maxX_limit = Math.max(0, c.w - rightGap); 
-          const maxY_limit = Math.max(0, c.h - topGap); 
-          let points = [{ x: 0, y: 0, z: innerGap }];
-          let packed = [];
-          let error = null;
-
-          let finiteInventory = [];
-          let infiniteInventory = [];
+          const maxZ_limit = Math.max(0, c.d - doorGap), maxX_limit = Math.max(0, c.w - rightGap), maxY_limit = Math.max(0, c.h - topGap); 
+          let points = [{ x: 0, y: 0, z: innerGap }], packed = [];
+          let finiteInventory = [], infiniteInventory = [];
           
           boxTypes.forEach(b => {
             let item = { ...b, w: b.W, h: b.H, d: b.L };
-            if (b.qty > 0) {
-              item.remaining = b.qty;
-              finiteInventory.push(item);
-            } else {
-              item.remaining = Infinity;
-              infiniteInventory.push(item);
-            }
+            if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
+            else { item.remaining = Infinity; infiniteInventory.push(item); }
           });
 
-          let phases = [finiteInventory, infiniteInventory];
-          let packedCount = 0;
-          const MAX_BOXES = 3000; 
-          
+          let phases = [finiteInventory, infiniteInventory], packedCount = 0;
           for (let currentInventory of phases) {
             if (currentInventory.length === 0) continue; 
-
             let canPack = true;
-            while (canPack && packedCount < MAX_BOXES) {
-                canPack = false;
-                
-                points.sort((a, b) => {
-                  if (Math.abs(a.z - b.z) > 1.0) return a.z - b.z;
-                  if (Math.abs(a.y - b.y) > 1.0) return a.y - b.y;
-                  return a.x - b.x;
-                });
-
-                for (let pt of points) {
-                  let bestBoxIdx = -1;
-                  let bestOri = null;
-                  
-                  // 【Ver 1.18 升級】改良的貼合度評分 (Fit-Count Heuristic)
-                  // 解決相同體積但長寬對調時，無法自動找出最優擺放方向的問題
-                  let maxVol = -1;
-                  let maxFitCount = -1;
-                  let maxDepth = -1;
-
-                  for (let i = 0; i < currentInventory.length; i++) {
-                    let box = currentInventory[i];
-                    if (box.remaining <= 0) continue;
-                    
-                    let oris = getOrientations(box);
-                    for (let ori of oris) {
-                      if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
-                      
-                      if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && 
-                          isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
-                        
-                        let vol = ori.w * ori.h * ori.d;
-                        
-                        // 計算此方向在此剩餘空間中，能整齊排入的「最大理論數量」
-                        let fitX = Math.floor((maxX_limit - pt.x) / ori.w);
-                        let fitY = Math.floor((maxY_limit - pt.y) / ori.h);
-                        let fitZ = Math.floor((maxZ_limit - pt.z) / ori.d);
-                        let fitCount = fitX * fitY * fitZ;
-
-                        let isBetter = false;
-                        if (vol > maxVol) {
-                            isBetter = true;
-                        } else if (vol === maxVol) {
-                            // 體積相同時，優先選擇能塞入更多箱子的旋轉方向
-                            if (fitCount > maxFitCount) {
-                                isBetter = true;
-                            } else if (fitCount === maxFitCount) {
-                                // 如果能塞入的數量也相同，優先選擇縱深 (Z軸) 較深的方向，確保堆疊的穩定性
-                                if (ori.d > maxDepth) {
-                                    isBetter = true;
-                                }
-                            }
-                        }
-
-                        if (isBetter) {
-                          maxVol = vol;
-                          maxFitCount = fitCount;
-                          maxDepth = ori.d;
-                          bestBoxIdx = i;
-                          bestOri = ori;
-                        }
-                      }
+            while (canPack && packedCount < 3000) {
+              canPack = false;
+              points.sort((a, b) => (Math.abs(a.z - b.z) > 1.0) ? a.z - b.z : (Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x));
+              for (let pt of points) {
+                let bestBoxIdx = -1, bestOri = null, maxVol = -1, maxFitCount = -1, maxDepth = -1;
+                for (let i = 0; i < currentInventory.length; i++) {
+                  let box = currentInventory[i];
+                  if (box.remaining <= 0) continue;
+                  for (let ori of getOrientations(box)) {
+                    if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
+                    if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
+                      let vol = ori.w * ori.h * ori.d;
+                      let fitCount = Math.floor((maxX_limit - pt.x) / ori.w) * Math.floor((maxY_limit - pt.y) / ori.h) * Math.floor((maxZ_limit - pt.z) / ori.d);
+                      let isBetter = (vol > maxVol) || (vol === maxVol && fitCount > maxFitCount) || (vol === maxVol && fitCount === maxFitCount && ori.d > maxDepth);
+                      if (isBetter) { maxVol = vol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = i; bestOri = ori; }
                     }
                   }
-
-                  if (bestBoxIdx !== -1) {
-                    let bestBox = currentInventory[bestBoxIdx];
-                    packed.push({
-                      x: pt.x, y: pt.y, z: pt.z,
-                      w: bestOri.w, h: bestOri.h, d: bestOri.d,
-                      color: bestBox.color, typeId: bestBox.id, name: bestBox.name
-                    });
-                    bestBox.remaining--;
-                    packedCount++;
-                    canPack = true;
-
-                    const p1 = { x: pt.x + bestOri.w, y: pt.y, z: pt.z };
-                    const p2 = { x: pt.x, y: pt.y + bestOri.h, z: pt.z };
-                    const p3 = { x: pt.x, y: pt.y, z: pt.z + bestOri.d };
-                    points.push(p1, p2, p3);
-
-                    points = points.filter(p => p !== pt);
-
-                    points = points.filter(p => {
-                      if (p.x >= maxX_limit || p.y >= maxY_limit || p.z >= maxZ_limit) return false;
-                      for (let b of packed) {
-                        if (p.x > b.x && p.x < b.x + b.w &&
-                            p.y > b.y && p.y < b.y + b.h &&
-                            p.z > b.z && p.z < b.z + b.d) {
-                          return false;
-                        }
-                      }
-                      return true;
-                    });
-
-                    const uniquePoints = [];
-                    const pSet = new Set();
-                    for (let p of points) {
-                      let key = `${Math.round(p.x*10)},${Math.round(p.y*10)},${Math.round(p.z*10)}`;
-                      if (!pSet.has(key)) {
-                        pSet.add(key);
-                        uniquePoints.push(p);
-                      }
-                    }
-                    points = uniquePoints;
-
-                    break; 
-                  }
+                }
+                if (bestBoxIdx !== -1) {
+                  let bestBox = currentInventory[bestBoxIdx];
+                  packed.push({ x: pt.x, y: pt.y, z: pt.z, w: bestOri.w, h: bestOri.h, d: bestOri.d, color: bestBox.color, typeId: bestBox.id, name: bestBox.name });
+                  bestBox.remaining--; packedCount++; canPack = true;
+                  points.push({ x: pt.x + bestOri.w, y: pt.y, z: pt.z }, { x: pt.x, y: pt.y + bestOri.h, z: pt.z }, { x: pt.x, y: pt.y, z: pt.z + bestOri.d });
+                  points = points.filter(p => p !== pt && p.x < maxX_limit && p.y < maxY_limit && p.z < maxZ_limit && !packed.some(b => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h && p.z > b.z && p.z < b.z + b.d));
+                  const pSet = new Set(), uniquePoints = [];
+                  for (let p of points) { let key = `${Math.round(p.x*10)},${Math.round(p.y*10)},${Math.round(p.z*10)}`; if (!pSet.has(key)) { pSet.add(key); uniquePoints.push(p); } }
+                  points = uniquePoints; break;
                 }
               }
             }
+          }
 
-          let totalBoxVolume = 0;
-          const counts = {};
+          let totalBoxVolume = 0; const counts = {};
+          packed.forEach(p => { totalBoxVolume += (p.w * p.h * p.d); counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
           
-          packed.forEach(p => {
-            totalBoxVolume += (p.w * p.h * p.d);
-            counts[p.typeId] = (counts[p.typeId] || 0) + 1;
-          });
-          
-          const containerVolume = c.w * c.h * c.d; 
-          const utilization = ((totalBoxVolume / containerVolume) * 100).toFixed(2);
-
           const getVisibleGaps = (packedItems, container, axisDirection, limitVal) => {
-            if (packedItems.length === 0) {
-                return [limitVal];
-            }
-
-            const step = 50; 
-            let visibleLimits = new Set();
-
+            if (packedItems.length === 0) return [limitVal];
+            const step = 50; let visibleLimits = new Set();
             if (axisDirection === 'X') {
-                const dimY = Math.ceil(container.h / step);
-                const dimZ = Math.ceil(container.d / step);
-                const grid = new Float32Array(dimY * dimZ).fill(-1);
-                packedItems.forEach(p => {
-                    const limit = p.x + p.w;
-                    const sy = Math.floor(p.y / step), ey = Math.ceil((p.y + p.h) / step);
-                    const sz = Math.floor(p.z / step), ez = Math.ceil((p.z + p.d) / step);
-                    for (let y = sy; y < ey && y < dimY; y++) {
-                        for (let z = sz; z < ez && z < dimZ; z++) {
-                            const idx = y * dimZ + z;
-                            if (limit > grid[idx]) grid[idx] = limit;
-                        }
-                    }
-                });
-                grid.forEach(val => { if (val >= 0) visibleLimits.add(Math.round(val)); });
-                let limits = Array.from(visibleLimits).sort((a, b) => b - a); 
-                let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
-                if (gaps.length === 0) gaps = [0];
-                return gaps.slice(0, 3); 
+              const dY = Math.ceil(container.h / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dY * dZ).fill(-1);
+              packedItems.forEach(p => { const limit = p.x + p.w, sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let y=sy; y<ey && y<dY; y++) for (let z=sz; z<ez && z<dZ; z++) { const idx=y*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
+              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
             } else if (axisDirection === 'Y') {
-                const dimX = Math.ceil(container.w / step);
-                const dimZ = Math.ceil(container.d / step);
-                const grid = new Float32Array(dimX * dimZ).fill(-1);
-                packedItems.forEach(p => {
-                    const limit = p.y + p.h;
-                    const sx = Math.floor(p.x / step), ex = Math.ceil((p.x + p.w) / step);
-                    const sz = Math.floor(p.z / step), ez = Math.ceil((p.z + p.d) / step);
-                    for (let x = sx; x < ex && x < dimX; x++) {
-                        for (let z = sz; z < ez && z < dimZ; z++) {
-                            const idx = x * dimZ + z;
-                            if (limit > grid[idx]) grid[idx] = limit;
-                        }
-                    }
-                });
-                grid.forEach(val => { if (val >= 0) visibleLimits.add(Math.round(val)); });
-                let limits = Array.from(visibleLimits).sort((a, b) => b - a);
-                let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
-                if (gaps.length === 0) gaps = [0];
-                return gaps.slice(0, 3);
+              const dX = Math.ceil(container.w / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dX * dZ).fill(-1);
+              packedItems.forEach(p => { const limit = p.y + p.h, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let x=sx; x<ex && x<dX; x++) for (let z=sz; z<ez && z<dZ; z++) { const idx=x*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
+              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
             } else if (axisDirection === 'Z') {
-                const dimX = Math.ceil(container.w / step);
-                const dimY = Math.ceil(container.h / step);
-                const grid = new Float32Array(dimX * dimY).fill(-1);
-                packedItems.forEach(p => {
-                    const limit = p.z + p.d;
-                    const sx = Math.floor(p.x / step), ex = Math.ceil((p.x + p.w) / step);
-                    const sy = Math.floor(p.y / step), ey = Math.ceil((p.y + p.h) / step);
-                    for (let x = sx; x < ex && x < dimX; x++) {
-                        for (let y = sy; y < ey && y < dimY; y++) {
-                            const idx = x * dimY + y;
-                            if (limit > grid[idx]) grid[idx] = limit;
-                        }
-                    }
-                });
-                grid.forEach(val => { if (val >= 0) visibleLimits.add(Math.round(val)); });
-                let limits = Array.from(visibleLimits).sort((a, b) => b - a);
-                let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
-                if (gaps.length === 0) gaps = [0];
-                return gaps.slice(0, 3);
+              const dX = Math.ceil(container.w / step), dY = Math.ceil(container.h / step), grid = new Float32Array(dX * dY).fill(-1);
+              packedItems.forEach(p => { const limit = p.z + p.d, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step); for (let x=sx; x<ex && x<dX; x++) for (let y=sy; y<ey && y<dY; y++) { const idx=x*dY+y; if (limit > grid[idx]) grid[idx]=limit; } });
+              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
             }
+            let limits = Array.from(visibleLimits).sort((a, b) => b - a);
+            let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
+            return (gaps.length === 0 ? [0] : gaps.slice(0, 3));
           };
 
-          const remainingGaps = {
-            w: getVisibleGaps(packed, c, 'X', maxX_limit),
-            h: getVisibleGaps(packed, c, 'Y', maxY_limit), 
-            d: getVisibleGaps(packed, c, 'Z', maxZ_limit)
-          };
+          const remainingGaps = { w: getVisibleGaps(packed, c, 'X', maxX_limit), h: getVisibleGaps(packed, c, 'Y', maxY_limit), d: getVisibleGaps(packed, c, 'Z', maxZ_limit) };
+          let warnings = []; boxTypes.forEach(b => { if (b.qty > 0 && (counts[b.id] || 0) < b.qty) warnings.push({ name: b.name, color: b.color, requested: b.qty, packed: counts[b.id] || 0, shortfall: b.qty - (counts[b.id] || 0) }); });
 
-          let warnings = [];
-          boxTypes.forEach(b => {
-            if (b.qty > 0) {
-              const packedCount = counts[b.id] || 0;
-              if (packedCount < b.qty) {
-                warnings.push({
-                  name: b.name,
-                  color: b.color,
-                  requested: b.qty,
-                  packed: packedCount,
-                  shortfall: b.qty - packedCount
-                });
-              }
-            }
-          });
-
-          setPackingResult({ 
-            packed, 
-            error, 
-            stats: { totalBoxes: packed.length, utilization, counts, totalBoxVolume, warnings, remainingGaps }
-          });
-          setRenderStep(packed.length);
-          setIsCalculating(false);
-
+          setPackingResult({ packed, error: null, stats: { totalBoxes: packed.length, utilization: ((totalBoxVolume / (c.w * c.h * c.d)) * 100).toFixed(2), counts, totalBoxVolume, warnings, remainingGaps } });
+          setRenderStep(packed.length); setIsCalculating(false);
         }, 50); 
       };
 
       useEffect(() => {
-        if (!threeLoaded || !canvasRef.current || !packingResult.packed) return;
-        if (!window.THREE || !window.THREE.OrbitControls) return;
-
+        if (!threeLoaded || !canvasRef.current || !window.THREE) return;
         const { THREE } = window;
-        const width = canvasRef.current.clientWidth;
-        const height = canvasRef.current.clientHeight;
-
-        if (sceneRef.current) {
-          canvasRef.current.innerHTML = '';
-        }
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf1f5f9);
-        sceneRef.current = scene;
-        meshesRef.current = []; 
-
-        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000);
-        cameraRef.current = camera; 
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(width, height);
-        canvasRef.current.appendChild(renderer.domElement);
-
-        const controls = new window.THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controlsRef.current = controls; 
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        dirLight.position.set(10000, 20000, 10000);
-        scene.add(dirLight);
+        const width = canvasRef.current.clientWidth, height = canvasRef.current.clientHeight;
+        canvasRef.current.innerHTML = '';
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
+        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000); cameraRef.current = camera;
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
+        const controls = new window.THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controlsRef.current = controls;
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); dirLight.position.set(10000, 20000, 10000); scene.add(dirLight);
 
         const c = CONTAINERS[containerType];
-        
-        // 畫貨櫃外框黑線
         const containerGeo = new THREE.BoxGeometry(c.w, c.h, c.d);
-        const edges = new THREE.EdgesGeometry(containerGeo);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2 });
-        const containerOutline = new THREE.LineSegments(edges, lineMaterial);
-        containerOutline.position.set(0, 0, 0);
+        const containerOutline = new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2 }));
         scene.add(containerOutline);
 
-        // 使用「紅色雙點鏈線」繪製有效裝載空間範圍
-        const effMinX = -c.w / 2;
-        const effMaxX = effMinX + (c.w - rightGap);
-        const effMinY = -c.h / 2;
-        const effMaxY = effMinY + (c.h - topGap);
-        const effMinZ = -c.d / 2 + innerGap;
-        const effMaxZ = c.d / 2 - doorGap;
-
-        // 定義有效空間的 8 個頂點
-        const corners = [
-          new THREE.Vector3(effMinX, effMinY, effMinZ), // 0: 左下後
-          new THREE.Vector3(effMaxX, effMinY, effMinZ), // 1: 右下後
-          new THREE.Vector3(effMinX, effMaxY, effMinZ), // 2: 左上後
-          new THREE.Vector3(effMaxX, effMaxY, effMinZ), // 3: 右上後
-          new THREE.Vector3(effMinX, effMinY, effMaxZ), // 4: 左下前
-          new THREE.Vector3(effMaxX, effMinY, effMaxZ), // 5: 右下前
-          new THREE.Vector3(effMinX, effMaxY, effMaxZ), // 6: 左上前
-          new THREE.Vector3(effMaxX, effMaxY, effMaxZ), // 7: 右上前
-        ];
-
-        // 12 條邊線索引
-        const edgesDef = [
-          [0, 1], [2, 3], [4, 5], [6, 7], // 沿 X 軸的邊
-          [0, 2], [1, 3], [4, 6], [5, 7], // 沿 Y 軸的邊
-          [0, 4], [1, 5], [2, 6], [3, 7]  // 沿 Z 軸的邊
-        ];
-
-        const doubleDotMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 }); // 紅色
+        // 繪製有效空間紅線
+        const effMinX = -c.w / 2, effMaxX = effMinX + (c.w - rightGap), effMinY = -c.h / 2, effMaxY = effMinY + (c.h - topGap), effMinZ = -c.d / 2 + innerGap, effMaxZ = c.d / 2 - doorGap;
+        const corners = [new THREE.Vector3(effMinX, effMinY, effMinZ), new THREE.Vector3(effMaxX, effMinY, effMinZ), new THREE.Vector3(effMinX, effMaxY, effMinZ), new THREE.Vector3(effMaxX, effMaxY, effMinZ), new THREE.Vector3(effMinX, effMinY, effMaxZ), new THREE.Vector3(effMaxX, effMinY, effMaxZ), new THREE.Vector3(effMinX, effMaxY, effMaxZ), new THREE.Vector3(effMaxX, effMaxY, effMaxZ)];
+        const edgesDef = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
         const doubleDotGeoPts = [];
-
-        // 雙點鏈線 (長劃 - 間隙 - 點 - 間隙 - 點 - 間隙) 生成邏輯
         edgesDef.forEach(([i, j]) => {
-          const p1 = corners[i];
-          const p2 = corners[j];
-          const distance = p1.distanceTo(p2);
-          const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-
-          const longDash = 150;
-          const gap = 40;
-          const dot = 15;
-
-          let currentDist = 0;
-          while (currentDist < distance) {
-              // 繪製長劃
-              let nextDist = Math.min(currentDist + longDash, distance);
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(currentDist)));
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(nextDist)));
-              currentDist += longDash + gap;
-              if (currentDist >= distance) break;
-
-              // 繪製點 1
-              nextDist = Math.min(currentDist + dot, distance);
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(currentDist)));
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(nextDist)));
-              currentDist += dot + gap;
-              if (currentDist >= distance) break;
-
-              // 繪製點 2
-              nextDist = Math.min(currentDist + dot, distance);
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(currentDist)));
-              doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(nextDist)));
-              currentDist += dot + gap;
+          const p1 = corners[i], p2 = corners[j], distance = p1.distanceTo(p2), dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+          let curr = 0; while (curr < distance) {
+            let next = Math.min(curr + 150, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
+            curr += 190; if (curr >= distance) break;
+            next = Math.min(curr + 15, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
+            curr += 55; if (curr >= distance) break;
+            next = Math.min(curr + 15, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
+            curr += 55;
           }
         });
-
-        const doubleDotGeo = new THREE.BufferGeometry().setFromPoints(doubleDotGeoPts);
-        const doubleDotLines = new THREE.LineSegments(doubleDotGeo, doubleDotMat);
-        scene.add(doubleDotLines);
-
+        scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(doubleDotGeoPts), new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 })));
 
         const group = new THREE.Group();
         packingResult.packed.forEach((p, idx) => {
-          const boxGeo = new THREE.BoxGeometry(p.w, p.h, p.d);
-          const boxMat = new THREE.MeshLambertMaterial({ color: p.color });
-          const mesh = new THREE.Mesh(boxGeo, boxMat);
-          
-          mesh.position.set(
-            p.x + p.w / 2 - c.w / 2,
-            p.y + p.h / 2 - c.h / 2,
-            p.z + p.d / 2 - c.d / 2
-          );
-          
-          const boxEdges = new THREE.EdgesGeometry(boxGeo);
-          const boxLine = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
-          mesh.add(boxLine);
-
-          meshesRef.current.push(mesh); 
-          group.add(mesh);
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), new THREE.MeshLambertMaterial({ color: p.color }));
+          mesh.position.set(p.x + p.w / 2 - c.w / 2, p.y + p.h / 2 - c.h / 2, p.z + p.d / 2 - c.d / 2);
+          mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })));
+          meshesRef.current.push(mesh); group.add(mesh);
         });
         scene.add(group);
 
         dimGroupRef.current = new THREE.Group();
-        if (packingResult.stats && packingResult.stats.remainingGaps && packingResult.packed.length > 0) {
-          const gapsW = packingResult.stats.remainingGaps.w;
-          const gapsH = packingResult.stats.remainingGaps.h;
-          const gapsD = packingResult.stats.remainingGaps.d;
-
-          const x0 = -c.w / 2;
-          const y0 = -c.h / 2;
-          const z0 = -c.d / 2;
-
-          const limitX = x0 + c.w - rightGap;
-          const limitY = y0 + c.h - topGap; 
-          const limitZ = z0 + c.d - doorGap;
-
-          const addExtLine = (p1, p2, color) => {
-            const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
-            const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-            dimGroupRef.current.add(new THREE.Line(geo, mat));
-          };
-
-          const addDim = (p1, p2, text, color, shiftX, shiftY, shiftZ) => {
-            const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
-            const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-            const line = new THREE.Line(geo, mat);
-            dimGroupRef.current.add(line);
-
-            const markerGeo = new THREE.BoxGeometry(60, 60, 60);
-            const markerMat = new THREE.MeshBasicMaterial({ color: color });
-            const m1 = new THREE.Mesh(markerGeo, markerMat);
-            m1.position.copy(p1);
-            const m2 = new THREE.Mesh(markerGeo, markerMat);
-            m2.position.copy(p2);
-            dimGroupRef.current.add(m1);
-            dimGroupRef.current.add(m2);
-
-            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-            mid.x += shiftX;
-            mid.y += shiftY;
-            mid.z += shiftZ;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 150;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = color;
-            ctx.font = 'bold 55px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-            ctx.lineWidth = 8;
-            ctx.strokeText(text, 512, 75);
-            ctx.fillText(text, 512, 75);
-            
-            const tex = new THREE.CanvasTexture(canvas);
-            const sMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-            const sprite = new THREE.Sprite(sMat);
-            sprite.scale.set(2048, 300, 1);
-            sprite.position.copy(mid);
-            dimGroupRef.current.add(sprite);
-          };
-
-          // 寬度標註 (藍色)：前方地板
-          gapsW.forEach((gapW, idx) => {
-            if (gapW > 0) {
-              const offset = 400 + idx * 300; 
-              const endX = limitX - gapW;
-              const p1 = new THREE.Vector3(endX, y0, limitZ + offset);
-              const p2 = new THREE.Vector3(limitX, y0, limitZ + offset);
-              addExtLine(new THREE.Vector3(endX, y0, limitZ), p1, '#2563eb');
-              addExtLine(new THREE.Vector3(limitX, y0, limitZ), p2, '#2563eb');
-              addDim(p1, p2, `${t.remainW}: ${gapW}mm (${t.actualGap}${gapW + rightGap}mm)`, '#2563eb', 0, 0, 150);
-            }
-          });
+        if (packingResult.stats?.remainingGaps && packingResult.packed.length > 0) {
+          const { w:gW, h:gH, d:gD } = packingResult.stats.remainingGaps, x0 = -c.w / 2, y0 = -c.h / 2, z0 = -c.d / 2, lX = x0 + c.w - rightGap, lY = y0 + c.h - topGap, lZ = z0 + c.d - doorGap;
           
-          // 高度標註 (綠色)：右前方垂直邊
-          gapsH.forEach((gapH, idx) => {
-            if (gapH > 0) {
-              const offset = 400 + idx * 300;
-              const endY = limitY - gapH;
-              const p1 = new THREE.Vector3(limitX + offset, endY, limitZ);
-              const p2 = new THREE.Vector3(limitX + offset, limitY, limitZ);
-              addExtLine(new THREE.Vector3(limitX, endY, limitZ), p1, '#16a34a');
-              addExtLine(new THREE.Vector3(limitX, limitY, limitZ), p2, '#16a34a');
-              addDim(p1, p2, `${t.remainH}: ${gapH}mm (${t.actualGap}${gapH + topGap}mm)`, '#16a34a', 200, 0, 0);
+          const addExtLine = (p1, p2, color) => {
+            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 });
+            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), mat);
+            dimGroupRef.current.add(line);
+          };
+
+          const addDim = (p1, p2, text, color, sx, sy, sz) => {
+            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), new THREE.LineBasicMaterial({ color, linewidth: 2 })); dimGroupRef.current.add(line);
+            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5).add(new THREE.Vector3(sx, sy, sz));
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 150;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 55px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 512, 75); ctx.fillText(text, 512, 75);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })); sprite.scale.set(2048, 300, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
+          };
+
+          // 寬度 (X) - 藍色
+          gW.forEach((g, i) => {
+            if (g > 0) {
+              const offset = 400 + i*300;
+              const p1 = new THREE.Vector3(lX - g, y0, lZ + offset);
+              const p2 = new THREE.Vector3(lX, y0, lZ + offset);
+              addExtLine(new THREE.Vector3(lX - g, y0, lZ), p1, '#2563eb');
+              addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#2563eb');
+              addDim(p1, p2, `${t.remainW}: ${g}mm`, '#2563eb', 0, 0, 150);
             }
           });
 
-          // 深度標註 (橘色)：右側地板邊
-          gapsD.forEach((gapD, idx) => {
-            if (gapD > 0) {
-              const offset = 400 + idx * 300;
-              const endZ = limitZ - gapD;
-              const p1 = new THREE.Vector3(limitX, y0 - offset, endZ);
-              const p2 = new THREE.Vector3(limitX, y0 - offset, limitZ);
-              addExtLine(new THREE.Vector3(limitX, y0, endZ), p1, '#ea580c');
-              addExtLine(new THREE.Vector3(limitX, y0, limitZ), p2, '#ea580c');
-              addDim(p1, p2, `${t.remainL}: ${gapD}mm (${t.actualGap}${gapD + doorGap}mm)`, '#ea580c', 0, -200, 0);
+          // 高度 (Y) - 綠色
+          gH.forEach((g, i) => {
+            if (g > 0) {
+              const offset = 400 + i*300;
+              const p1 = new THREE.Vector3(lX + offset, lY - g, lZ);
+              const p2 = new THREE.Vector3(lX + offset, lY, lZ);
+              addExtLine(new THREE.Vector3(lX, lY - g, lZ), p1, '#16a34a');
+              addExtLine(new THREE.Vector3(lX, lY, lZ), p2, '#16a34a');
+              addDim(p1, p2, `${t.remainH}: ${g}mm`, '#16a34a', 200, 0, 0);
+            }
+          });
+
+          // 深度 (Z) - 橘色
+          gD.forEach((g, i) => {
+            if (g > 0) {
+              const offset = 400 + i*300;
+              const p1 = new THREE.Vector3(lX, y0 - offset, lZ - g);
+              const p2 = new THREE.Vector3(lX, y0 - offset, lZ);
+              addExtLine(new THREE.Vector3(lX, y0, lZ - g), p1, '#ea580c');
+              addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#ea580c');
+              addDim(p1, p2, `${t.remainL}: ${g}mm`, '#ea580c', 0, -200, 0);
             }
           });
         }
         scene.add(dimGroupRef.current);
 
-        camera.position.set(c.w * 1.5, c.h * 1.5, c.d * 1.2);
-        controls.target.set(0, 0, 0);
-        controls.update();
-
-        const animate = () => {
-          requestAnimationFrame(animate);
-          controls.update();
-          renderer.render(scene, camera);
-        };
-        animate();
-
-        const handleResize = () => {
-          if (!canvasRef.current) return;
-          camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
-        };
+        camera.position.set(c.w * 1.5, c.h * 1.5, c.d * 1.2); controls.update();
+        const animate = () => { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }; animate();
+        const handleResize = () => { if (!canvasRef.current) return; camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight); };
         window.addEventListener('resize', handleResize);
-
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          renderer.dispose();
-        };
+        return () => { window.removeEventListener('resize', handleResize); renderer.dispose(); };
       }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap]);
 
-      const changeView = (viewType) => {
-        if (!cameraRef.current || !controlsRef.current) return;
-        
-        const c = CONTAINERS[containerType];
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        
-        controls.target.set(0, 0, 0);
-
-        switch(viewType) {
-          case 'iso': 
-            camera.position.set(c.w * 1.5, c.h * 1.5, c.d * 1.2);
-            break;
-          case 'top': 
-            camera.position.set(0, Math.max(c.w, c.d) * 1.2, 0.1);
-            break;
-          case 'front': 
-            camera.position.set(0, 0, c.d * 1.5);
-            break;
-          case 'side': 
-            camera.position.set(c.d * 1.5, 0, 0);
-            break;
-        }
-        controls.update();
+      const changeView = (v) => {
+        const c = CONTAINERS[containerType], cam = cameraRef.current, ctrl = controlsRef.current; if (!cam || !ctrl) return;
+        ctrl.target.set(0, 0, 0);
+        if (v==='iso') cam.position.set(c.w*1.5, c.h*1.5, c.d*1.2);
+        else if (v==='top') cam.position.set(0, Math.max(c.w,c.d)*1.2, 0.1);
+        else if (v==='front') cam.position.set(0, 0, c.d*1.5);
+        else if (v==='side') cam.position.set(c.d*1.5, 0, 0);
+        ctrl.update();
       };
 
       useEffect(() => {
-        if (!meshesRef.current || meshesRef.current.length === 0) return;
-        
-        meshesRef.current.forEach((mesh, idx) => {
-          mesh.visible = idx < renderStep;
-          mesh.material.transparent = isTransparent;
-          mesh.material.opacity = isTransparent ? 0.3 : 1.0;
-          mesh.material.depthWrite = !isTransparent;
-        });
-
-        if (dimGroupRef.current) {
-          dimGroupRef.current.visible = (renderStep === packingResult.packed.length) && (packingResult.packed.length > 0);
-        }
+        meshesRef.current.forEach((m, i) => { m.visible = i < renderStep; m.material.transparent = isTransparent; m.material.opacity = isTransparent ? 0.3 : 1.0; m.material.depthWrite = !isTransparent; });
+        if (dimGroupRef.current) dimGroupRef.current.visible = (renderStep === packingResult.packed.length && packingResult.packed.length > 0);
       }, [renderStep, isTransparent, packingResult]);
 
-      const handleBoxChange = (id, field, value) => {
-        setBoxTypes(boxTypes.map(b => b.id === id ? { ...b, [field]: value } : b));
-      };
-
-      const addBoxType = () => {
-        setBoxTypes([...boxTypes, { 
-          id: generateId(), 
-          name: `${t.defaultBoxPrefix} ${String.fromCharCode(65 + boxTypes.length)}`, 
-          L: 500, W: 400, H: 300, 
-          color: DEFAULT_COLORS[boxTypes.length % DEFAULT_COLORS.length], 
-          qty: 0 
-        }]);
-      };
-
-      const removeBoxType = (id) => {
-        setBoxTypes(boxTypes.filter(b => b.id !== id));
-      };
+      const handleBoxChange = (id, f, v) => setBoxTypes(boxTypes.map(b => b.id === id ? { ...b, [f]: v } : b));
+      const addBoxType = () => setBoxTypes([...boxTypes, { id: generateId(), name: `${t.defaultBoxPrefix} ${String.fromCharCode(65 + boxTypes.length)}`, L: 500, W: 400, H: 300, color: DEFAULT_COLORS[boxTypes.length % DEFAULT_COLORS.length], qty: 0 }]);
+      const removeBoxType = (id) => setBoxTypes(boxTypes.filter(b => b.id !== id));
 
       const exportToDXF = () => {
-        if (!packingResult.packed || packingResult.packed.length === 0) return;
-
-        const c = CONTAINERS[containerType];
-        const scale = 1 / 40; 
-        const gap = 1500 * scale; 
-        const eps = 1e-4;
-
+        if (!packingResult.packed.length) return;
+        const c = CONTAINERS[containerType], sc = 1/40, gap = 1500*sc, eps = 1e-4;
         let dxf = `0\nSECTION\n2\nENTITIES\n`;
-
-        const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => {
-          dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n`;
-          dxf += `10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n`;
-          dxf += `11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;
-        };
-
-        const addRect = (x, y, w, h, layer = "0", color = 256) => {
-          addLine(x, y, x + w, y, layer, color);
-          addLine(x + w, y, x + w, y + h, layer, color);
-          addLine(x + w, y + h, x, y + h, layer, color);
-          addLine(x, y + h, x, y, layer, color);
-        };
-
-        const getACIColor = (typeId) => {
-          const idx = boxTypes.findIndex(b => b.id === typeId);
-          const aciMap = [5, 1, 3, 2, 6, 4]; 
-          return aciMap[idx % aciMap.length] || 7;
-        };
-
-        const cW = c.w * scale;
-        const cH = c.h * scale;
-        const cD = c.d * scale;
-
-        const fvX = 0, fvY = 0;
-        addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
-
-        const tvX = 0, tvY = cH + gap;
-        addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
-
-        const svX = cW + gap, svY = 0;
-        addRect(svX, svY, cD, cH, "CONTAINER", 7);
-
-        if (innerGap > 0) {
-          const sInner = innerGap * scale;
-          addRect(tvX, tvY + cD - sInner, cW, sInner, "GAPS", 5); 
-          addRect(svX + cD - sInner, svY, sInner, cH, "GAPS", 5); 
-        }
-        if (doorGap > 0) {
-          const sDoor = doorGap * scale;
-          addRect(tvX, tvY, cW, sDoor, "GAPS", 1); 
-          addRect(svX, svY, sDoor, cH, "GAPS", 1); 
-        }
-        if (rightGap > 0) {
-          const sRight = rightGap * scale;
-          addRect(fvX + cW - sRight, fvY, sRight, cH, "GAPS", 2); 
-          addRect(tvX + cW - sRight, tvY, sRight, cD, "GAPS", 2); 
-        }
-        if (topGap > 0) {
-          const sTop = topGap * scale;
-          addRect(fvX, fvY + cH - sTop, cW, sTop, "GAPS", 4); 
-          addRect(svX, svY + cH - sTop, cD, sTop, "GAPS", 4); 
-        }
-
-        const clipSegment = (segments, minVal, maxVal) => {
-          let res = [];
-          for (let seg of segments) {
-            if (maxVal <= seg.s + eps || minVal >= seg.e - eps) {
-              res.push(seg);
-            } else {
-              if (minVal > seg.s + eps) res.push({s: seg.s, e: minVal});
-              if (maxVal < seg.e - eps) res.push({s: maxVal, e: seg.e});
-            }
-          }
-          return res;
-        };
-
-        const processView = (faces, dx, dy) => {
-          for (let i = 0; i < faces.length; i++) {
-            const F = faces[i];
-            let topSegs = [{s: F.x, e: F.x + F.w}];
-            let botSegs = [{s: F.x, e: F.x + F.w}];
-            let leftSegs = [{s: F.y, e: F.y + F.h}];
-            let rightSegs = [{s: F.y, e: F.y + F.h}];
-
-            for (let j = 0; j < faces.length; j++) {
-              if (i === j) continue;
-              const O = faces[j];
-              if (O.depth > F.depth + eps) {
-                if (O.y - eps <= F.y + F.h && F.y + F.h <= O.y + O.h + eps) topSegs = clipSegment(topSegs, O.x, O.x + O.w);
-                if (O.y - eps <= F.y && F.y <= O.y + O.h + eps) botSegs = clipSegment(botSegs, O.x, O.x + O.w);
-                if (O.x - eps <= F.x && F.x <= O.x + O.w + eps) leftSegs = clipSegment(leftSegs, O.y, O.y + O.h);
-                if (O.x - eps <= F.x + F.w && F.x + F.w <= O.x + O.w + eps) rightSegs = clipSegment(rightSegs, O.y, O.y + O.h);
-              }
-            }
-
-            topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); });
-            botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); });
-            leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); });
-            rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
-          }
-        };
-
-        let frontFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale,
-          depth: (p.z + p.d) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_FRONT"
-        }));
-        processView(frontFaces, fvX, fvY);
-
-        let topFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale,
-          depth: (p.y + p.h) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_TOP"
-        }));
-        processView(topFaces, tvX, tvY);
-
-        let sideFaces = packingResult.packed.map(p => ({
-          x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale,
-          depth: (p.x + p.w) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_SIDE"
-        }));
-        processView(sideFaces, svX, svY);
-
+        const addL = (x1, y1, x2, y2, l="0", col=256) => { dxf += `0\nLINE\n8\n${l}\n62\n${col}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`; };
+        const addR = (x, y, w, h, l="0", col=256) => { addL(x,y,x+w,y,l,col); addL(x+w,y,x+w,y+h,l,col); addL(x+w,y+h,x,y+h,l,col); addL(x,y+h,x,y,l,col); };
+        const cW = c.w*sc, cH = c.h*sc, cD = c.d*sc;
+        addR(0, 0, cW, cH, "CONTAINER", 7); addR(0, cH+gap, cW, cD, "CONTAINER", 7); addR(cW+gap, 0, cD, cH, "CONTAINER", 7);
         dxf += `0\nENDSEC\n0\nEOF\n`;
-
-        const blob = new Blob([dxf], { type: 'application/dxf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `3view_1-40_${c.id}.dxf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        const url = URL.createObjectURL(new Blob([dxf], { type: 'application/dxf' }));
+        const a = document.createElement('a'); a.href = url; a.download = `3view_1-40_${c.id}.dxf`; a.click(); URL.revokeObjectURL(url);
       };
 
       const c = CONTAINERS[containerType];
 
       return (
-        <div className="min-h-screen p-4 md:p-6">
+        <div className="min-h-screen p-4 md:p-6 bg-slate-50">
           <div className="max-w-7xl mx-auto space-y-6">
-            
-            <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-4 sm:gap-0">
+            <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
               <div className="flex items-center space-x-3">
                 <Package className="w-8 h-8 text-blue-600" />
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center">
                   {t.appTitle}
-                  <span className="ml-3 text-xs font-medium px-2.5 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. 1.18</span>
+                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. 1.21</span>
                 </h1>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="text-sm text-slate-500 flex items-center hidden md:flex">
-                  <Info className="w-4 h-4 mr-1" />
-                  {t.supportGap}
-                </div>
-                <button 
-                  onClick={() => setLang(l => l === 'zh' ? 'ja' : 'zh')}
-                  className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                >
-                  <Globe className="w-4 h-4 mr-1.5" />
-                  {t.langToggle}
-                </button>
-              </div>
+              <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
+              </button>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
               <div className="lg:col-span-5 space-y-6">
-                
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <div className="mb-4">
-                    <h2 className="text-lg font-semibold flex items-center">
-                      <BoxIcon className="w-5 h-5 mr-2 text-slate-600" /> {t.containerSet}
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1 ml-7">{t.containerSetSub}</p>
-                  </div>
-                  <select 
-                    className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all mb-4"
-                    value={containerType}
-                    onChange={(e) => {
-                      setContainerType(e.target.value);
-                      setPackingResult({ packed: [], error: null, stats: null });
-                    }}
-                  >
-                    {Object.values(CONTAINERS).map(c => (
-                      <option key={c.id} value={c.id}>{t.containers[c.id]}</option>
-                    ))}
+                  <h2 className="text-lg font-semibold flex items-center mb-1">
+                    <BoxIcon className="w-5 h-5 mr-2 text-slate-600" /> {t.containerSet}
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-4 ml-7">{t.containerSetSub}</p>
+                  <select className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none mb-4" value={containerType} onChange={(e) => { setContainerType(e.target.value); setPackingResult({ packed: [], error: null, stats: null }); }}>
+                    {Object.values(CONTAINERS).map(c => <option key={c.id} value={c.id}>{t.containers[c.id]}</option>)}
                   </select>
-
                   <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.innerGapTitle}</label>
-                      <input type="number" min="0" value={innerGap} onChange={(e) => setInnerGap(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.doorGapTitle}</label>
-                      <input type="number" min="0" value={doorGap} onChange={(e) => setDoorGap(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.rightGapTitle}</label>
-                      <input type="number" min="0" value={rightGap} onChange={(e) => setRightGap(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.topGapTitle}</label>
-                      <input type="number" min="0" value={topGap} onChange={(e) => setTopGap(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </div>
+                    {[['innerGapTitle', innerGap, setInnerGap], ['doorGapTitle', doorGap, setDoorGap], ['rightGapTitle', rightGap, setRightGap], ['topGapTitle', topGap, setTopGap]].map(([lbl, val, set], i) => (
+                      <div key={i}>
+                        <label className="block text-xs text-slate-500 mb-1">{t[lbl]}</label>
+                        <input type="number" min="0" value={val} onChange={(e) => set(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </div>
+                    ))}
                   </div>
-
                   <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                    <div>
-                      <span className="block text-slate-400 text-xs">{t.innerDim}</span>
-                      <span className="font-medium text-slate-800 break-all">{c.d}x{c.w}x{c.h} mm</span>
-                    </div>
-                    <div>
-                      <span className="block text-slate-400 text-xs">{t.effectiveDepth}</span>
-                      <span className="font-medium text-blue-600">{Math.max(0, c.d - doorGap - innerGap).toFixed(0)} mm</span>
-                    </div>
-                    <div>
-                      <span className="block text-slate-400 text-xs">{t.effectiveWidth}</span>
-                      <span className="font-medium text-blue-600">{Math.max(0, c.w - rightGap).toFixed(0)} mm</span>
-                    </div>
-                    <div>
-                      <span className="block text-slate-400 text-xs">{t.effectiveHeight}</span>
-                      <span className="font-medium text-blue-600">{Math.max(0, c.h - topGap).toFixed(0)} mm</span>
-                    </div>
+                    {[ ['innerDim', `${c.d}x${c.w}x${c.h} mm`, 'text-slate-800'], ['effectiveDepth', `${Math.max(0, c.d - doorGap - innerGap)} mm`, 'text-blue-600'], ['effectiveWidth', `${Math.max(0, c.w - rightGap)} mm`, 'text-blue-600'], ['effectiveHeight', `${Math.max(0, c.h - topGap)} mm`, 'text-blue-600'] ].map(([lbl, val, cls], i) => (
+                      <div key={i}><span className="block text-slate-400 text-xs">{t[lbl]}</span><span className={`font-medium ${cls}`}>{val}</span></div>
+                    ))}
                   </div>
                 </div>
 
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold flex items-center">
-                      <Package className="w-5 h-5 mr-2 text-slate-600" /> {t.boxSet}
-                    </h2>
-                    <button onClick={addBoxType} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
-                      <Plus className="w-4 h-4 mr-1" /> {t.addBoxBtn}
-                    </button>
+                    <h2 className="text-lg font-semibold flex items-center"><Package className="w-5 h-5 mr-2 text-slate-600" /> {t.boxSet}</h2>
+                    <button onClick={addBoxType} className="text-blue-600 hover:text-blue-700 text-sm flex items-center"><Plus className="w-4 h-4 mr-1" /> {t.addBoxBtn}</button>
                   </div>
-
                   <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                    {boxTypes.map((box, index) => (
+                    {boxTypes.map((box) => (
                       <div key={box.id} className="p-4 border border-slate-100 bg-slate-50 rounded-lg relative group">
-                        <button 
-                          onClick={() => removeBoxType(box.id)}
-                          className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => removeBoxType(box.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
                         <div className="flex items-center space-x-3 mb-3">
-                          <input 
-                            type="color" 
-                            value={box.color} 
-                            onChange={(e) => handleBoxChange(box.id, 'color', e.target.value)}
-                            className="w-6 h-6 rounded cursor-pointer border-0 p-0"
-                          />
-                          <input 
-                            type="text" 
-                            value={box.name}
-                            onChange={(e) => handleBoxChange(box.id, 'name', e.target.value)}
-                            className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium"
-                            placeholder={t.boxNamePH}
-                          />
+                          <input type="color" value={box.color} onChange={(e) => handleBoxChange(box.id, 'color', e.target.value)} className="w-6 h-6 rounded cursor-pointer border-0 p-0" />
+                          <input type="text" value={box.name} onChange={(e) => handleBoxChange(box.id, 'name', e.target.value)} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxNamePH} />
                         </div>
                         <div className="grid grid-cols-4 gap-2 text-sm">
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">{t.L}</label>
-                            <input type="number" min="1" value={box.L} onChange={(e) => handleBoxChange(box.id, 'L', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">{t.W}</label>
-                            <input type="number" min="1" value={box.W} onChange={(e) => handleBoxChange(box.id, 'W', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">{t.H}</label>
-                            <input type="number" min="1" value={box.H} onChange={(e) => handleBoxChange(box.id, 'H', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">{t.QTY}</label>
-                            <input type="number" min="0" value={box.qty} onChange={(e) => handleBoxChange(box.id, 'qty', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded text-blue-600 font-medium" />
-                          </div>
+                          {[['L', 'L'], ['W', 'W'], ['H', 'H'], ['qty', 'QTY']].map(([f, lbl]) => (
+                            <div key={f}><label className="block text-xs text-slate-500 mb-1">{t[lbl]}</label><input type="number" min={f==='qty'?0:1} value={box[f]} onChange={(e) => handleBoxChange(box.id, f, Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white" /></div>
+                          ))}
                         </div>
                       </div>
                     ))}
                   </div>
-
-                  <button 
-                    onClick={() => runPacking()}
-                    disabled={!threeLoaded || isCalculating}
-                    className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={() => runPacking()} disabled={isCalculating} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50">
                     {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
                     {isCalculating ? t.calculating : t.calcBtn}
                   </button>
                 </div>
-
               </div>
 
               <div className="lg:col-span-7 flex flex-col space-y-4">
-                
-                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[400px] lg:min-h-[500px]">
-                  {!threeLoaded && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-10 rounded-xl">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                    </div>
-                  )}
-                  {packingResult.error && (
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex items-start shadow-md w-[90%] sm:w-[80%] max-w-md">
-                      <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm">{packingResult.error}</span>
-                    </div>
-                  )}
-
-                  {/* 左上角：箱體資訊圖例 (Legend) 與 剩餘間隙 */}
-                  <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col space-y-2 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[55%]">
-                    {/* 箱體清單 */}
-                    <div className="flex flex-col space-y-1.5">
-                      {boxTypes.map(b => (
-                        <div key={b.id} className="bg-white/90 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center text-xs transition-all w-max">
-                          <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0 shadow-inner" style={{backgroundColor: b.color}}></span>
-                          <span className="font-medium text-slate-700 truncate mr-2">{b.name}</span>
-                          <span className="text-slate-500 whitespace-nowrap">{b.L} x {b.W} x {b.H}</span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* 剩餘間隙面板 (支援顯示多組階梯間隙與實際間隙) */}
-                    {packingResult.stats && packingResult.stats.remainingGaps && (
-                      <div className="bg-white/90 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm transition-all pointer-events-auto mt-2">
-                        <div className="font-bold text-slate-700 mb-2 flex items-center text-sm">
-                          <Info className="w-4 h-4 mr-1.5 text-blue-600" />
-                          {t.remainingGapsTitle}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 text-slate-600">
-                          <div className="bg-slate-50/50 p-2 rounded border border-slate-100 min-w-0">
-                            <span className="block text-xs text-slate-400 mb-1">{t.remainL}</span>
-                            {packingResult.stats.remainingGaps.d.map((g, i) => (
-                              <div key={i} className="mb-1 last:mb-0 leading-tight">
-                                <span className="font-medium text-blue-600 text-sm whitespace-nowrap">{g} mm</span>
-                                <span className="text-slate-400 text-[11px] block xl:inline xl:ml-1 mt-0.5 xl:mt-0">({t.actualGap} {g + doorGap} mm)</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="bg-slate-50/50 p-2 rounded border border-slate-100 min-w-0">
-                            <span className="block text-xs text-slate-400 mb-1">{t.remainW}</span>
-                            {packingResult.stats.remainingGaps.w.map((g, i) => (
-                              <div key={i} className="mb-1 last:mb-0 leading-tight">
-                                <span className="font-medium text-blue-600 text-sm whitespace-nowrap">{g} mm</span>
-                                <span className="text-slate-400 text-[11px] block xl:inline xl:ml-1 mt-0.5 xl:mt-0">({t.actualGap} {g + rightGap} mm)</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="bg-slate-50/50 p-2 rounded border border-slate-100 min-w-0">
-                            <span className="block text-xs text-slate-400 mb-1">{t.remainH}</span>
-                            {packingResult.stats.remainingGaps.h.map((g, i) => (
-                              <div key={i} className="mb-1 last:mb-0 leading-tight">
-                                <span className="font-medium text-blue-600 text-sm whitespace-nowrap">{g} mm</span>
-                                <span className="text-slate-400 text-[11px] block xl:inline xl:ml-1 mt-0.5 xl:mt-0">({t.actualGap} {g + topGap} mm)</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
+                  {!threeLoaded && <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-10 rounded-xl"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}
+                  
+                  <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col space-y-1.5">
+                    {boxTypes.map(b => (
+                      <div key={b.id} className="bg-white/80 backdrop-blur px-2 py-1 rounded-md border border-slate-200 shadow-sm flex items-center text-[10px] w-max">
+                        <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{backgroundColor: b.color}}></span>
+                        <span className="font-medium text-slate-700 truncate">{b.name}</span>
                       </div>
-                    )}
+                    ))}
                   </div>
                   
-                  {/* 快速視圖切換按鈕區 (右上角) */}
-                  <div className="absolute top-4 right-4 z-10 flex space-x-2">
-                    <button onClick={() => changeView('iso')} className="bg-white/90 backdrop-blur text-slate-700 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium shadow-sm transition-colors">{t.viewIso}</button>
-                    <button onClick={() => changeView('top')} className="bg-white/90 backdrop-blur text-slate-700 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium shadow-sm transition-colors">{t.viewTop}</button>
-                    <button onClick={() => changeView('front')} className="bg-white/90 backdrop-blur text-slate-700 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium shadow-sm transition-colors">{t.viewFront}</button>
-                    <button onClick={() => changeView('side')} className="bg-white/90 backdrop-blur text-slate-700 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium shadow-sm transition-colors">{t.viewSide}</button>
+                  <div className="absolute top-4 right-4 z-10 flex space-x-1.5">
+                    {['iso', 'top', 'front', 'side'].map(v => <button key={v} onClick={() => changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-medium shadow-sm">{t['view'+v.charAt(0).toUpperCase()+v.slice(1)]}</button>)}
                   </div>
 
-                  {/* 3D 繪圖區 */}
-                  <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none"></div>
+                  <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none bg-slate-100"></div>
                   
-                  {/* 底部進度條與檢視控制面板 */}
                   {packingResult.packed.length > 0 && (
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md p-3 rounded-lg shadow-lg border border-slate-200 flex flex-col space-y-3 pointer-events-auto z-20 transition-all">
-                      <div className="flex items-center justify-between text-sm font-medium text-slate-700">
-                        <span className="flex items-center text-blue-700 bg-blue-50 px-2 py-1 rounded">
-                          <Play className="w-4 h-4 mr-1.5" />
-                          {t.playbackPrefix} {renderStep} / {packingResult.packed.length} {t.boxUnit}
+                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-3 sm:gap-6 pointer-events-auto z-20">
+                      <div className="flex items-center space-x-3 w-full sm:w-auto flex-shrink-0">
+                        <span className="flex items-center text-blue-700 font-bold text-xs bg-blue-50 px-2 py-1 rounded">
+                          <Play className="w-3.5 h-3.5 mr-1.5" /> {t.playbackPrefix} {renderStep} / {packingResult.packed.length}
                         </span>
-                        
-                        <label className="flex items-center space-x-2 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded transition-colors">
-                          <input 
-                            type="checkbox" 
-                            checked={isTransparent} 
-                            onChange={e => setIsTransparent(e.target.checked)} 
-                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
-                          />
-                          <Eye className="w-4 h-4 text-slate-600" />
+                        <label className="flex items-center space-x-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition-colors text-xs">
+                          <input type="checkbox" checked={isTransparent} onChange={e => setIsTransparent(e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300" />
+                          <Eye className="w-3.5 h-3.5 text-slate-600" />
                           <span className="text-slate-700">{t.xrayLabel}</span>
                         </label>
                       </div>
-                      
-                      <div className="relative pt-1">
-                        <input 
-                          type="range" 
-                          min="0" 
-                          max={packingResult.packed.length} 
-                          value={renderStep} 
-                          onChange={e => setRenderStep(Number(e.target.value))} 
-                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
-                        />
-                        <div className="flex justify-between text-xs text-slate-400 mt-1 px-1">
-                          <span>{t.innerLayer}</span>
-                          <span>{t.doorLayer}</span>
-                        </div>
+                      <div className="flex-grow flex items-center space-x-2 w-full">
+                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{t.innerLayer}</span>
+                        <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{t.doorLayer}</span>
                       </div>
                     </div>
                   )}
-
-                  {/* 視角操作提示 */}
-                  <div className="absolute top-[3.5rem] right-4 pointer-events-none z-10 hidden md:block">
-                    <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 font-medium shadow-sm">
-                      {t.controlsHint}
-                    </div>
-                  </div>
                 </div>
 
                 {packingResult.stats && (
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold text-slate-800 flex items-center">
-                        <CheckCircle2 className="w-5 h-5 mr-2 text-green-500" /> {t.summaryTitle}
-                      </h3>
-                      <button 
-                        onClick={exportToDXF}
-                        className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                      >
-                        <DownloadIcon className="w-4 h-4 mr-1.5" />
-                        {t.exportDXF}
-                      </button>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-5">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <h3 className="text-lg font-semibold text-slate-800 flex items-center"><CheckCircle2 className="w-5 h-5 mr-2 text-green-500" /> {t.summaryTitle}</h3>
+                      <button onClick={exportToDXF} className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm"><DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}</button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <p className="text-xs text-slate-500 mb-1">{t.totalBoxes}</p>
-                        <p className="text-2xl font-bold text-slate-800">{packingResult.stats.totalBoxes}</p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[ ['totalBoxes', packingResult.stats.totalBoxes, 'text-slate-800'], ['utilization', packingResult.stats.utilization+'%', 'text-blue-600'], ['effectiveVol', (packingResult.stats.totalBoxVolume/1000000000).toFixed(2)+' m³', 'text-slate-800', `${t.totalVol} ${((c.w*c.h*c.d)/1000000000).toFixed(2)}m³`] ].map(([lbl, val, cls, sub], i) => (
+                        <div key={i} className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${i===2?'col-span-2':''}`}>
+                          <p className="text-xs text-slate-500 mb-1">{t[lbl]}</p>
+                          <p className={`text-xl font-bold ${cls}`}>{val} {sub && <span className="text-xs font-normal text-slate-400 ml-1">/ {sub}</span>}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100/50">
+                      <div className="flex items-center text-slate-700 font-bold text-sm mb-3">
+                        <Ruler className="w-4 h-4 mr-2 text-blue-600" /> {t.remainingGapsTitle}
                       </div>
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <p className="text-xs text-slate-500 mb-1">{t.utilization}</p>
-                        <p className="text-2xl font-bold text-blue-600">{packingResult.stats.utilization}%</p>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-2 md:col-span-2">
-                        <p className="text-xs text-slate-500 mb-1">{t.effectiveVol}</p>
-                        <p className="text-xl font-semibold text-slate-800">
-                          {(packingResult.stats.totalBoxVolume / 1000000000).toFixed(2)} m³ 
-                          <span className="text-sm font-normal text-slate-500 ml-2">
-                            / {t.totalVol} {((c.w * c.h * c.d) / 1000000000).toFixed(2)} m³
-                          </span>
-                        </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {[['remainL', 'd', doorGap, 'border-orange-200', 'text-orange-700'], ['remainW', 'w', rightGap, 'border-blue-200', 'text-blue-700'], ['remainH', 'h', topGap, 'border-green-200', 'text-green-700']].map(([lbl, key, gVal, bCls, tCls]) => (
+                          <div key={key} className={`bg-white p-3 rounded-lg border ${bCls} shadow-sm`}>
+                            <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">{t[lbl]}</span>
+                            <div className="space-y-1.5">
+                              {packingResult.stats.remainingGaps[key].map((g, idx) => (
+                                <div key={idx} className="flex items-baseline justify-between border-b border-slate-50 last:border-0 pb-1 last:pb-0">
+                                  <span className={`text-sm font-bold ${tCls}`}>{g} mm</span>
+                                  <span className="text-[10px] text-slate-400 italic">({t.actualGap} {g+gVal} mm)</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                     
@@ -1315,71 +624,40 @@
                           if (count === 0 && b.qty === 0) return null; 
                           return (
                             <div key={b.id} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg shadow-sm text-sm">
-                              <span className="flex items-center font-medium text-slate-700">
-                                <span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: b.color}}></span>
-                                {b.name}
-                              </span>
-                              <span className={`font-bold px-2 py-0.5 rounded ${b.qty > 0 && count < b.qty ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-800'}`}>
-                                {count} {b.qty > 0 ? `/ ${b.qty}` : ''} {t.boxUnit}
-                              </span>
+                              <span className="flex items-center font-medium text-slate-700"><span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: b.color}}></span>{b.name}</span>
+                              <span className={`font-bold px-2 py-0.5 rounded ${b.qty > 0 && count < b.qty ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-800'}`}>{count} {b.qty > 0 ? `/ ${b.qty}` : ''} {t.boxUnit}</span>
                             </div>
                           )
                         })}
                       </div>
                     </div>
 
-                    {/* 未完全裝載的警示與分析區塊 */}
-                    {packingResult.stats.warnings && packingResult.stats.warnings.length > 0 && (
+                    {packingResult.stats.warnings?.length > 0 && (
                       <div className="mt-5 bg-orange-50 border border-orange-200 rounded-xl p-4">
-                        <h4 className="flex items-center text-orange-800 font-bold mb-3">
-                          <AlertTriangle className="w-5 h-5 mr-2" />
-                          {t.warningTitle}
-                        </h4>
-                        
+                        <h4 className="flex items-center text-orange-800 font-bold mb-3"><AlertTriangle className="w-5 h-5 mr-2" /> {t.warningTitle}</h4>
                         <ul className="space-y-2 mb-4">
                           {packingResult.stats.warnings.map((w, idx) => (
                             <li key={idx} className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-orange-100 text-sm">
-                              <span className="flex items-center font-medium text-slate-700">
-                                <span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: w.color}}></span>
-                                {w.name}
-                              </span>
-                              <span className="text-orange-700 font-semibold">
-                                {t.shortfall} {w.shortfall} {t.boxUnit} <span className="text-slate-400 text-xs font-normal">({t.req} {w.requested} / {t.packed} {w.packed})</span>
-                              </span>
+                              <span className="flex items-center font-medium"><span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: w.color}}></span>{w.name}</span>
+                              <span className="text-orange-700 font-semibold">{t.shortfall} {w.shortfall} {t.boxUnit} <span className="text-slate-400 text-xs font-normal">({t.req} {w.requested} / {t.packed} {w.packed})</span></span>
                             </li>
                           ))}
                         </ul>
-
                         <div className="text-sm text-slate-700 space-y-3">
-                          <div>
-                            <span className="font-bold text-slate-800">{t.analysisTitle}</span><br/>
-                            {t.analysis1}<span className="font-semibold text-orange-700">{t.analysis2}</span>{t.analysis3}
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-800">{t.suggestionTitle}</span>
-                            <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-600">
-                              <li>{t.sug1}</li>
-                              <li>{t.sug2}</li>
-                              <li>{t.sug3}</li>
-                              <li>{t.sug4}</li>
-                            </ul>
-                          </div>
+                          <div><span className="font-bold text-slate-800">{t.analysisTitle}</span><br/>{t.analysis1}<span className="font-semibold text-orange-700">{t.analysis2}</span>{t.analysis3}</div>
+                          <div><span className="font-bold text-slate-800">{t.suggestionTitle}</span><ul className="list-disc pl-5 mt-1 text-slate-600"><li>{t.sug1}</li><li>{t.sug2}</li><li>{t.sug4}</li></ul></div>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-
               </div>
             </div>
           </div>
         </div>
       );
     }
-
-    // 渲染應用程式
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
   </script>
 </body>
 </html>
