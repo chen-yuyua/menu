@@ -38,7 +38,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- 圖示元件 (已修復轉義字元錯誤) ---
+    // --- 圖示元件 ---
     const Package = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
     const Plus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
     const Trash2 = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
@@ -80,6 +80,10 @@
         QTY: "數量 (0=自動)",
         calcBtn: "開始自動計算",
         calculating: "計算中...",
+        strategyTitle: "裝載方向策略",
+        strategyAuto: "自動最佳化 (整體數量最多且最整齊)",
+        strategyLength: "優先以 箱長 (L) 貼合貨櫃深",
+        strategyWidth: "優先以 箱寬 (W) 貼合貨櫃深",
         viewIso: "等角",
         viewTop: "俯視",
         viewFront: "前視",
@@ -145,6 +149,10 @@
         QTY: "数量 (0=自動)",
         calcBtn: "自動計算を開始",
         calculating: "計算中...",
+        strategyTitle: "積載方向の戦略",
+        strategyAuto: "自動最適化 (全体数量最大かつ整列)",
+        strategyLength: "優先: 箱の長さ(L)を奥行に合わせる",
+        strategyWidth: "優先: 箱の幅(W)を奥行に合わせる",
         viewIso: "等角投影",
         viewTop: "平面図",
         viewFront: "正面図",
@@ -184,7 +192,7 @@
         remainL: "奥行 (Z)",
         remainW: "幅 (X)",
         remainH: "高さ (Y)",
-        actualGap: "實質"
+        actualGap: "実質"
       }
     };
 
@@ -196,12 +204,14 @@
     };
     const DEFAULT_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
     const generateId = () => Math.random().toString(36).substr(2, 9);
+    
     const isColliding = (x, y, z, w, h, d, packed) => {
       for (let b of packed) {
         if (!(x >= b.x + b.w || x + w <= b.x || y >= b.y + b.h || y + h <= b.y || z >= b.z + b.d || z + d <= b.z)) return true;
       }
       return false;
     };
+    
     const isSupported = (x, y, z, w, h, d, packed) => {
       if (y === 0) return true; 
       let supportedArea = 0;
@@ -213,11 +223,19 @@
       }
       return (supportedArea / (w * d)) >= 0.8; 
     };
-    const getOrientations = (b) => {
-      const unique = new Set(), orientations = [], perms = [[b.w, b.h, b.d], [b.d, b.h, b.w]];
+    
+    const getOrientations = (b, strategy = 'length') => {
+      const unique = new Set(), orientations = [];
+      const perms = [[b.w, b.h, b.d], [b.d, b.h, b.w]]; 
       for (let p of perms) {
         const key = p.join(',');
-        if (!unique.has(key)) { unique.add(key); orientations.push({ w: p[0], h: p[1], d: p[2] }); }
+        if (!unique.has(key)) { 
+          unique.add(key); 
+          let isPreferred = true; 
+          if (strategy === 'length' && p[2] !== b.d) isPreferred = false; 
+          if (strategy === 'width' && p[2] !== b.w) isPreferred = false;  
+          orientations.push({ w: p[0], h: p[1], d: p[2], isPreferred }); 
+        }
       }
       return orientations;
     };
@@ -237,6 +255,7 @@
       ]);
       const [packingResult, setPackingResult] = useState({ packed: [], error: null, stats: null });
       const [isCalculating, setIsCalculating] = useState(false);
+      const [packingStrategy, setPackingStrategy] = useState('auto');
       const [renderStep, setRenderStep] = useState(0);
       const [isTransparent, setIsTransparent] = useState(false);
       
@@ -251,53 +270,93 @@
         setIsCalculating(true);
         setTimeout(() => {
           const c = CONTAINERS[containerType];
-          const maxZ_limit = Math.max(0, c.d - doorGap), maxX_limit = Math.max(0, c.w - rightGap), maxY_limit = Math.max(0, c.h - topGap); 
-          let points = [{ x: 0, y: 0, z: innerGap }], packed = [];
-          let finiteInventory = [], infiniteInventory = [];
-          
-          boxTypes.forEach(b => {
-            let item = { ...b, w: b.W, h: b.H, d: b.L };
-            if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
-            else { item.remaining = Infinity; infiniteInventory.push(item); }
-          });
+          const maxZ_limit = Math.max(0, c.d - doorGap);
+          const maxX_limit = Math.max(0, c.w - rightGap);
+          const maxY_limit = Math.max(0, c.h - topGap);
 
-          let phases = [finiteInventory, infiniteInventory], packedCount = 0;
-          for (let currentInventory of phases) {
-            if (currentInventory.length === 0) continue; 
-            let canPack = true;
-            while (canPack && packedCount < 3000) {
-              canPack = false;
-              points.sort((a, b) => (Math.abs(a.z - b.z) > 1.0) ? a.z - b.z : (Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x));
-              for (let pt of points) {
-                let bestBoxIdx = -1, bestOri = null, maxVol = -1, maxFitCount = -1, maxDepth = -1;
-                for (let i = 0; i < currentInventory.length; i++) {
-                  let box = currentInventory[i];
-                  if (box.remaining <= 0) continue;
-                  for (let ori of getOrientations(box)) {
-                    if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
-                    if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
-                      let vol = ori.w * ori.h * ori.d;
-                      let fitCount = Math.floor((maxX_limit - pt.x) / ori.w) * Math.floor((maxY_limit - pt.y) / ori.h) * Math.floor((maxZ_limit - pt.z) / ori.d);
-                      let isBetter = (vol > maxVol) || (vol === maxVol && fitCount > maxFitCount) || (vol === maxVol && fitCount === maxFitCount && ori.d > maxDepth);
-                      if (isBetter) { maxVol = vol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = i; bestOri = ori; }
+          const simulatePacking = (simStrategy) => {
+            let points = [{ x: 0, y: 0, z: innerGap }], packed = [];
+            let finiteInventory = [], infiniteInventory = [];
+            
+            boxTypes.forEach(b => {
+              let item = { ...b, w: b.W, h: b.H, d: b.L };
+              if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
+              else { item.remaining = Infinity; infiniteInventory.push(item); }
+            });
+
+            let phases = [finiteInventory, infiniteInventory], packedCount = 0;
+            const MAX_BOXES = 3000;
+            
+            for (let currentInventory of phases) {
+              if (currentInventory.length === 0) continue; 
+              let canPack = true;
+              while (canPack && packedCount < MAX_BOXES) {
+                canPack = false;
+                points.sort((a, b) => (Math.abs(a.z - b.z) > 1.0) ? a.z - b.z : (Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x));
+                for (let pt of points) {
+                  let bestBoxIdx = -1, bestOri = null, maxVol = -1, maxFitCount = -1, maxDepth = -1, bestIsPreferred = false;
+                  
+                  for (let i = 0; i < currentInventory.length; i++) {
+                    let box = currentInventory[i];
+                    if (box.remaining <= 0) continue;
+                    for (let ori of getOrientations(box, simStrategy)) {
+                      if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
+                      if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
+                        let vol = ori.w * ori.h * ori.d;
+                        let fitCount = Math.floor((maxX_limit - pt.x) / ori.w) * Math.floor((maxY_limit - pt.y) / ori.h) * Math.floor((maxZ_limit - pt.z) / ori.d);
+                        
+                        let isBetter = false;
+                        
+                        if (bestBoxIdx === -1) {
+                          isBetter = true;
+                        } else if (ori.isPreferred && !bestIsPreferred) {
+                          isBetter = true; 
+                        } else if (!ori.isPreferred && bestIsPreferred) {
+                          isBetter = false; 
+                        } else {
+                          if (vol > maxVol) isBetter = true;
+                          else if (vol === maxVol && fitCount > maxFitCount) isBetter = true;
+                          else if (vol === maxVol && fitCount === maxFitCount && ori.d > maxDepth) isBetter = true;
+                        }
+
+                        if (isBetter) { maxVol = vol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = i; bestOri = ori; bestIsPreferred = ori.isPreferred; }
+                      }
                     }
                   }
-                }
-                if (bestBoxIdx !== -1) {
-                  let bestBox = currentInventory[bestBoxIdx];
-                  packed.push({ x: pt.x, y: pt.y, z: pt.z, w: bestOri.w, h: bestOri.h, d: bestOri.d, color: bestBox.color, typeId: bestBox.id, name: bestBox.name });
-                  bestBox.remaining--; packedCount++; canPack = true;
-                  points.push({ x: pt.x + bestOri.w, y: pt.y, z: pt.z }, { x: pt.x, y: pt.y + bestOri.h, z: pt.z }, { x: pt.x, y: pt.y, z: pt.z + bestOri.d });
-                  points = points.filter(p => p !== pt && p.x < maxX_limit && p.y < maxY_limit && p.z < maxZ_limit && !packed.some(b => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h && p.z > b.z && p.z < b.z + b.d));
-                  const pSet = new Set(), uniquePoints = [];
-                  for (let p of points) { let key = `${Math.round(p.x*10)},${Math.round(p.y*10)},${Math.round(p.z*10)}`; if (!pSet.has(key)) { pSet.add(key); uniquePoints.push(p); } }
-                  points = uniquePoints; break;
+                  if (bestBoxIdx !== -1) {
+                    let bestBox = currentInventory[bestBoxIdx];
+                    packed.push({ x: pt.x, y: pt.y, z: pt.z, w: bestOri.w, h: bestOri.h, d: bestOri.d, color: bestBox.color, typeId: bestBox.id, name: bestBox.name });
+                    bestBox.remaining--; packedCount++; canPack = true;
+                    points.push({ x: pt.x + bestOri.w, y: pt.y, z: pt.z }, { x: pt.x, y: pt.y + bestOri.h, z: pt.z }, { x: pt.x, y: pt.y, z: pt.z + bestOri.d });
+                    points = points.filter(p => p !== pt && p.x < maxX_limit && p.y < maxY_limit && p.z < maxZ_limit && !packed.some(b => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h && p.z > b.z && p.z < b.z + b.d));
+                    const pSet = new Set(), uniquePoints = [];
+                    for (let p of points) { let key = `${Math.round(p.x*10)},${Math.round(p.y*10)},${Math.round(p.z*10)}`; if (!pSet.has(key)) { pSet.add(key); uniquePoints.push(p); } }
+                    points = uniquePoints; break;
+                  }
                 }
               }
             }
+            return packed;
+          };
+
+          let finalPacked = [];
+
+          if (packingStrategy === 'auto') {
+            const packedLength = simulatePacking('length');
+            const packedWidth = simulatePacking('width');
+            
+            if (packedWidth.length > packedLength.length) {
+              finalPacked = packedWidth;
+            } else {
+              finalPacked = packedLength;
+            }
+          } else {
+            finalPacked = simulatePacking(packingStrategy);
           }
 
-          let totalBoxVolume = 0; const counts = {};
+          let packed = finalPacked;
+          let totalBoxVolume = 0; 
+          const counts = {};
           packed.forEach(p => { totalBoxVolume += (p.w * p.h * p.d); counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
           
           const getVisibleGaps = (packedItems, container, axisDirection, limitVal) => {
@@ -329,6 +388,7 @@
         }, 50); 
       };
 
+      // ✅ [Ver 1.26 修復]：在依賴陣列中加入 lang，當切換語言時強制重新繪製 3D 畫面的文字標籤
       useEffect(() => {
         if (!threeLoaded || !canvasRef.current || !window.THREE) return;
         const { THREE } = window;
@@ -346,7 +406,6 @@
         const containerOutline = new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2 }));
         scene.add(containerOutline);
 
-        // 繪製有效空間紅線
         const effMinX = -c.w / 2, effMaxX = effMinX + (c.w - rightGap), effMinY = -c.h / 2, effMaxY = effMinY + (c.h - topGap), effMinZ = -c.d / 2 + innerGap, effMaxZ = c.d / 2 - doorGap;
         const corners = [new THREE.Vector3(effMinX, effMinY, effMinZ), new THREE.Vector3(effMaxX, effMinY, effMinZ), new THREE.Vector3(effMinX, effMaxY, effMinZ), new THREE.Vector3(effMaxX, effMaxY, effMinZ), new THREE.Vector3(effMinX, effMinY, effMaxZ), new THREE.Vector3(effMaxX, effMinY, effMaxZ), new THREE.Vector3(effMinX, effMaxY, effMaxZ), new THREE.Vector3(effMaxX, effMaxY, effMaxZ)];
         const edgesDef = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
@@ -434,7 +493,7 @@
         const handleResize = () => { if (!canvasRef.current) return; camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight); };
         window.addEventListener('resize', handleResize);
         return () => { window.removeEventListener('resize', handleResize); renderer.dispose(); };
-      }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap]);
+      }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap, lang]); // ✅ 這裡加入了 lang
 
       const changeView = (v) => {
         const c = CONTAINERS[containerType], cam = cameraRef.current, ctrl = controlsRef.current; if (!cam || !ctrl) return;
@@ -478,7 +537,7 @@
                 <Package className="w-8 h-8 text-blue-600" />
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center">
                   {t.appTitle}
-                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. 1.21</span>
+                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. 1.26</span>
                 </h1>
               </div>
               <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
@@ -532,6 +591,20 @@
                       </div>
                     ))}
                   </div>
+
+                  <div className="mt-4 mb-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">{t.strategyTitle}</label>
+                    <select 
+                      value={packingStrategy} 
+                      onChange={e => setPackingStrategy(e.target.value)}
+                      className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="auto">{t.strategyAuto}</option>
+                      <option value="length">{t.strategyLength}</option>
+                      <option value="width">{t.strategyWidth}</option>
+                    </select>
+                  </div>
+
                   <button onClick={() => runPacking()} disabled={isCalculating} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50">
                     {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
                     {isCalculating ? t.calculating : t.calcBtn}
