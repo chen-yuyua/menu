@@ -192,9 +192,13 @@
         remainL: "奥行 (Z)",
         remainW: "幅 (X)",
         remainH: "高さ (Y)",
-        actualGap: "実質"
+        actualGap: "實質"
       }
     };
+
+    // --- 應用程式版本與更新日期 ---
+    const APP_VERSION = "1.31";
+    const APP_UPDATED_DATE = "2026/02/25";
 
     // --- 常數與工具函數 ---
     const CONTAINERS = {
@@ -388,7 +392,6 @@
         }, 50); 
       };
 
-      // ✅ [Ver 1.26 修復]：在依賴陣列中加入 lang，當切換語言時強制重新繪製 3D 畫面的文字標籤
       useEffect(() => {
         if (!threeLoaded || !canvasRef.current || !window.THREE) return;
         const { THREE } = window;
@@ -450,7 +453,6 @@
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })); sprite.scale.set(2048, 300, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
           };
 
-          // 寬度 (X) - 藍色
           gW.forEach((g, i) => {
             if (g > 0) {
               const offset = 400 + i*300;
@@ -462,7 +464,6 @@
             }
           });
 
-          // 高度 (Y) - 綠色
           gH.forEach((g, i) => {
             if (g > 0) {
               const offset = 400 + i*300;
@@ -474,7 +475,6 @@
             }
           });
 
-          // 深度 (Z) - 橘色
           gD.forEach((g, i) => {
             if (g > 0) {
               const offset = 400 + i*300;
@@ -493,7 +493,7 @@
         const handleResize = () => { if (!canvasRef.current) return; camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight); };
         window.addEventListener('resize', handleResize);
         return () => { window.removeEventListener('resize', handleResize); renderer.dispose(); };
-      }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap, lang]); // ✅ 這裡加入了 lang
+      }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap, lang]);
 
       const changeView = (v) => {
         const c = CONTAINERS[containerType], cam = cameraRef.current, ctrl = controlsRef.current; if (!cam || !ctrl) return;
@@ -515,16 +515,118 @@
       const removeBoxType = (id) => setBoxTypes(boxTypes.filter(b => b.id !== id));
 
       const exportToDXF = () => {
-        if (!packingResult.packed.length) return;
-        const c = CONTAINERS[containerType], sc = 1/40, gap = 1500*sc, eps = 1e-4;
+        if (!packingResult.packed || packingResult.packed.length === 0) return;
+
+        const c = CONTAINERS[containerType];
+        const scale = 1 / 40; 
+        const gap = 1500 * scale; 
+        const eps = 1e-4;
+
         let dxf = `0\nSECTION\n2\nENTITIES\n`;
-        const addL = (x1, y1, x2, y2, l="0", col=256) => { dxf += `0\nLINE\n8\n${l}\n62\n${col}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`; };
-        const addR = (x, y, w, h, l="0", col=256) => { addL(x,y,x+w,y,l,col); addL(x+w,y,x+w,y+h,l,col); addL(x+w,y+h,x,y+h,l,col); addL(x,y+h,x,y,l,col); };
-        const cW = c.w*sc, cH = c.h*sc, cD = c.d*sc;
-        addR(0, 0, cW, cH, "CONTAINER", 7); addR(0, cH+gap, cW, cD, "CONTAINER", 7); addR(cW+gap, 0, cD, cH, "CONTAINER", 7);
+
+        const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => {
+          dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n`;
+          dxf += `10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n`;
+          dxf += `11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;
+        };
+
+        const addRect = (x, y, w, h, layer = "0", color = 256) => {
+          addLine(x, y, x + w, y, layer, color);
+          addLine(x + w, y, x + w, y + h, layer, color);
+          addLine(x + w, y + h, x, y + h, layer, color);
+          addLine(x, y + h, x, y, layer, color);
+        };
+
+        const getACIColor = (typeId) => {
+          const idx = boxTypes.findIndex(b => b.id === typeId);
+          const aciMap = [5, 1, 3, 2, 6, 4]; 
+          return aciMap[idx % aciMap.length] || 7;
+        };
+
+        const cW = c.w * scale;
+        const cH = c.h * scale;
+        const cD = c.d * scale;
+
+        const fvX = 0, fvY = 0;
+        addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
+
+        const tvX = 0, tvY = cH + gap;
+        addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
+
+        const svX = cW + gap, svY = 0;
+        addRect(svX, svY, cD, cH, "CONTAINER", 7);
+
+        const clipSegment = (segments, minVal, maxVal) => {
+          let res = [];
+          for (let seg of segments) {
+            if (maxVal <= seg.s + eps || minVal >= seg.e - eps) {
+              res.push(seg);
+            } else {
+              if (minVal > seg.s + eps) res.push({s: seg.s, e: minVal});
+              if (maxVal < seg.e - eps) res.push({s: maxVal, e: seg.e});
+            }
+          }
+          return res;
+        };
+
+        const processView = (faces, dx, dy) => {
+          for (let i = 0; i < faces.length; i++) {
+            const F = faces[i];
+            let topSegs = [{s: F.x, e: F.x + F.w}];
+            let botSegs = [{s: F.x, e: F.x + F.w}];
+            let leftSegs = [{s: F.y, e: F.y + F.h}];
+            let rightSegs = [{s: F.y, e: F.y + F.h}];
+
+            for (let j = 0; j < faces.length; j++) {
+              if (i === j) continue;
+              const O = faces[j];
+              if (O.depth > F.depth + eps) {
+                if (O.y - eps <= F.y + F.h && F.y + F.h <= O.y + O.h + eps) topSegs = clipSegment(topSegs, O.x, O.x + O.w);
+                if (O.y - eps <= F.y && F.y <= O.y + O.h + eps) botSegs = clipSegment(botSegs, O.x, O.x + O.w);
+                if (O.x - eps <= F.x && F.x <= O.x + O.w + eps) leftSegs = clipSegment(leftSegs, O.y, O.y + O.h);
+                if (O.x - eps <= F.x + F.w && F.x + F.w <= O.x + O.w + eps) rightSegs = clipSegment(rightSegs, O.y, O.y + O.h);
+              }
+            }
+
+            topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); });
+            botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); });
+            leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); });
+            rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
+          }
+        };
+
+        let frontFaces = packingResult.packed.map(p => ({
+          x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale,
+          depth: (p.z + p.d) * scale,
+          color: getACIColor(p.typeId), layer: "BOXES_FRONT"
+        }));
+        processView(frontFaces, fvX, fvY);
+
+        let topFaces = packingResult.packed.map(p => ({
+          x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale,
+          depth: (p.y + p.h) * scale,
+          color: getACIColor(p.typeId), layer: "BOXES_TOP"
+        }));
+        processView(topFaces, tvX, tvY);
+
+        let sideFaces = packingResult.packed.map(p => ({
+          x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale,
+          depth: (p.x + p.w) * scale,
+          color: getACIColor(p.typeId), layer: "BOXES_SIDE"
+        }));
+        processView(sideFaces, svX, svY);
+
         dxf += `0\nENDSEC\n0\nEOF\n`;
-        const url = URL.createObjectURL(new Blob([dxf], { type: 'application/dxf' }));
-        const a = document.createElement('a'); a.href = url; a.download = `3view_1-40_${c.id}.dxf`; a.click(); URL.revokeObjectURL(url);
+
+        const blob = new Blob([dxf], { type: 'application/dxf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `3view_1-40_${c.id}.dxf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       };
 
       const c = CONTAINERS[containerType];
@@ -537,7 +639,9 @@
                 <Package className="w-8 h-8 text-blue-600" />
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center">
                   {t.appTitle}
-                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. 1.26</span>
+                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">
+                    Ver. {APP_VERSION} - {APP_UPDATED_DATE}
+                  </span>
                 </h1>
               </div>
               <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
@@ -623,6 +727,27 @@
                         <span className="font-medium text-slate-700 truncate">{b.name}</span>
                       </div>
                     ))}
+                    
+                    {packingResult.stats?.remainingGaps && packingResult.packed.length > 0 && (
+                      <div className="bg-white/80 backdrop-blur p-2.5 rounded-md border border-slate-200 shadow-sm mt-2 pointer-events-auto w-max">
+                        <div className="flex items-center text-slate-700 font-bold text-[11px] mb-1.5">
+                          <Ruler className="w-3.5 h-3.5 mr-1 text-blue-600" /> {t.remainingGapsTitle}
+                        </div>
+                        <div className="flex gap-3 text-[10px]">
+                          {[['remainL', 'd', doorGap, 'text-orange-600'], ['remainW', 'w', rightGap, 'text-blue-600'], ['remainH', 'h', topGap, 'text-green-600']].map(([lbl, key, gVal, tCls], index) => (
+                            <div key={key} className={`flex flex-col ${index > 0 ? 'border-l border-slate-300 pl-3' : ''}`}>
+                              <span className="text-slate-500 font-bold mb-0.5">{t[lbl]}</span>
+                              {packingResult.stats.remainingGaps[key].map((g, idx) => (
+                                <div key={idx} className="flex items-baseline space-x-1 leading-tight mb-0.5 last:mb-0">
+                                  <span className={`font-bold ${tCls}`}>{g}mm</span>
+                                  <span className="text-slate-400 scale-90 origin-left whitespace-nowrap">({t.actualGap} {g+gVal})</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="absolute top-4 right-4 z-10 flex space-x-1.5">
@@ -666,27 +791,6 @@
                           <p className={`text-xl font-bold ${cls}`}>{val} {sub && <span className="text-xs font-normal text-slate-400 ml-1">/ {sub}</span>}</p>
                         </div>
                       ))}
-                    </div>
-
-                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100/50">
-                      <div className="flex items-center text-slate-700 font-bold text-sm mb-3">
-                        <Ruler className="w-4 h-4 mr-2 text-blue-600" /> {t.remainingGapsTitle}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {[['remainL', 'd', doorGap, 'border-orange-200', 'text-orange-700'], ['remainW', 'w', rightGap, 'border-blue-200', 'text-blue-700'], ['remainH', 'h', topGap, 'border-green-200', 'text-green-700']].map(([lbl, key, gVal, bCls, tCls]) => (
-                          <div key={key} className={`bg-white p-3 rounded-lg border ${bCls} shadow-sm`}>
-                            <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">{t[lbl]}</span>
-                            <div className="space-y-1.5">
-                              {packingResult.stats.remainingGaps[key].map((g, idx) => (
-                                <div key={idx} className="flex items-baseline justify-between border-b border-slate-50 last:border-0 pb-1 last:pb-0">
-                                  <span className={`text-sm font-bold ${tCls}`}>{g} mm</span>
-                                  <span className="text-[10px] text-slate-400 italic">({t.actualGap} {g+gVal} mm)</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     </div>
                     
                     <div className="border-t border-slate-100 pt-4">
