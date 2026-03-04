@@ -63,13 +63,14 @@
     const Ruler = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"></path><line x1="6" y1="18" x2="10.1" y2="13.9"></line><line x1="8" y1="20" x2="12.1" y2="15.9"></line><line x1="10" y1="22" x2="14.1" y2="17.9"></line><line x1="14" y1="20" x2="18.1" y2="15.9"></line><line x1="16" y1="18" x2="20.1" y2="13.9"></line></svg>;
     const CameraIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
     const BookOpen = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
+    const Sparkles = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>;
 
     // --- 多語系翻譯字典 ---
     const translations = {
       zh: {
         appTitle: "貨櫃裝載計算器",
         langToggle: "日本語切替",
-        screenshot: "截圖", // 需求修改：改名為「截圖」
+        screenshot: "截圖",
         createdBy: "作成：分室",
         supportGap: "支援自訂預留空間",
         containerSet: "貨櫃種類設定",
@@ -98,8 +99,10 @@
         calcMin: "最小(負公差)",
         calcMid: "中間值",
         calcSizeLabel: "實際運算尺寸:",
-        calcBtn: "開始自動計算",
+        calcBtn: "標準計算",
         calculating: "計算中...",
+        deepOptBtn: "深層優化 (GRASP)",
+        optimizing: "深度優化中",
         strategyTitle: "裝載方向策略",
         strategyAuto: "自動最佳化 (整體數量最多且最整齊)",
         strategyLength: "優先以 箱長 (L) 貼合貨櫃深",
@@ -130,8 +133,8 @@
         analysis2: "過於零碎 (畸零空間)",
         analysis3: "。這導致剩餘空間的「連續長度、寬度或高度」不足以容納短缺的箱體（無論它如何旋轉）。",
         suggestionTitle: "💡 改善建議：",
-        sug1: "嘗試更換更大的貨櫃尺寸（例如：改用 40' HQ）。",
-        sug2: "適度減少其他體積較大的箱體數量，以釋放完整的連續空間。",
+        sug1: "嘗試使用「深層優化(GRASP)」功能，讓系統探索更多排列可能性。",
+        sug2: "嘗試更換更大的貨櫃尺寸（例如：改用 40' HQ）。",
         sug3: "確認是否能微調該箱體的包裝尺寸，使其更容易填補剩餘縫隙。",
         sug4: "若許可，減少「最內側」、「門口」、「右側」或「上方」的預留空間尺寸。",
         containers: {
@@ -145,25 +148,25 @@
         remainH: "高度 (Y)",
         actualGap: "實際",
         actualGap2: "實際(含預留)",
-        // 說明手冊翻譯
         helpBtn: "使用說明",
         helpTitle: "貨櫃裝載計算器 - 操作與功能說明",
         helpSection1: "一、操作使用說明",
         helpS1_1: "1. 選擇貨櫃種類 (提供標準 20呎、40呎及40呎高櫃) 並設定四側所需的「預留空間」。",
         helpS1_2: "2. 新增箱體種類，輸入各箱體的外箱長寬高、數量 (輸入0代表盡可能塞滿空間) 以及「正負公差」。",
         helpS1_3: "3. 若有設定公差，請選擇計算基準(標準外寸、最大、最小或中間值)讓系統進行精密運算。",
-        helpS1_4: "4. 選擇合適的「裝載方向策略」後，點擊「開始自動計算」產生 3D 裝載圖與結果分析。",
+        helpS1_4: "4. 選擇合適的「裝載方向策略」後，點擊「標準計算」或「深層優化」產生 3D 裝載圖。",
         helpSection2: "二、功能按鈕說明",
         helpS2_1: "【截圖】：將目前整個工具網頁的畫面擷取並儲存為 JPG 圖片，方便匯報或記錄。",
-        helpS2_2: "【導出3視圖 (.dxf)】：計算完成後，此按鈕會亮起。點擊可將裝載結果轉換成 2D CAD 可讀取的 DXF 格式 (包含俯視、前視、側視三大視圖)。",
-        helpS2_3: "【視角切換】：位於 3D 圖形區右上角，可快速將相機視角切換為「等角、俯視、前視、側視」。",
-        helpS2_4: "【透視】：位於 3D 圖形區下方，打勾後會將所有箱體半透明化，方便您查看內部的堆疊與間隙狀態。",
-        helpS2_5: "【裝載順序拉桿】：位於 3D 圖形區下方，可透過拖曳時間軸滑桿，一步步查看箱體裝入貨櫃的先後順序與過程。",
+        helpS2_2: "【導出3視圖 (.dxf)】：計算完成後，此按鈕會亮起。點擊可將裝載結果轉換成 2D CAD 可讀取的 DXF 格式。",
+        helpS2_3: "【標準計算】：單次快速演算，適合快速報價或結構簡單的箱體組合。",
+        helpS2_6: "【深層優化 (GRASP)】：額外執行數十次導入隨機擾動的迭代演算(貪婪隨機自適應搜尋)，有機會在複雜組合中找出更緊密的排列方式，提升利用率。",
+        helpS2_4: "【透視】：位於 3D 圖形區下方，打勾後會將所有箱體半透明化，方便查看內部的堆疊與間隙狀態。",
+        helpS2_5: "【裝載順序拉桿】：位於 3D 圖形區下方，拖曳滑桿可一步步查看箱體裝入貨櫃的先後順序。",
         helpSection3: "三、裝載結果摘要詳細分析說明",
         helpS3_1: "【總裝載箱數】：當次運算下，成功排入貨櫃內部的總箱子數量。",
         helpS3_2: "【空間利用率】：所有成功裝載的箱體總體積 ÷ 貨櫃的內部總容積 (包含預留空間) 所算出的百分比。",
         helpS3_3: "【有效裝載總體積】：純粹被箱體實體所佔用的體積總和。",
-        helpS3_4: "【為何會有短缺警告？】：有時候即使空間利用率未達 100%，系統仍會提示裝不下。這是因為剩餘的空間已經被切割成「畸零的破碎空間」，導致不管如何旋轉剩下的箱子，都無法找出一段完整的長、寬、高來容納它。遇到此情況，建議參考畫面上的「整體剩餘間隙 (Remaining Gaps)」數值來微調預留空間或包裝尺寸。",
+        helpS3_4: "【為何會有短缺警告？】：有時候即使空間利用率未達 100%，系統仍會提示裝不下。這是因為剩餘的空間已經被切割成「畸零的破碎空間」，導致不管如何旋轉剩下的箱子，都無法找出一段完整的長、寬、高來容納它。遇到此情況，建議嘗試點擊「深層優化」或參考畫面上的「整體剩餘間隙」數值來微調尺寸。",
         closeBtn: "我知道了，關閉"
       },
       ja: {
@@ -198,8 +201,10 @@
         calcMin: "最小(負公差)",
         calcMid: "中間値",
         calcSizeLabel: "計算寸法:",
-        calcBtn: "自動計算を開始",
+        calcBtn: "標準計算を開始",
         calculating: "計算中...",
+        deepOptBtn: "深層最適化 (GRASP)",
+        optimizing: "最適化中",
         strategyTitle: "積載方向の戦略",
         strategyAuto: "自動最適化 (全体数量最大かつ整列)",
         strategyLength: "優先: 箱の長さ(L)を奥行に合わせる",
@@ -230,8 +235,8 @@
         analysis2: "デッドスペース",
         analysis3: "）可能性があります。そのため、残りの空間の「連続する長さ、幅、または高さ」が不足し、どのように回転させても不足している箱を収めることができません。",
         suggestionTitle: "💡 改善の提案：",
-        sug1: "より大きなコンテナサイズ（例：40' HQ）に変更してみてください。",
-        sug2: "連続した空間を確保するため、体積の大きい他の箱の数を適度に減らしてください。",
+        sug1: "「深層最適化」を試して、システムに他の積載パターンを探索させてください。",
+        sug2: "より大きなコンテナサイズ（例：40' HQ）に変更してみてください。",
         sug3: "隙間を埋めやすくするため、箱の梱包寸法を微調整できないか確認してください。",
         sug4: "可能であれば、「最奥部」、「ドア側」、「右側」、または「上部」の余白サイズを減らしてください。",
         containers: {
@@ -245,18 +250,18 @@
         remainH: "高さ (Y)",
         actualGap: "實質",
         actualGap2: "実寸(余白含)",
-        // 說明手冊翻譯
         helpBtn: "ヘルプ",
         helpTitle: "操作・機能ガイド",
         helpSection1: "一、操作手順",
         helpS1_1: "1. コンテナの種類を選択し、四方の余白を設定します。",
         helpS1_2: "2. 箱を追加し、外寸、数量（0は最大まで）、公差を入力します。",
         helpS1_3: "3. 公差を設定した場合、計算基準（最大/最小など）を選択します。",
-        helpS1_4: "4. 「自動計算を開始」をクリックして、3D積載図と結果概要を生成します。",
+        helpS1_4: "4. 「標準計算」または「深層最適化」をクリックして、3D積載図と結果概要を生成します。",
         helpSection2: "二、機能ボタンの説明",
         helpS2_1: "【撮影】現在の画面全体をJPG画像として保存します。",
         helpS2_2: "【3面図を出力(.dxf)】現在の積載結果を2D CADで読み込めるDXF形式で出力します。",
-        helpS2_3: "【視点切替】3D図の右上にあるボタンで、等角投影、平面、正面、側面図をすばやく切り替えられます。",
+        helpS2_3: "【標準計算】1回の高速計算。迅速な見積もりや単純な構成に適しています。",
+        helpS2_6: "【深層最適化 (GRASP)】ランダムな変動を取り入れた反復計算を数十回実行し、複雑な組み合わせからさらに隙間のない積載案を探索します。",
         helpS2_4: "【透過】チェックを入れると箱が半透明になり、内部の積載状況を確認しやすくなります。",
         helpS2_5: "【積載順序スライダー】3D図の下部にあるスライダーで、箱が積載される順序を確認できます。",
         helpSection3: "三、積載結果の概要と詳細な分析",
@@ -269,7 +274,7 @@
     };
 
     // --- 應用程式版本與更新日期 ---
-    const APP_VERSION = "1.32";
+    const APP_VERSION = "1.33";
     const APP_UPDATED_DATE = "2026/03/04";
 
     // --- 常數與工具函數 ---
@@ -331,10 +336,12 @@
       ]);
       const [packingResult, setPackingResult] = useState({ packed: [], error: null, stats: null });
       const [isCalculating, setIsCalculating] = useState(false);
+      const [isDeepOptimizing, setIsDeepOptimizing] = useState(false); // 新增：是否處於深層優化狀態
+      const [optimizeProgress, setOptimizeProgress] = useState(0);     // 新增：深層優化進度
       const [packingStrategy, setPackingStrategy] = useState('auto');
       const [renderStep, setRenderStep] = useState(0);
       const [isTransparent, setIsTransparent] = useState(false);
-      const [showHelp, setShowHelp] = useState(false); // 新增狀態：控制說明視窗
+      const [showHelp, setShowHelp] = useState(false);
       
       const meshesRef = useRef([]); 
       const dimGroupRef = useRef(null);
@@ -343,7 +350,6 @@
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
 
-      // 截圖功能 (使用 html-to-image 解決排版錯位問題)
       const handleScreenshot = () => {
         const element = document.getElementById('app-container');
         if (window.htmlToImage) {
@@ -360,30 +366,30 @@
         }
       };
 
-      const runPacking = () => {
+      // 主要計算控制函數：結合單次標準計算與多次迭代的GRASP演算法
+      const handleCalculate = (isDeep) => {
         setIsCalculating(true);
+        if (isDeep) {
+          setIsDeepOptimizing(true);
+          setOptimizeProgress(0);
+        }
+
         setTimeout(() => {
           const c = CONTAINERS[containerType];
           const maxZ_limit = Math.max(0, c.d - doorGap);
           const maxX_limit = Math.max(0, c.w - rightGap);
           const maxY_limit = Math.max(0, c.h - topGap);
 
-          const simulatePacking = (simStrategy) => {
+          // 封裝單次裝載邏輯，支援隨機擾動 (Randomize) 參數
+          const simulatePacking = (simStrategy, randomize = false) => {
             let points = [{ x: 0, y: 0, z: innerGap }], packed = [];
             let finiteInventory = [], infiniteInventory = [];
             
             boxTypes.forEach(b => {
-              // 處理公差尺寸計算
               let adjL = b.L, adjW = b.W, adjH = b.H;
-              if (b.calcMode === 'max') {
-                adjL += b.tolPlus; adjW += b.tolPlus; adjH += b.tolPlus;
-              } else if (b.calcMode === 'min') {
-                adjL -= b.tolMinus; adjW -= b.tolMinus; adjH -= b.tolMinus;
-              } else if (b.calcMode === 'mid') {
-                const diff = (b.tolPlus - b.tolMinus) / 2;
-                adjL += diff; adjW += diff; adjH += diff;
-              }
-
+              if (b.calcMode === 'max') { adjL += b.tolPlus; adjW += b.tolPlus; adjH += b.tolPlus; }
+              else if (b.calcMode === 'min') { adjL -= b.tolMinus; adjW -= b.tolMinus; adjH -= b.tolMinus; }
+              else if (b.calcMode === 'mid') { const diff = (b.tolPlus - b.tolMinus) / 2; adjL += diff; adjW += diff; adjH += diff; }
               let item = { ...b, w: adjW, h: adjH, d: adjL };
               if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
               else { item.remaining = Infinity; infiniteInventory.push(item); }
@@ -397,21 +403,44 @@
               let canPack = true;
               while (canPack && packedCount < MAX_BOXES) {
                 canPack = false;
-                points.sort((a, b) => (Math.abs(a.z - b.z) > 1.0) ? a.z - b.z : (Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x));
+                
+                // 排序節點。若為深層優化(randomize)，有 30% 機率會改變 X/Y 軸的優先權，以探索不同形狀的畸零空間
+                points.sort((a, b) => {
+                  if (Math.abs(a.z - b.z) > 1.0) return a.z - b.z;
+                  if (randomize && Math.random() > 0.7) {
+                    return Math.abs(a.x - b.x) > 1.0 ? a.x - b.x : a.y - b.y;
+                  }
+                  return Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x;
+                });
+
                 for (let pt of points) {
                   let bestBoxIdx = -1, bestOri = null, maxVol = -1, maxFitCount = -1, maxDepth = -1, bestIsPreferred = false;
                   
-                  for (let i = 0; i < currentInventory.length; i++) {
-                    let box = currentInventory[i];
+                  // 打亂箱子陣列的檢查順序，讓體積相同的箱體有機會互相替換
+                  let checkIndices = currentInventory.map((_, i) => i);
+                  if (randomize) checkIndices.sort(() => Math.random() - 0.5);
+
+                  for (let idx of checkIndices) {
+                    let box = currentInventory[idx];
                     if (box.remaining <= 0) continue;
-                    for (let ori of getOrientations(box, simStrategy)) {
+
+                    // 在深層優化中，針對特定箱體偶爾(20%機率)打破全域的旋轉規則
+                    let currentStrategy = simStrategy;
+                    if (randomize && Math.random() > 0.8) {
+                        currentStrategy = Math.random() > 0.5 ? 'length' : 'width';
+                    }
+
+                    for (let ori of getOrientations(box, currentStrategy)) {
                       if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
                       if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
                         let vol = ori.w * ori.h * ori.d;
                         let fitCount = Math.floor((maxX_limit - pt.x) / ori.w) * Math.floor((maxY_limit - pt.y) / ori.h) * Math.floor((maxZ_limit - pt.z) / ori.d);
                         
+                        // 加入些微的隨機體積雜訊 (+/- 5%)，這會讓演算法偶爾挑選稍小的箱子，以換取未來更好的排列空間
+                        let evalVol = vol;
+                        if (randomize) evalVol *= (1 + (Math.random() * 0.1 - 0.05)); 
+
                         let isBetter = false;
-                        
                         if (bestBoxIdx === -1) {
                           isBetter = true;
                         } else if (ori.isPreferred && !bestIsPreferred) {
@@ -419,12 +448,12 @@
                         } else if (!ori.isPreferred && bestIsPreferred) {
                           isBetter = false; 
                         } else {
-                          if (vol > maxVol) isBetter = true;
-                          else if (vol === maxVol && fitCount > maxFitCount) isBetter = true;
-                          else if (vol === maxVol && fitCount === maxFitCount && ori.d > maxDepth) isBetter = true;
+                          if (evalVol > maxVol) isBetter = true;
+                          else if (evalVol === maxVol && fitCount > maxFitCount) isBetter = true;
+                          else if (evalVol === maxVol && fitCount === maxFitCount && ori.d > maxDepth) isBetter = true;
                         }
 
-                        if (isBetter) { maxVol = vol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = i; bestOri = ori; bestIsPreferred = ori.isPreferred; }
+                        if (isBetter) { maxVol = evalVol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = idx; bestOri = ori; bestIsPreferred = ori.isPreferred; }
                       }
                     }
                   }
@@ -444,54 +473,97 @@
             return packed;
           };
 
-          let finalPacked = [];
+          let bestPacked = [];
+          let bestVol = -1;
 
-          if (packingStrategy === 'auto') {
-            const packedLength = simulatePacking('length');
-            const packedWidth = simulatePacking('width');
-            
-            if (packedWidth.length > packedLength.length) {
-              finalPacked = packedWidth;
-            } else {
-              finalPacked = packedLength;
+          const checkAndSave = (packedArray) => {
+            let vol = packedArray.reduce((sum, p) => sum + (p.w * p.h * p.d), 0);
+            if (vol > bestVol) {
+              bestVol = vol;
+              bestPacked = packedArray;
             }
-          } else {
-            finalPacked = simulatePacking(packingStrategy);
-          }
-
-          let packed = finalPacked;
-          let totalBoxVolume = 0; 
-          const counts = {};
-          packed.forEach(p => { totalBoxVolume += (p.w * p.h * p.d); counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
-          
-          const getVisibleGaps = (packedItems, container, axisDirection, limitVal) => {
-            if (packedItems.length === 0) return [limitVal];
-            const step = 50; let visibleLimits = new Set();
-            if (axisDirection === 'X') {
-              const dY = Math.ceil(container.h / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dY * dZ).fill(-1);
-              packedItems.forEach(p => { const limit = p.x + p.w, sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let y=sy; y<ey && y<dY; y++) for (let z=sz; z<ez && z<dZ; z++) { const idx=y*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
-              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-            } else if (axisDirection === 'Y') {
-              const dX = Math.ceil(container.w / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dX * dZ).fill(-1);
-              packedItems.forEach(p => { const limit = p.y + p.h, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let x=sx; x<ex && x<dX; x++) for (let z=sz; z<ez && z<dZ; z++) { const idx=x*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
-              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-            } else if (axisDirection === 'Z') {
-              const dX = Math.ceil(container.w / step), dY = Math.ceil(container.h / step), grid = new Float32Array(dX * dY).fill(-1);
-              packedItems.forEach(p => { const limit = p.z + p.d, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step); for (let x=sx; x<ex && x<dX; x++) for (let y=sy; y<ey && y<dY; y++) { const idx=x*dY+y; if (limit > grid[idx]) grid[idx]=limit; } });
-              grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-            }
-            let limits = Array.from(visibleLimits).sort((a, b) => b - a);
-            let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
-            return (gaps.length === 0 ? [0] : gaps.slice(0, 3));
           };
 
-          const remainingGaps = { w: getVisibleGaps(packed, c, 'X', maxX_limit), h: getVisibleGaps(packed, c, 'Y', maxY_limit), d: getVisibleGaps(packed, c, 'Z', maxZ_limit) };
-          let warnings = []; boxTypes.forEach(b => { if (b.qty > 0 && (counts[b.id] || 0) < b.qty) warnings.push({ name: b.name, color: b.color, requested: b.qty, packed: counts[b.id] || 0, shortfall: b.qty - (counts[b.id] || 0) }); });
+          // 1. 執行標準評估 (無隨機擾動)
+          if (packingStrategy === 'auto') {
+            checkAndSave(simulatePacking('length', false));
+            checkAndSave(simulatePacking('width', false));
+          } else {
+            checkAndSave(simulatePacking(packingStrategy, false));
+          }
 
-          setPackingResult({ packed, error: null, stats: { totalBoxes: packed.length, utilization: ((totalBoxVolume / (c.w * c.h * c.d)) * 100).toFixed(2), counts, totalBoxVolume, warnings, remainingGaps } });
-          setRenderStep(packed.length); setIsCalculating(false);
+          // 如果不是深層優化，就直接顯示結果
+          if (!isDeep) {
+            finalizeResult(bestPacked, c, maxX_limit, maxY_limit, maxZ_limit);
+            return;
+          }
+
+          // 2. 深層優化 (非阻塞異步迭代)
+          const totalDeepIterations = 50; // 迭代次數
+          let currentIter = 0;
+
+          const deepLoop = () => {
+            // 每批次執行 5 次運算，避免主執行緒卡死
+            for (let i = 0; i < 5 && currentIter < totalDeepIterations; i++) {
+              let strat = packingStrategy;
+              if (strat === 'auto') {
+                  strat = Math.random() > 0.5 ? 'length' : 'width';
+              }
+              checkAndSave(simulatePacking(strat, true)); // 啟動 randomize
+              currentIter++;
+            }
+
+            setOptimizeProgress(Math.round((currentIter / totalDeepIterations) * 100));
+
+            if (currentIter < totalDeepIterations) {
+              // 讓出執行緒給 React 渲染進度條
+              setTimeout(deepLoop, 10);
+            } else {
+              // 優化完成，顯示最佳解
+              finalizeResult(bestPacked, c, maxX_limit, maxY_limit, maxZ_limit);
+            }
+          };
+
+          deepLoop();
+
         }, 50); 
       };
+
+      // 彙整並計算顯示結果
+      const finalizeResult = (packed, c, maxX_limit, maxY_limit, maxZ_limit) => {
+        let totalBoxVolume = 0; 
+        const counts = {};
+        packed.forEach(p => { totalBoxVolume += (p.w * p.h * p.d); counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
+        
+        const getVisibleGaps = (packedItems, container, axisDirection, limitVal) => {
+          if (packedItems.length === 0) return [limitVal];
+          const step = 50; let visibleLimits = new Set();
+          if (axisDirection === 'X') {
+            const dY = Math.ceil(container.h / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dY * dZ).fill(-1);
+            packedItems.forEach(p => { const limit = p.x + p.w, sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let y=sy; y<ey && y<dY; y++) for (let z=sz; z<ez && z<dZ; z++) { const idx=y*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
+            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
+          } else if (axisDirection === 'Y') {
+            const dX = Math.ceil(container.w / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dX * dZ).fill(-1);
+            packedItems.forEach(p => { const limit = p.y + p.h, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let x=sx; x<ex && x<dX; x++) for (let z=sz; z<ez && z<dZ; z++) { const idx=x*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
+            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
+          } else if (axisDirection === 'Z') {
+            const dX = Math.ceil(container.w / step), dY = Math.ceil(container.h / step), grid = new Float32Array(dX * dY).fill(-1);
+            packedItems.forEach(p => { const limit = p.z + p.d, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step); for (let x=sx; x<ex && x<dX; x++) for (let y=sy; y<ey && y<dY; y++) { const idx=x*dY+y; if (limit > grid[idx]) grid[idx]=limit; } });
+            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
+          }
+          let limits = Array.from(visibleLimits).sort((a, b) => b - a);
+          let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
+          return (gaps.length === 0 ? [0] : gaps.slice(0, 3));
+        };
+
+        const remainingGaps = { w: getVisibleGaps(packed, c, 'X', maxX_limit), h: getVisibleGaps(packed, c, 'Y', maxY_limit), d: getVisibleGaps(packed, c, 'Z', maxZ_limit) };
+        let warnings = []; boxTypes.forEach(b => { if (b.qty > 0 && (counts[b.id] || 0) < b.qty) warnings.push({ name: b.name, color: b.color, requested: b.qty, packed: counts[b.id] || 0, shortfall: b.qty - (counts[b.id] || 0) }); });
+
+        setPackingResult({ packed, error: null, stats: { totalBoxes: packed.length, utilization: ((totalBoxVolume / (c.w * c.h * c.d)) * 100).toFixed(2), counts, totalBoxVolume, warnings, remainingGaps } });
+        setRenderStep(packed.length); 
+        setIsCalculating(false);
+        setIsDeepOptimizing(false);
+      }
 
       useEffect(() => {
         if (!threeLoaded || !canvasRef.current || !window.THREE) return;
@@ -501,7 +573,6 @@
         const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
         const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000); cameraRef.current = camera;
         
-        // 加入 preserveDrawingBuffer: true 讓截圖工具能夠讀取到 WebGL 的畫面資料，避免黑畫面
         const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); 
         renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
         
@@ -768,6 +839,8 @@
                      <ul className="space-y-3 list-none pl-1">
                        <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">截圖</strong><br/>{t.helpS2_1}</li>
                        <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">導出3視圖(.dxf)</strong><br/>{t.helpS2_2}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">標準計算</strong><br/>{t.helpS2_3}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">深層優化 (GRASP)</strong><br/>{t.helpS2_6}</li>
                        <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">視角切換</strong><br/>{t.helpS2_3}</li>
                        <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">透視</strong><br/>{t.helpS2_4}</li>
                        <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">裝載順序拉桿</strong><br/>{t.helpS2_5}</li>
@@ -807,9 +880,7 @@
                 </h1>
               </div>
               
-              {/* 修改：頂部功能按鈕區塊排版與順序 */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* 將 DXF 按鈕移至此，設定如果沒有計算結果則不可點擊 */}
                 <button 
                   onClick={exportToDXF} 
                   disabled={!hasResult}
@@ -921,10 +992,28 @@
                     </select>
                   </div>
 
-                  <button onClick={() => runPacking()} disabled={isCalculating} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors">
-                    {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
-                    {isCalculating ? t.calculating : t.calcBtn}
-                  </button>
+                  {/* 修改：計算按鈕區分為「標準」與「深層優化」 */}
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button 
+                      onClick={() => handleCalculate(false)} 
+                      disabled={isCalculating} 
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors text-sm"
+                    >
+                      {isCalculating && !isDeepOptimizing ? <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> : <Play className="w-4 h-4 mr-1.5" />}
+                      {isCalculating && !isDeepOptimizing ? t.calculating : t.calcBtn}
+                    </button>
+
+                    <button 
+                      onClick={() => handleCalculate(true)} 
+                      disabled={isCalculating} 
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors text-sm relative overflow-hidden group"
+                    >
+                      <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                      {isDeepOptimizing ? <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
+                      <span className="relative z-10">{isDeepOptimizing ? `${t.optimizing} ${optimizeProgress}%` : t.deepOptBtn}</span>
+                    </button>
+                  </div>
+
                 </div>
               </div>
 
