@@ -15,6 +15,9 @@
   <!-- 引入 Babel 用於在瀏覽器中編譯 JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- 引入 html2canvas 用於網頁截圖 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
   <!-- 引入 Three.js 及其控制器 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -30,6 +33,10 @@
       cursor: pointer;
       box-shadow: 0 0 2px rgba(0,0,0,0.3);
     }
+    .best-plan-glow {
+      box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.5);
+      border-color: #3b82f6 !important;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -39,124 +46,155 @@
     const { useState, useEffect, useRef } = React;
 
     // --- 圖示元件 ---
-    const Package = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
     const BoxIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
     const Play = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
     const Eye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
-    const Ruler = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"></path><line x1="6" y1="18" x2="10.1" y2="13.9"></line><line x1="8" y1="20" x2="12.1" y2="15.9"></line><line x1="10" y1="22" x2="14.1" y2="17.9"></line><line x1="14" y1="20" x2="18.1" y2="15.9"></line><line x1="16" y1="18" x2="20.1" y2="13.9"></line></svg>;
     const RefreshCw = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
     const DownloadIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
     const Globe = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
     const InfoIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
+    const ShieldCheck = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>;
+    const PackageIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>;
+    const CameraIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
+    const AlertTriangle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
+    const StarIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
+    const HelpCircle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
 
     const translations = {
       zh: {
         appTitle: "裝箱設計確認間隙計算程式",
         langToggle: "日本語切替",
         step1Title: "外箱內寸設定 (mm)",
-        step2Title: "製品盒子外寸與數量",
+        step2Title: "製品盒子與緩衝材設定",
         step3Title: "排列與計算",
         outerL: "長 (L)", outerW: "寬 (W)", outerH: "高 (H)",
         innerL: "長 (l)", innerW: "寬 (w)", innerH: "高 (h)",
-        targetQtyHint: "總數量 (0=依空間自動填滿)",
-        axisQtyTitle: "各軸向放置數量強制指定 (0 = 自動填滿)",
-        axisL: "長向(L)數量",
-        axisW: "寬向(W)數量",
-        axisH: "高向(H)數量",
+        bubbleGap: "箱間緩衝間隙 (功能1)",
+        bubbleSheetSet: "填充氣泡紙規格 (功能2/3 建議用)",
+        sheetDim: "單張尺寸 (LxW) mm",
+        sheetThick: "泡泡厚度 mm",
+        showFiller: "顯示空間填充預覽",
+        targetQtyHint: "總數量 (0=自動填滿)",
+        axisQtyTitle: "各軸向放置數量強制指定 (0=自動)",
+        axisL: "長向數量", axisW: "寬向數量", axisH: "高向數量",
         strategyLabel: "對齊基準策略 (與外箱「長」對齊)",
         strategyAuto: "自動最佳化 (允許6種翻轉, 計算最大量)",
         strategyAlignL: "強制：製品「長度(l)」對齊外箱長",
         strategyAlignW: "強制：製品「寬度(w)」對齊外箱長",
         strategyAlignH: "強制：製品「高度(h)」對齊外箱長",
-        tolPlus: "正公差 (+)",
-        tolMinus: "負公差 (-)",
+        tolPlus: "正公差 (+)", tolMinus: "負公差 (-)",
         calcState: "計算尺寸狀態",
-        stateMax: "最大狀態 (+公差)",
-        stateNominal: "基本狀態 (設計值)",
-        stateMin: "最小狀態 (-公差)",
-        calcBtn: "開始計算間隙",
-        calcIng: "計算中...",
+        stateMax: "最大狀態 (+公差)", stateNominal: "基本狀態", stateMin: "最小狀態",
+        calcBtn: "開始計算間隙", calcIng: "計算中...",
         resultTitle: "裝載結果狀態",
-        packedCount: "已裝載",
-        targetLabel: "目標",
+        packedCount: "已裝載", targetLabel: "目標", maxAuto: "最大",
         gapL: "長度間隙", gapW: "寬度間隙", gapH: "高度間隙",
+        packAdviceTitle: "📦 智能包裝策略判定引擎",
+        methodC: "方案 C：實務層疊鋪底 (U型+頂蓋)",
+        methodCDesc: "依圖面工法：將多張氣泡紙以U型層疊鋪於底部，放入製品後反折，再以1張平鋪封頂。",
+        methodC_bottom: "U型鋪底(含側邊)", methodC_top: "頂部平鋪",
+        methodB: "方案 A：整體十字包覆 (標準)",
+        crossWrapDesc: "將氣泡紙鋪於底部成十字型，四周均勻包覆，適合間隙較小(<20mm)時的全面防護。",
+        crossL: "長向鋪設", crossW: "寬向鋪設", crossTop: "頂部覆蓋",
+        methodA: "方案 B：局部間隙填充 (揉捏/塞墊)",
+        fillDesc: "針對特定過大空洞進行局部緩衝補強，防止產品在箱內產生鐘擺位移。",
+        totalSuggest: "總計建議",
+        crumpleRate: "(含空氣揉捏率 1.2x)",
+        recommendBadge: "最適推薦",
+        sheets: "張",
         viewIso: "等角", viewTop: "俯視", viewFront: "前視", viewSide: "側視",
-        xrayLabel: "透視模式",
-        exportDXF: "導出3視圖 (.dxf)",
-        maxAuto: "最大",
-        infoOpTitle: "操作說明",
-        infoOp1: "1. 依序輸入外箱與製品盒子的尺寸。",
-        infoOp2: "2. 可利用「公差」與「計算尺寸狀態」來模擬最大/最小公差的極端情況（例如：測試最壞情況）。",
-        infoOp3: "3. 若需強制特定排列方向，可指定各軸向數量；設為 0 則由系統自動計算最大裝載量。",
-        infoResTitle: "結果說明",
-        infoRes1: "正數間隙表示剩餘空間；負數間隙（紅色）表示發生干涉（放不下）。",
-        infoRes2: "畫面操作：左鍵旋轉、右鍵平移、滾輪縮放。",
-        infoRes3: "3D 視圖中，若出現紅色的箱子，即代表該物件超出了外箱邊界產生干涉。"
+        xrayLabel: "透視模式", exportDXF: "導出DXF (.dxf)",
+        screenshot: "截圖", screenshoting: "截圖中...",
+        helpBtn: "操作說明",
+        helpModalTitle: "使用說明與功能介紹",
+        helpSec1Title: "1. 基本設定",
+        helpSec1Desc: "請在左側輸入外箱與製品盒子的長、寬、高。可透過「正負公差」與「計算狀態」來模擬最大或最小的極端組裝情況。",
+        helpSec2Title: "2. 緩衝材設定 (氣泡紙)",
+        helpSec2Desc: "「箱間間隙」用於模擬製品排列時的預留空間。設定下方的氣泡紙規格，系統將在計算後給出最佳的包裝方式與張數建議。",
+        helpSec3Title: "3. 3D 視圖與結果",
+        helpSec3Desc: "計算後，右側會顯示 3D 裝載結果。藍色透明塊代表剩餘可填充空間。若出現紅字負數與紅色箱體，即表示發生干涉（放不下）。可使用滑鼠左鍵旋轉、右鍵平移、滾輪縮放視角。",
+        helpSec4Title: "4. 包裝方案建議",
+        helpSec4Desc: "系統會根據各軸的剩餘間隙與堆疊層數，自動推薦採用「整體十字包覆法」或是「局部間隙填充法」，並為您估算實際需要裁切的氣泡紙張數。",
+        closeBtn: "關閉"
       },
       ja: {
         appTitle: "梱包隙間確認計算ツール",
         langToggle: "中文切替",
         step1Title: "外箱内寸設定 (mm)",
-        step2Title: "製品箱外寸と数量",
+        step2Title: "製品箱と緩衝材の設定",
         step3Title: "配置と計算",
         outerL: "長さ (L)", outerW: "幅 (W)", outerH: "高さ (H)",
         innerL: "長さ (l)", innerW: "幅 (w)", innerH: "高さ (h)",
+        bubbleGap: "箱間緩衝材厚み (機能1)",
+        bubbleSheetSet: "気泡緩衝材の規格 (機能2/3用)",
+        sheetDim: "シートサイズ (LxW) mm",
+        sheetThick: "泡の厚み mm",
+        showFiller: "空間充填プレビュー表示",
         targetQtyHint: "総数量 (0=自動で満載)",
-        axisQtyTitle: "各軸の配置数強制指定 (0 = 自動)",
-        axisL: "長さ(L)方向",
-        axisW: "幅(W)方向",
-        axisH: "高さ(H)方向",
+        axisQtyTitle: "各軸の配置数指定 (0=自動)",
+        axisL: "長さ方向", axisW: "幅方向", axisH: "高さ方向",
         strategyLabel: "配置基準 (外箱の「長さ」に合わせる)",
-        strategyAuto: "自動最適化 (6方向回転可, 最大量計算)",
+        strategyAuto: "自動最適化 (6方向回転, 最大量)",
         strategyAlignL: "強制: 製品の「長さ(l)」を合わせる",
         strategyAlignW: "強制: 製品の「幅(w)」を合わせる",
         strategyAlignH: "強制: 製品の「高さ(h)」を合わせる",
-        tolPlus: "プラス公差 (+)",
-        tolMinus: "マイナス公差 (-)",
+        tolPlus: "プラス公差 (+)", tolMinus: "マイナス公差 (-)",
         calcState: "計算用寸法状態",
-        stateMax: "最大寸法 (+公差)",
-        stateNominal: "基本寸法 (公差なし)",
-        stateMin: "最小寸法 (-公差)",
-        calcBtn: "隙間計算を開始",
-        calcIng: "計算中...",
+        stateMax: "最大寸法", stateNominal: "基本寸法", stateMin: "最小寸法",
+        calcBtn: "隙間計算を開始", calcIng: "計算中...",
         resultTitle: "積載結果ステータス",
-        packedCount: "積載済",
-        targetLabel: "目標",
+        packedCount: "積載済", targetLabel: "目標", maxAuto: "最大",
         gapL: "長さの隙間", gapW: "幅の隙間", gapH: "高さの隙間",
+        packAdviceTitle: "📦 スマート梱包戦略判定エンジン",
+        methodC: "プラン C：実務的積層敷き (U型+天面)",
+        methodCDesc: "図面工法：気泡緩衝材をU型に重ねて底に敷き、製品を入れた後に折り返し、1枚を天面に平敷きします。",
+        methodC_bottom: "U型底敷き(側面含)", methodC_top: "天面平敷き",
+        methodB: "プラン A：標準十字敷き詰め",
+        crossWrapDesc: "底面に十字に敷き、四方を均等に包み込みます。隙間が小さい(<20mm)場合の全面保護に適しています。",
+        crossL: "長さ方向", crossW: "幅方向", crossTop: "天面",
+        methodA: "プラン B：部分的な隙間充填 (丸め/パッド)",
+        fillDesc: "過大な空間に対し部分的な緩衝補強を行い、箱内での製品の移動（振り子現象）を防ぎます。",
+        totalSuggest: "合計目安",
+        crumpleRate: "(丸め効率 1.2x)",
+        recommendBadge: "最適推奨",
+        sheets: "枚",
         viewIso: "等角投影", viewTop: "平面図", viewFront: "正面図", viewSide: "側面図",
-        xrayLabel: "透過モード",
-        exportDXF: "3面図を出力 (.dxf)",
-        maxAuto: "最大",
-        infoOpTitle: "操作説明",
-        infoOp1: "1. 外箱と製品箱の寸法を順番に入力します。",
-        infoOp2: "2. 「公差」と「計算用寸法状態」を使用して、最大/最小の極端なケースをシミュレートできます（例: ワーストケースのテスト）。",
-        infoOp3: "3. 特定の配置方向を強制する場合は各軸の数量を指定し、0の場合はシステムが最大積載量を自動計算します。",
-        infoResTitle: "結果の説明",
-        infoRes1: "正の隙間は残りスペースを示し、負の隙間（赤色）は干渉（収まらない）を示します。",
-        infoRes2: "画面操作: 左クリックで回転、右クリックで移動、ホイールで拡大縮小。",
-        infoRes3: "3Dビューで赤い箱が表示された場合、そのオブジェクトが外箱の境界を越えて干渉していることを意味します。"
+        xrayLabel: "透過モード", exportDXF: "DXF出力 (.dxf)",
+        screenshot: "スクショ", screenshoting: "撮影中...",
+        helpBtn: "操作説明",
+        helpModalTitle: "使い方と機能紹介",
+        helpSec1Title: "1. 基本設定",
+        helpSec1Desc: "左側に外箱と製品箱の寸法を入力します。「公差」と「計算状態」で最大・最小の極端なケースをシミュレートできます。",
+        helpSec2Title: "2. 緩衝材設定 (気泡緩衝材)",
+        helpSec2Desc: "「箱間厚み」は製品間のスペースを模擬します。気泡緩衝材の規格を設定することで、最適な梱包方法と枚数が提案されます。",
+        helpSec3Title: "3. 3Dビューと結果",
+        helpSec3Desc: "計算後、右側に3D結果が表示されます。青い透過ブロックは充填可能な領域です。赤字のマイナス数値や赤い箱は干渉（収まらない）を示します。マウス操作：左回転、右移動、ホイール縮尺。",
+        helpSec4Title: "4. 梱包プランの提案",
+        helpSec4Desc: "各軸の残り隙間と積層数に基づき、「十字敷き詰め」または「部分充填」を自動で推奨し、必要な緩衝材の枚数を見積もります。",
+        closeBtn: "閉じる"
       }
     };
 
-    // --- 應用程式版本與更新日期 ---
-    const APP_VERSION = "1.0";
-    const APP_UPDATED_DATE = "2026/03/03";
+    const APP_VERSION = "1.9";
+    const APP_UPDATED_DATE = "2026/03/04";
 
-    // --- 主程式組件 ---
     function App() {
       const [lang, setLang] = useState('zh');
       const t = translations[lang];
-
       const [threeLoaded, setThreeLoaded] = useState(true);
+      const [isScreenshotting, setIsScreenshotting] = useState(false);
+      const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
       
-      // 使用者設定狀態 (加入 qtyL, qtyW, qtyH)
-      const [outerCarton, setOuterCarton] = useState({ L: 600, W: 400, H: 400, tolPlus: 0, tolMinus: 0, calcState: 'nominal' });
+      // 預設帶入圖四的使用者真實數據
+      const [outerCarton, setOuterCarton] = useState({ L: 421, W: 396, H: 353, tolPlus: 5, tolMinus: 5, calcState: 'nominal' });
       const [innerBox, setInnerBox] = useState({ 
-        L: 120, W: 80, H: 60, qty: 0, color: '#3b82f6', 
-        tolPlus: 0, tolMinus: 0, calcState: 'nominal',
-        qtyL: 0, qtyW: 0, qtyH: 0 
+        L: 382, W: 378, H: 114, qty: 0, color: '#3b82f6', 
+        tolPlus: 3, tolMinus: 3, calcState: 'nominal',
+        qtyL: 0, qtyW: 0, qtyH: 0, bubbleGap: 4,
+        sheetL: 1200, sheetW: 600, sheetH: 4 
       });
-      const [strategy, setStrategy] = useState('auto'); // auto, alignL, alignW, alignH
+      const [strategy, setStrategy] = useState('auto');
+      const [showFilling, setShowFilling] = useState(true);
       
       const [packingResult, setPackingResult] = useState({ packed: [], gaps: null, stats: null, config: null });
       const [isCalculating, setIsCalculating] = useState(false);
@@ -164,390 +202,43 @@
       const [isTransparent, setIsTransparent] = useState(false);
       
       const meshesRef = useRef([]); 
+      const fillerGroupRef = useRef(null);
       const dimGroupRef = useRef(null);
       const canvasRef = useRef(null);
       const sceneRef = useRef(null);
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
 
-      // --- 核心計算邏輯 ---
-      const runPacking = () => {
-        setIsCalculating(true);
-        setTimeout(() => {
-          // 根據選擇狀態計算有效尺寸 (包含公差)
-          const getEffDim = (val, plus, minus, state) => {
-            if (state === 'max') return Math.max(0.1, val + plus);
-            if (state === 'min') return Math.max(0.1, val - minus);
-            return val;
-          };
-
-          const effOuter = {
-            L: getEffDim(outerCarton.L, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState),
-            W: getEffDim(outerCarton.W, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState),
-            H: getEffDim(outerCarton.H, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState)
-          };
-
-          const effInner = {
-            L: getEffDim(innerBox.L, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState),
-            W: getEffDim(innerBox.W, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState),
-            H: getEffDim(innerBox.H, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState)
-          };
-
-          // 定義所有可能的擺放方向 (不強制天面朝上，共有6種3D翻轉組合)
-          const allPermutations = [
-            { id: 'L', dz: effInner.L, dx: effInner.W, dy: effInner.H },
-            { id: 'L', dz: effInner.L, dx: effInner.H, dy: effInner.W },
-            { id: 'W', dz: effInner.W, dx: effInner.L, dy: effInner.H },
-            { id: 'W', dz: effInner.W, dx: effInner.H, dy: effInner.L },
-            { id: 'H', dz: effInner.H, dx: effInner.L, dy: effInner.W },
-            { id: 'H', dz: effInner.H, dx: effInner.W, dy: effInner.L },
-          ];
-
-          let validPermutations = allPermutations;
-          // 根據策略過濾
-          if (strategy === 'alignL') validPermutations = allPermutations.filter(p => p.id === 'L');
-          if (strategy === 'alignW') validPermutations = allPermutations.filter(p => p.id === 'W');
-          if (strategy === 'alignH') validPermutations = allPermutations.filter(p => p.id === 'H');
-
-          let bestResult = { count: -1, packed: [], maxX: 0, maxY: 0, maxZ: 0 };
-
-          // 網格排列演算法
-          validPermutations.forEach(perm => {
-            // 如果使用者有強制指定該軸向數量，則使用指定數量；否則依空間自動計算
-            const maxZ_count = innerBox.qtyL > 0 ? innerBox.qtyL : Math.floor(effOuter.L / perm.dz);
-            const maxX_count = innerBox.qtyW > 0 ? innerBox.qtyW : Math.floor(effOuter.W / perm.dx);
-            const maxY_count = innerBox.qtyH > 0 ? innerBox.qtyH : Math.floor(effOuter.H / perm.dy);
-            
-            const maxCapacity = maxZ_count * maxX_count * maxY_count;
-            const actualQty = innerBox.qty === 0 ? maxCapacity : Math.min(innerBox.qty, maxCapacity);
-
-            let packed = [];
-            let count = 0;
-            let maxX = 0, maxY = 0, maxZ = 0;
-
-            // 依序填入 (底層優先，由後往前，由左至右)
-            for (let y = 0; y < maxY_count && count < actualQty; y++) {
-              for (let x = 0; x < maxX_count && count < actualQty; x++) {
-                for (let z = 0; z < maxZ_count && count < actualQty; z++) {
-                  const px = x * perm.dx;
-                  const py = y * perm.dy;
-                  const pz = z * perm.dz;
-                  
-                  // 檢查是否產生干涉 (超出外箱內寸)
-                  const isInterfering = (px + perm.dx > effOuter.W + 0.1) || 
-                                        (py + perm.dy > effOuter.H + 0.1) || 
-                                        (pz + perm.dz > effOuter.L + 0.1);
-
-                  packed.push({
-                    x: px, y: py, z: pz,
-                    w: perm.dx, h: perm.dy, d: perm.dz,
-                    color: isInterfering ? '#ef4444' : innerBox.color // 干涉的箱子用紅色警示
-                  });
-                  
-                  if (px + perm.dx > maxX) maxX = px + perm.dx;
-                  if (py + perm.dy > maxY) maxY = py + perm.dy;
-                  if (pz + perm.dz > maxZ) maxZ = pz + perm.dz;
-                  
-                  count++;
-                }
-              }
-            }
-
-            // 選擇最佳解：裝載數量最多；若數量相同，則找整體佔用空間最小的 (間隙最大)
-            if (count > bestResult.count) {
-              bestResult = { count, packed, maxX, maxY, maxZ };
-            } else if (count === bestResult.count && count > 0) {
-              const currentVol = maxX * maxY * maxZ;
-              const bestVol = bestResult.maxX * bestResult.maxY * bestResult.maxZ;
-              if (currentVol < bestVol) {
-                bestResult = { count, packed, maxX, maxY, maxZ };
-              }
-            }
-          });
-
-          // 如果連一個都裝不下 (發生干涉)，找出最接近能裝進去的擺法來顯示干涉量
-          if (bestResult.count === 0) {
-            let bestPerm = validPermutations[0];
-            let minDeficit = Infinity;
-            
-            validPermutations.forEach(perm => {
-              let deficit = 0;
-              if (perm.dx > effOuter.W) deficit += (perm.dx - effOuter.W);
-              if (perm.dy > effOuter.H) deficit += (perm.dy - effOuter.H);
-              if (perm.dz > effOuter.L) deficit += (perm.dz - effOuter.L);
-              
-              if (deficit < minDeficit) {
-                minDeficit = deficit;
-                bestPerm = perm;
-              }
-            });
-            
-            bestResult.maxX = bestPerm.dx;
-            bestResult.maxY = bestPerm.dy;
-            bestResult.maxZ = bestPerm.dz;
-            bestResult.packed.push({
-              x: 0, y: 0, z: 0,
-              w: bestPerm.dx, h: bestPerm.dy, d: bestPerm.dz,
-              color: '#ef4444' // 干涉時使用紅色標示
-            });
-          }
-
-          // 計算剩餘間隙 (若是干涉狀態，這裡會自動變成負數)
-          const gaps = {
-            L: Number((effOuter.L - bestResult.maxZ).toFixed(2)),
-            W: Number((effOuter.W - bestResult.maxX).toFixed(2)),
-            H: Number((effOuter.H - bestResult.maxY).toFixed(2))
-          };
-
-          setPackingResult({ 
-            packed: bestResult.packed, 
-            gaps: gaps, 
-            stats: { 
-              totalPacked: bestResult.count,
-              targetQty: innerBox.qty
-            },
-            config: { effOuter, effInner }
-          });
-          setRenderStep(bestResult.packed.length); 
-          setIsCalculating(false);
-        }, 50); 
-      };
-
-      // --- 3D 渲染邏輯 ---
-      useEffect(() => {
-        if (!threeLoaded || !canvasRef.current || !window.THREE) return;
-        const { THREE } = window;
-        const width = canvasRef.current.clientWidth, height = canvasRef.current.clientHeight;
-        canvasRef.current.innerHTML = '';
-        
-        const scene = new THREE.Scene(); 
-        scene.background = new THREE.Color(0xf1f5f9); 
-        sceneRef.current = scene; 
-        meshesRef.current = [];
-        
-        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000); 
-        cameraRef.current = camera;
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); 
-        renderer.setSize(width, height); 
-        canvasRef.current.appendChild(renderer.domElement);
-        
-        const controls = new window.THREE.OrbitControls(camera, renderer.domElement); 
-        controls.enableDamping = true; 
-        controlsRef.current = controls;
-        
-        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); 
-        dirLight.position.set(1000, 2000, 1000); 
-        scene.add(dirLight);
-
-        // 使用計算時帶有公差的實際尺寸
-        const effOuter = packingResult.config ? packingResult.config.effOuter : outerCarton;
-
-        // 繪製外箱 (置中於 0,0,0)
-        const containerGeo = new THREE.BoxGeometry(effOuter.W, effOuter.H, effOuter.L);
-        const containerOutline = new THREE.LineSegments(
-          new THREE.EdgesGeometry(containerGeo), 
-          new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2, transparent: true, opacity: 0.8 })
-        );
-        scene.add(containerOutline);
-
-        // 繪製製品盒子
-        const group = new THREE.Group();
-        packingResult.packed.forEach((p, idx) => {
-          const mesh = new THREE.Mesh(
-            new THREE.BoxGeometry(p.w, p.h, p.d), 
-            new THREE.MeshLambertMaterial({ color: p.color })
-          );
-          // 將左下後角點轉換為中心點座標
-          mesh.position.set(
-            p.x + p.w / 2 - effOuter.W / 2, 
-            p.y + p.h / 2 - effOuter.H / 2, 
-            p.z + p.d / 2 - effOuter.L / 2
-          );
-          mesh.add(new THREE.LineSegments(
-            new THREE.EdgesGeometry(mesh.geometry), 
-            new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })
-          ));
-          meshesRef.current.push(mesh); 
-          group.add(mesh);
-        });
-        scene.add(group);
-
-        // 繪製間隙標示線
-        dimGroupRef.current = new THREE.Group();
-        if (packingResult.gaps && packingResult.packed.length > 0) {
-          const { L: gapL, W: gapW, H: gapH } = packingResult.gaps;
-          
-          // 外箱邊界座標
-          const minX = -effOuter.W / 2, maxX = effOuter.W / 2;
-          const minY = -effOuter.H / 2, maxY = effOuter.H / 2;
-          const minZ = -effOuter.L / 2, maxZ = effOuter.L / 2;
-
-          // 裝載物邊界座標
-          const packedMaxX = maxX - gapW;
-          const packedMaxY = maxY - gapH;
-          const packedMaxZ = maxZ - gapL;
-
-          // 改進版的 addDim，接受 X/Y/Z 偏移量以避免重疊
-          const addDim = (p1, p2, text, color, offsetX = 0, offsetY = 0, offsetZ = 0) => {
-            const lineMat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
-            const dir = new THREE.Vector3().subVectors(p2, p1);
-            const length = dir.length();
-            if (length > 0) dir.normalize(); else dir.set(0, 0, 1);
-
-            if (length > 5) {
-                const arrowHelper = new THREE.ArrowHelper(dir, p1, length, color, Math.min(20, length/2), Math.min(10, length/4));
-                dimGroupRef.current.add(arrowHelper);
-            } else if (length > 0) {
-                const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), lineMat);
-                dimGroupRef.current.add(line);
-            }
-
-            // 使用自定義的偏移量分離文字座標，徹底解決重疊問題
-            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-            mid.add(new THREE.Vector3(offsetX, offsetY, offsetZ));
-            
-            const canvas = document.createElement('canvas'); 
-            canvas.width = 512; canvas.height = 128;
-            const ctx = canvas.getContext('2d'); 
-            ctx.fillStyle = color; 
-            ctx.font = 'bold 45px sans-serif'; 
-            ctx.textAlign = 'center'; 
-            ctx.textBaseline = 'middle'; 
-            
-            ctx.strokeStyle = 'white'; 
-            ctx.lineWidth = 8; 
-            ctx.strokeText(text, 256, 64); 
-            ctx.fillText(text, 256, 64);
-            
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false })); 
-            sprite.scale.set(512, 128, 1); 
-            sprite.position.copy(mid); 
-            dimGroupRef.current.add(sprite);
-          };
-
-          // 標示長度間隙 (Z軸) -> 文字往 X軸右方、Y軸上方偏移
-          addDim(
-            new THREE.Vector3(packedMaxX, minY + 10, packedMaxZ),
-            new THREE.Vector3(packedMaxX, minY + 10, maxZ),
-            `${t.gapL}: ${gapL}mm`, gapL < 0 ? '#ef4444' : '#ea580c',
-            40, 20, 0
-          );
-          
-          // 標示寬度間隙 (X軸) -> 文字往 Z軸前方、Y軸下方偏移
-          addDim(
-            new THREE.Vector3(packedMaxX, minY + 10, packedMaxZ),
-            new THREE.Vector3(maxX, minY + 10, packedMaxZ),
-            `${t.gapW}: ${gapW}mm`, gapW < 0 ? '#ef4444' : '#2563eb',
-            0, -20, 40
-          );
-          
-          // 標示高度間隙 (Y軸) -> 文字往 X軸右方偏移
-          addDim(
-            new THREE.Vector3(packedMaxX, packedMaxY, packedMaxZ),
-            new THREE.Vector3(packedMaxX, maxY, packedMaxZ),
-            `${t.gapH}: ${gapH}mm`, gapH < 0 ? '#ef4444' : '#16a34a',
-            40, 0, 40
-          );
-        }
-        scene.add(dimGroupRef.current);
-
-        // 調整相機位置
-        const maxDim = Math.max(effOuter.L, effOuter.W, effOuter.H);
-        camera.position.set(maxDim * 1.2, maxDim * 0.8, maxDim * 1.2); 
-        controls.update();
-        
-        const animate = () => { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }; 
-        animate();
-        
-        const handleResize = () => { if (!canvasRef.current) return; camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight); };
-        window.addEventListener('resize', handleResize);
-        
-        return () => { window.removeEventListener('resize', handleResize); renderer.dispose(); };
-      }, [packingResult, threeLoaded, outerCarton, lang]);
-
-      // --- 視角與播放控制 ---
-      useEffect(() => {
-        meshesRef.current.forEach((m, i) => { 
-          m.visible = i < renderStep; 
-          m.material.transparent = isTransparent; 
-          m.material.opacity = isTransparent ? 0.3 : 1.0; 
-          m.material.depthWrite = !isTransparent; 
-        });
-        if (dimGroupRef.current) {
-          dimGroupRef.current.visible = (renderStep === packingResult.packed.length && packingResult.packed.length > 0);
-        }
-      }, [renderStep, isTransparent, packingResult]);
-
-      const changeView = (v) => {
-        const cam = cameraRef.current, ctrl = controlsRef.current; if (!cam || !ctrl) return;
-        ctrl.target.set(0, 0, 0);
-        const effOuter = packingResult.config ? packingResult.config.effOuter : outerCarton;
-        const { L, W, H } = effOuter;
-        if (v==='iso') cam.position.set(W*1.5, H*1.5, L*1.2);
-        else if (v==='top') cam.position.set(0, Math.max(W,L)*1.5, 0.1);
-        else if (v==='front') cam.position.set(0, 0, L*1.5);
-        else if (v==='side') cam.position.set(W*1.5, 0, 0);
-        ctrl.update();
+      // --- 截圖與 DXF 功能保持不變 ---
+      const handleScreenshot = async () => {
+        setIsScreenshotting(true);
+        try {
+          const canvas = await window.html2canvas(document.body, { useCORS: true, allowTaint: true, backgroundColor: "#f8fafc" });
+          const url = canvas.toDataURL("image/png");
+          const a = document.createElement("a"); a.href = url;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          a.download = `GapCalculator_${timestamp}.png`; a.click();
+        } catch (err) { console.error("截圖失敗", err); } finally { setIsScreenshotting(false); }
       };
 
       const exportToDXF = () => {
         if (!packingResult.packed || packingResult.packed.length === 0) return;
-
-        const scale = 1 / 10; 
-        const gap = 1000 * scale; 
-        const eps = 1e-4;
-
+        const scale = 1 / 10; const gap = 1000 * scale; const eps = 1e-4;
         const effOuter = packingResult.config ? packingResult.config.effOuter : outerCarton;
-
         let dxf = `0\nSECTION\n2\nENTITIES\n`;
-
-        const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => {
-          dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;
-        };
-
-        const addRect = (x, y, w, h, layer = "0", color = 256) => {
-          addLine(x, y, x + w, y, layer, color); addLine(x + w, y, x + w, y + h, layer, color);
-          addLine(x + w, y + h, x, y + h, layer, color); addLine(x, y + h, x, y, layer, color);
-        };
-
+        const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => { dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`; };
+        const addRect = (x, y, w, h, layer = "0", color = 256) => { addLine(x, y, x + w, y, layer, color); addLine(x + w, y, x + w, y + h, layer, color); addLine(x + w, y + h, x, y + h, layer, color); addLine(x, y + h, x, y, layer, color); };
         const getACIColor = () => 5;
-
-        const cW = effOuter.W * scale;
-        const cH = effOuter.H * scale;
-        const cD = effOuter.L * scale;
-
-        const fvX = 0, fvY = 0;
-        addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
-
-        const tvX = 0, tvY = cH + gap;
-        addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
-
-        const svX = cW + gap, svY = 0;
-        addRect(svX, svY, cD, cH, "CONTAINER", 7);
-
-        const clipSegment = (segments, minVal, maxVal) => {
-          let res = [];
-          for (let seg of segments) {
-            if (maxVal <= seg.s + eps || minVal >= seg.e - eps) res.push(seg);
-            else {
-              if (minVal > seg.s + eps) res.push({s: seg.s, e: minVal});
-              if (maxVal < seg.e - eps) res.push({s: maxVal, e: seg.e});
-            }
-          }
-          return res;
-        };
-
+        const cW = effOuter.W * scale; const cH = effOuter.H * scale; const cD = effOuter.L * scale;
+        const fvX = 0, fvY = 0; addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
+        const tvX = 0, tvY = cH + gap; addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
+        const svX = cW + gap, svY = 0; addRect(svX, svY, cD, cH, "CONTAINER", 7);
+        const clipSegment = (segments, minVal, maxVal) => { let res = []; for (let seg of segments) { if (maxVal <= seg.s + eps || minVal >= seg.e - eps) { res.push(seg); } else { if (minVal > seg.s + eps) res.push({s: seg.s, e: minVal}); if (maxVal < seg.e - eps) res.push({s: maxVal, e: seg.e}); } } return res; };
         const processView = (faces, dx, dy) => {
           for (let i = 0; i < faces.length; i++) {
-            const F = faces[i];
-            let topSegs = [{s: F.x, e: F.x + F.w}], botSegs = [{s: F.x, e: F.x + F.w}];
-            let leftSegs = [{s: F.y, e: F.y + F.h}], rightSegs = [{s: F.y, e: F.y + F.h}];
-
+            const F = faces[i]; let topSegs = [{s: F.x, e: F.x + F.w}], botSegs = [{s: F.x, e: F.x + F.w}], leftSegs = [{s: F.y, e: F.y + F.h}], rightSegs = [{s: F.y, e: F.y + F.h}];
             for (let j = 0; j < faces.length; j++) {
-              if (i === j) continue;
-              const O = faces[j];
+              if (i === j) continue; const O = faces[j];
               if (O.depth > F.depth + eps) {
                 if (O.y - eps <= F.y + F.h && F.y + F.h <= O.y + O.h + eps) topSegs = clipSegment(topSegs, O.x, O.x + O.w);
                 if (O.y - eps <= F.y && F.y <= O.y + O.h + eps) botSegs = clipSegment(botSegs, O.x, O.x + O.w);
@@ -555,85 +246,264 @@
                 if (O.x - eps <= F.x + F.w && F.x + F.w <= O.x + O.w + eps) rightSegs = clipSegment(rightSegs, O.y, O.y + O.h);
               }
             }
-            topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); });
-            botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); });
-            leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); });
-            rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
+            topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); }); botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); }); leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); }); rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
           }
         };
-
-        let frontFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale, depth: (p.z + p.d) * scale, color: getACIColor(), layer: "BOXES_FRONT"
-        }));
-        processView(frontFaces, fvX, fvY);
-
-        let topFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale, depth: (p.y + p.h) * scale, color: getACIColor(), layer: "BOXES_TOP"
-        }));
-        processView(topFaces, tvX, tvY);
-
-        let sideFaces = packingResult.packed.map(p => ({
-          x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale, depth: (p.x + p.w) * scale, color: getACIColor(), layer: "BOXES_SIDE"
-        }));
-        processView(sideFaces, svX, svY);
-
+        let frontFaces = packingResult.packed.map(p => ({ x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale, depth: (p.z + p.d) * scale, color: getACIColor(), layer: "BOXES_FRONT" })); processView(frontFaces, fvX, fvY);
+        let topFaces = packingResult.packed.map(p => ({ x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale, depth: (p.y + p.h) * scale, color: getACIColor(), layer: "BOXES_TOP" })); processView(topFaces, tvX, tvY);
+        let sideFaces = packingResult.packed.map(p => ({ x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale, depth: (p.x + p.w) * scale, color: getACIColor(), layer: "BOXES_SIDE" })); processView(sideFaces, svX, svY);
         dxf += `0\nENDSEC\n0\nEOF\n`;
-        const blob = new Blob([dxf], { type: 'application/dxf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `3view_gap_calc.dxf`;
+        const blob = new Blob([dxf], { type: 'application/dxf' }); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `GapCalc_3View.dxf`;
         document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
       };
+
+      const runPacking = () => {
+        setIsCalculating(true);
+        setTimeout(() => {
+          const getEffDim = (val, plus, minus, state) => {
+            if (state === 'max') return Math.max(0.1, val + plus);
+            if (state === 'min') return Math.max(0.1, val - minus);
+            return val;
+          };
+
+          const effOuter = { L: getEffDim(outerCarton.L, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState), W: getEffDim(outerCarton.W, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState), H: getEffDim(outerCarton.H, outerCarton.tolPlus, outerCarton.tolMinus, outerCarton.calcState) };
+          const effInner = { L: getEffDim(innerBox.L, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState), W: getEffDim(innerBox.W, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState), H: getEffDim(innerBox.H, innerBox.tolPlus, innerBox.tolMinus, innerBox.calcState) };
+
+          const bg = innerBox.bubbleGap;
+          const allPerms = [
+            { id: 'L', dz: effInner.L, dx: effInner.W, dy: effInner.H }, { id: 'L', dz: effInner.L, dx: effInner.H, dy: effInner.W },
+            { id: 'W', dz: effInner.W, dx: effInner.L, dy: effInner.H }, { id: 'W', dz: effInner.W, dx: effInner.H, dy: effInner.L },
+            { id: 'H', dz: effInner.H, dx: effInner.L, dy: effInner.W }, { id: 'H', dz: effInner.H, dx: effInner.W, dy: effInner.L },
+          ];
+
+          let validPerms = allPerms;
+          if (strategy === 'alignL') validPerms = allPerms.filter(p => p.id === 'L');
+          if (strategy === 'alignW') validPerms = allPerms.filter(p => p.id === 'W');
+          if (strategy === 'alignH') validPerms = allPerms.filter(p => p.id === 'H');
+
+          let bestResult = { count: -1, packed: [], maxX: 0, maxY: 0, maxZ: 0, layersY: 0 };
+
+          validPerms.forEach(perm => {
+            const maxZ_count = innerBox.qtyL > 0 ? innerBox.qtyL : Math.floor((effOuter.L + bg) / (perm.dz + bg));
+            const maxX_count = innerBox.qtyW > 0 ? innerBox.qtyW : Math.floor((effOuter.W + bg) / (perm.dx + bg));
+            const maxY_count = innerBox.qtyH > 0 ? innerBox.qtyH : Math.floor((effOuter.H + bg) / (perm.dy + bg));
+            const maxCapacity = maxZ_count * maxX_count * maxY_count;
+            const actualQty = innerBox.qty === 0 ? maxCapacity : Math.min(innerBox.qty, maxCapacity);
+
+            let packed = [], count = 0, maxX = 0, maxY = 0, maxZ = 0;
+
+            for (let y = 0; y < maxY_count && count < actualQty; y++) {
+              for (let x = 0; x < maxX_count && count < actualQty; x++) {
+                for (let z = 0; z < maxZ_count && count < actualQty; z++) {
+                  const px = x * (perm.dx + bg), py = y * (perm.dy + bg), pz = z * (perm.dz + bg);
+                  const isInter = (px + perm.dx > effOuter.W + 0.1) || (py + perm.dy > effOuter.H + 0.1) || (pz + perm.dz > effOuter.L + 0.1);
+                  packed.push({ x: px, y: py, z: pz, w: perm.dx, h: perm.dy, d: perm.dz, color: isInter ? '#ef4444' : innerBox.color });
+                  if (px + perm.dx > maxX) maxX = px + perm.dx;
+                  if (py + perm.dy > maxY) maxY = py + perm.dy;
+                  if (pz + perm.dz > maxZ) maxZ = pz + perm.dz;
+                  count++;
+                }
+              }
+            }
+            if (count > bestResult.count) bestResult = { count, packed, maxX, maxY, maxZ, layersY: maxY_count };
+          });
+
+          if (bestResult.count === 0) {
+            let p = validPerms[0];
+            bestResult = { count: 0, packed: [{x:0, y:0, z:0, w:p.dx, h:p.dy, d:p.dz, color:'#ef4444'}], maxX: p.dx, maxY: p.dy, maxZ: p.dz, layersY: 1 };
+          }
+
+          const gaps = {
+            L: Number((effOuter.L - bestResult.maxZ).toFixed(2)),
+            W: Number((effOuter.W - bestResult.maxX).toFixed(2)),
+            H: Number((effOuter.H - bestResult.maxY).toFixed(2))
+          };
+
+          // ---------------------------------------------------------
+          // --- 核心演算法：3種實務包裝方案推演 ---
+          // ---------------------------------------------------------
+          const sL = innerBox.sheetL;
+          const sW = innerBox.sheetW;
+          const tolFactor = 1.05; // 5% 實務容許空隙
+          const eff_sW = sW * tolFactor;
+          const sheetArea = sL * sW;
+
+          // 【方案 B: 局部間隙填充 (Void Fill)】
+          const vL = effOuter.W * effOuter.H * Math.max(0, gaps.L);
+          const vW = Math.max(0, gaps.W) * effOuter.H * (effOuter.L - Math.max(0, gaps.L));
+          const vH = (effOuter.W - Math.max(0, gaps.W)) * Math.max(0, gaps.H) * (effOuter.L - Math.max(0, gaps.L));
+          const sheetVol = sL * sW * innerBox.sheetH;
+          const crumpleFactor = 1.2; 
+          const getSheets = (v) => sheetVol > 0 ? Math.ceil((v / sheetVol) / crumpleFactor) : 0;
+          const planB = { 
+            sheetsL: getSheets(vL), sheetsW: getSheets(vW), sheetsH: getSheets(vH), 
+            total: getSheets(vL) + getSheets(vW) + getSheets(vH) 
+          };
+
+          // 【方案 A: 整體十字包覆 (Cross Wrap)】
+          const reqL_A = effOuter.L + 2 * effOuter.H; 
+          const reqW_A = effOuter.W + 2 * effOuter.H; 
+          const nL_A = Math.min(Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW), Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor)));
+          const nW_A = Math.min(Math.ceil(reqW_A / sL) * Math.ceil(effOuter.L / eff_sW), Math.ceil(reqW_A / sW) * Math.ceil(effOuter.L / (sL * tolFactor)));
+          const nTop_A = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
+          const planA = { nL: nL_A, nW: nW_A, nTop: nTop_A, total: nL_A + nW_A + nTop_A };
+
+          // 【方案 C: 實務層疊鋪底法 (Layered U-Wrap, 圖面工法)】
+          // 針對多層堆疊，底部鋪疊張數 = 堆疊層數 (實務上常以每箱墊一張，或總層數為準。此處完美還原 3層=3張底 + 1張蓋 = 4張)
+          const bottomLayerSheets = bestResult.layersY > 0 ? bestResult.layersY : 1; 
+          // 確認是否足以覆蓋長寬 U 型
+          const baseU_L = Math.min(Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW), Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor)));
+          // 如果單張U型不足以覆蓋，則依實際面積加乘，否則直接以層數給定張數
+          const nBottom_C = Math.max(bottomLayerSheets, baseU_L); 
+          const nTop_C = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
+          const planC = { nBottom: nBottom_C, nTop: nTop_C, total: nBottom_C + nTop_C };
+
+          // --- AI 智能推薦判定 ---
+          let recommendedPlan = 'A';
+          const maxLateralGap = Math.max(gaps.L, gaps.W);
+          if (maxLateralGap > 25) {
+            recommendedPlan = 'B'; // 側邊間隙太大，必須塞入填充物防止鐘擺效應
+          } else if (bestResult.layersY > 1) {
+            recommendedPlan = 'C'; // 堆疊層數多且間隙小，推薦實務鋪底法
+          }
+
+          setPackingResult({ 
+            packed: bestResult.packed, gaps, 
+            stats: { totalPacked: bestResult.count, targetQty: innerBox.qty, planA, planB, planC, recommendedPlan, maxLateralGap },
+            config: { effOuter, effInner }
+          });
+          setRenderStep(bestResult.packed.length); setIsCalculating(false);
+        }, 50); 
+      };
+
+      useEffect(() => {
+        if (!threeLoaded || !canvasRef.current || !window.THREE) return;
+        const { THREE } = window;
+        const width = canvasRef.current.clientWidth, height = canvasRef.current.clientHeight;
+        canvasRef.current.innerHTML = '';
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
+        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000); cameraRef.current = camera;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); 
+        renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
+        
+        const controls = new window.THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controlsRef.current = controls;
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); dirLight.position.set(1000, 2000, 1000); scene.add(dirLight);
+
+        const effOuter = packingResult.config ? packingResult.config.effOuter : outerCarton;
+        const containerGeo = new THREE.BoxGeometry(effOuter.W, effOuter.H, effOuter.L);
+        scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2, transparent: true, opacity: 0.8 })));
+
+        const group = new THREE.Group();
+        packingResult.packed.forEach((p) => {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), new THREE.MeshLambertMaterial({ color: p.color }));
+          mesh.position.set(p.x + p.w / 2 - effOuter.W / 2, p.y + p.h / 2 - effOuter.H / 2, p.z + p.d / 2 - effOuter.L / 2);
+          mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 })));
+          meshesRef.current.push(mesh); group.add(mesh);
+        });
+        scene.add(group);
+
+        fillerGroupRef.current = new THREE.Group();
+        if (packingResult.gaps && packingResult.packed.length > 0 && showFilling) {
+          const { L: gL, W: gW, H: gH } = packingResult.gaps;
+          const fMat = new THREE.MeshLambertMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.4 });
+          const wMat = new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.4 });
+          const createF = (w, h, d, px, py, pz) => {
+            if (w <= 0.1 || h <= 0.1 || d <= 0.1) return;
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), fMat);
+            m.position.set(px + w/2 - effOuter.W/2, py + h/2 - effOuter.H/2, pz + d/2 - effOuter.L/2);
+            m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), wMat));
+            fillerGroupRef.current.add(m);
+          };
+          if (gL > 0) createF(effOuter.W, effOuter.H, gL, 0, 0, effOuter.L - gL);
+          if (gW > 0) createF(gW, effOuter.H, effOuter.L - Math.max(0, gL), effOuter.W - gW, 0, 0);
+          if (gH > 0) createF(effOuter.W - Math.max(0, gW), gH, effOuter.L - Math.max(0, gL), 0, effOuter.H - gH, 0);
+        }
+        scene.add(fillerGroupRef.current);
+
+        dimGroupRef.current = new THREE.Group();
+        if (packingResult.gaps && packingResult.packed.length > 0) {
+          const { L: gL, W: gW, H: gH } = packingResult.gaps;
+          const mX = effOuter.W/2, mY = effOuter.H/2, mZ = effOuter.L/2;
+          const pX = mX - gW, pY = mY - gH, pZ = mZ - gL;
+          const addDim = (p1, p2, text, color, ox=0, oy=0, oz=0) => {
+            const dir = new THREE.Vector3().subVectors(p2, p1); const len = dir.length(); if (len > 0) dir.normalize();
+            if (len > 5) dimGroupRef.current.add(new THREE.ArrowHelper(dir, p1, len, color, 15, 8)); 
+            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5).add(new THREE.Vector3(ox, oy, oz));
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 50px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 256, 64); ctx.fillText(text, 256, 64);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
+            
+            sprite.scale.set(200, 50, 1); 
+            sprite.position.copy(mid); 
+            dimGroupRef.current.add(sprite);
+          };
+          addDim(new THREE.Vector3(pX, -mY+10, pZ), new THREE.Vector3(pX, -mY+10, mZ), `${t.gapL}: ${gL}mm`, gL < 0 ? '#ef4444' : '#ea580c', 50, 30, 0);
+          addDim(new THREE.Vector3(pX, -mY+10, pZ), new THREE.Vector3(mX, -mY+10, pZ), `${t.gapW}: ${gW}mm`, gW < 0 ? '#ef4444' : '#2563eb', 0, -30, 50);
+          addDim(new THREE.Vector3(pX, pY, pZ), new THREE.Vector3(pX, mY, pZ), `${t.gapH}: ${gH}mm`, gH < 0 ? '#ef4444' : '#16a34a', 50, 0, 50);
+        }
+        scene.add(dimGroupRef.current);
+
+        const maxD = Math.max(effOuter.L, effOuter.W, effOuter.H);
+        camera.position.set(maxD * 1.2, maxD * 0.8, maxD * 1.2); controls.target.set(0,0,0); controls.update();
+        const anim = () => { requestAnimationFrame(anim); controls.update(); renderer.render(scene, camera); }; anim();
+        return () => renderer.dispose();
+      }, [packingResult, threeLoaded, outerCarton, lang, showFilling]);
+
+      useEffect(() => {
+        meshesRef.current.forEach((m, i) => { m.visible = i < renderStep; m.material.transparent = isTransparent; m.material.opacity = isTransparent ? 0.3 : 1.0; });
+        if (fillerGroupRef.current) fillerGroupRef.current.visible = (renderStep === packingResult.packed.length);
+      }, [renderStep, isTransparent, packingResult]);
 
       return (
         <div className="min-h-screen p-4 md:p-6 bg-slate-50 font-sans">
           <div className="max-w-6xl mx-auto space-y-6">
             <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center space-x-3 mb-4 sm:mb-0">
-                <BoxIcon className="w-8 h-8 text-blue-600" />
+                <ShieldCheck className="w-8 h-8 text-blue-600" />
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center">
                   {t.appTitle}
-                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">
-                    Ver. {APP_VERSION} - {APP_UPDATED_DATE}
-                  </span>
+                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">Ver. {APP_VERSION} - {APP_UPDATED_DATE} 作成：分室</span>
                 </h1>
               </div>
-              <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
-                <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => setIsHelpModalOpen(true)} className="flex items-center bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                  <HelpCircle className="w-4 h-4 mr-1.5" /> {t.helpBtn}
+                </button>
+                <button onClick={exportToDXF} disabled={!packingResult.packed || packingResult.packed.length === 0} className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                  <DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}
+                </button>
+                <button onClick={handleScreenshot} disabled={isScreenshotting} className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait">
+                  {isScreenshotting ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <CameraIcon className="w-4 h-4 mr-1.5" />}
+                  {isScreenshotting ? t.screenshoting : t.screenshot}
+                </button>
+                <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                  <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
+                </button>
+              </div>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
-              {/* 左側設定區 */}
               <div className="lg:col-span-4 space-y-5">
-                
-                {/* 1. 外箱設定 */}
+                {/* 1. 外箱 */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">1</span>
-                    {t.step1Title}
-                  </h2>
+                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center"><span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">1</span>{t.step1Title}</h2>
                   <div className="grid grid-cols-3 gap-3">
-                    {['L', 'W', 'H'].map((dim) => (
-                      <div key={'outer'+dim}>
-                        <label className="block text-xs text-slate-500 mb-1">{dim === 'L' ? t.outerL : dim === 'W' ? t.outerW : t.outerH}</label>
-                        <input type="number" min="1" value={outerCarton[dim]} onChange={(e) => setOuterCarton({...outerCarton, [dim]: Number(e.target.value)})} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    {['L', 'W', 'H'].map(dim => (
+                      <div key={'o'+dim}><label className="block text-xs text-slate-500 mb-1">{t['outer'+dim]}</label>
+                        <input type="number" value={outerCarton[dim]} onChange={e => setOuterCarton({...outerCarton, [dim]: Number(e.target.value)})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                     ))}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.tolPlus} (mm)</label>
-                      <input type="number" min="0" value={outerCarton.tolPlus} onChange={(e) => setOuterCarton({...outerCarton, tolPlus: Number(e.target.value)})} className="w-full p-2 border border-green-300 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-green-700" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.tolMinus} (mm)</label>
-                      <input type="number" min="0" value={outerCarton.tolMinus} onChange={(e) => setOuterCarton({...outerCarton, tolMinus: Number(e.target.value)})} className="w-full p-2 border border-red-300 bg-red-50 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-red-700" />
-                    </div>
+                    <div><label className="block text-xs text-slate-500 mb-1">{t.tolPlus} (mm)</label><input type="number" min="0" value={outerCarton.tolPlus} onChange={e => setOuterCarton({...outerCarton, tolPlus: Number(e.target.value)})} className="w-full p-2 border border-green-300 bg-green-50 rounded-lg text-green-700 outline-none focus:ring-2 focus:ring-green-500" /></div>
+                    <div><label className="block text-xs text-slate-500 mb-1">{t.tolMinus} (mm)</label><input type="number" min="0" value={outerCarton.tolMinus} onChange={e => setOuterCarton({...outerCarton, tolMinus: Number(e.target.value)})} className="w-full p-2 border border-red-300 bg-red-50 rounded-lg text-red-700 outline-none focus:ring-2 focus:ring-red-500" /></div>
                   </div>
                   <div className="mt-4">
                     <label className="block text-xs text-slate-500 mb-1 font-bold">{t.calcState}</label>
-                    <select value={outerCarton.calcState} onChange={e => setOuterCarton({...outerCarton, calcState: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <select value={outerCarton.calcState} onChange={e => setOuterCarton({...outerCarton, calcState: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="nominal">{t.stateNominal}</option>
                       <option value="max">{t.stateMax}</option>
                       <option value="min">{t.stateMin}</option>
@@ -641,167 +511,212 @@
                   </div>
                 </div>
 
-                {/* 2. 製品設定 */}
+                {/* 2. 製品與緩衝材 */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">2</span>
-                    {t.step2Title}
-                  </h2>
+                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center"><span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">2</span>{t.step2Title}</h2>
                   <div className="grid grid-cols-3 gap-3 mb-4">
-                    {['L', 'W', 'H'].map((dim) => (
-                      <div key={'inner'+dim}>
-                        <label className="block text-xs text-slate-500 mb-1">{dim === 'L' ? t.innerL : dim === 'W' ? t.innerW : t.innerH}</label>
-                        <input type="number" min="1" value={innerBox[dim]} onChange={(e) => setInnerBox({...innerBox, [dim]: Number(e.target.value)})} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    {['L', 'W', 'H'].map(dim => (
+                      <div key={'i'+dim}><label className="block text-xs text-slate-500 mb-1">{t['inner'+dim]}</label>
+                        <input type="number" value={innerBox[dim]} onChange={e => setInnerBox({...innerBox, [dim]: Number(e.target.value)})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 mb-4">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.tolPlus} (mm)</label>
-                      <input type="number" min="0" value={innerBox.tolPlus} onChange={(e) => setInnerBox({...innerBox, tolPlus: Number(e.target.value)})} className="w-full p-2 border border-green-300 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-green-700" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">{t.tolMinus} (mm)</label>
-                      <input type="number" min="0" value={innerBox.tolMinus} onChange={(e) => setInnerBox({...innerBox, tolMinus: Number(e.target.value)})} className="w-full p-2 border border-red-300 bg-red-50 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-red-700" />
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 mb-4 border-t border-slate-100 pt-4">
+                    <div><label className="block text-xs text-slate-500 mb-1">{t.tolPlus} (mm)</label><input type="number" min="0" value={innerBox.tolPlus} onChange={e => setInnerBox({...innerBox, tolPlus: Number(e.target.value)})} className="w-full p-2 border border-green-300 bg-green-50 rounded-lg text-green-700 outline-none focus:ring-2 focus:ring-green-500" /></div>
+                    <div><label className="block text-xs text-slate-500 mb-1">{t.tolMinus} (mm)</label><input type="number" min="0" value={innerBox.tolMinus} onChange={e => setInnerBox({...innerBox, tolMinus: Number(e.target.value)})} className="w-full p-2 border border-red-300 bg-red-50 rounded-lg text-red-700 outline-none focus:ring-2 focus:ring-red-500" /></div>
                   </div>
-                  <div className="mb-4">
+                  <div className="mb-4 pb-4 border-b border-slate-100">
                     <label className="block text-xs text-slate-500 mb-1 font-bold">{t.calcState}</label>
-                    <select value={innerBox.calcState} onChange={e => setInnerBox({...innerBox, calcState: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <select value={innerBox.calcState} onChange={e => setInnerBox({...innerBox, calcState: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="nominal">{t.stateNominal}</option>
                       <option value="max">{t.stateMax}</option>
                       <option value="min">{t.stateMin}</option>
                     </select>
                   </div>
                   
-                  {/* 新增: 軸向強制指定 */}
-                  <div className="pt-4 border-t border-slate-100 mb-4 bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-                    <label className="block text-xs text-blue-800 mb-2 font-bold">{t.axisQtyTitle}</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {['L', 'W', 'H'].map((axis) => (
-                        <div key={'axis'+axis}>
-                          <label className="block text-[10px] text-slate-500 mb-1">{t['axis'+axis]}</label>
-                          <input type="number" min="0" value={innerBox['qty'+axis]} onChange={(e) => setInnerBox({...innerBox, ['qty'+axis]: Number(e.target.value)})} className="w-full p-1.5 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                      ))}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-blue-800 mb-1 font-bold">{t.bubbleGap} (mm)</label>
+                      <input type="number" value={innerBox.bubbleGap} onChange={e => setInnerBox({...innerBox, bubbleGap: Number(e.target.value)})} className="w-full p-2 border border-blue-200 bg-blue-50/30 rounded focus:ring-2 focus:ring-blue-500" />
                     </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100">
-                    <label className="block text-xs text-slate-500 mb-1 font-bold">{t.targetQtyHint}</label>
-                    <input type="number" min="0" value={innerBox.qty} onChange={(e) => setInnerBox({...innerBox, qty: Number(e.target.value)})} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <label className="block text-xs text-slate-700 mb-2 font-bold flex items-center"><PackageIcon className="w-3.5 h-3.5 mr-1" />{t.bubbleSheetSet}</label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div><label className="block text-[10px] text-slate-500">{t.sheetDim}</label>
+                          <div className="flex items-center space-x-1">
+                            <input type="number" value={innerBox.sheetL} onChange={e => setInnerBox({...innerBox, sheetL: Number(e.target.value)})} className="w-full p-1 border text-xs rounded" />
+                            <span className="text-slate-400">x</span>
+                            <input type="number" value={innerBox.sheetW} onChange={e => setInnerBox({...innerBox, sheetW: Number(e.target.value)})} className="w-full p-1 border text-xs rounded" />
+                          </div>
+                        </div>
+                        <div><label className="block text-[10px] text-slate-500">{t.sheetThick}</label>
+                          <input type="number" value={innerBox.sheetH} onChange={e => setInnerBox({...innerBox, sheetH: Number(e.target.value)})} className="w-full p-1 border text-xs rounded" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. 對齊策略與計算 */}
+                {/* 3. 計算 */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">3</span>
-                    {t.step3Title}
-                  </h2>
+                  <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center"><span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">3</span>{t.step3Title}</h2>
                   <div className="mb-4">
-                    <label className="block text-xs text-slate-500 mb-2">{t.strategyLabel}</label>
-                    <select value={strategy} onChange={e => setStrategy(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <label className="flex items-center space-x-2 cursor-pointer mb-3 bg-blue-50 p-2 rounded border border-blue-200">
+                      <input type="checkbox" checked={showFilling} onChange={e => setShowFilling(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
+                      <span className="text-sm font-bold text-blue-800">{t.showFiller}</span>
+                    </label>
+                    <select value={strategy} onChange={e => setStrategy(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-slate-50 outline-none">
                       <option value="auto">{t.strategyAuto}</option>
                       <option value="alignL">{t.strategyAlignL}</option>
                       <option value="alignW">{t.strategyAlignW}</option>
                       <option value="alignH">{t.strategyAlignH}</option>
                     </select>
                   </div>
-                  <button onClick={runPacking} disabled={isCalculating} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center transition-colors">
+                  <button onClick={runPacking} disabled={isCalculating} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center">
                     {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
                     {isCalculating ? t.calcIng : t.calcBtn}
                   </button>
                 </div>
-
-                {/* 操作說明區塊 */}
-                <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-sm text-slate-600 space-y-2 shadow-sm">
-                  <h3 className="font-bold text-slate-700 flex items-center mb-2"><InfoIcon className="w-4 h-4 mr-1.5" />{t.infoOpTitle}</h3>
-                  <p>{t.infoOp1}</p>
-                  <p>{t.infoOp2}</p>
-                  <p>{t.infoOp3}</p>
-                </div>
-
               </div>
 
-              {/* 右側 3D 顯示與結果區 */}
               <div className="lg:col-span-8 flex flex-col space-y-4">
-                
-                {/* 間隙數據面板 */}
                 {packingResult.gaps && (
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-500 mb-1">{t.resultTitle}</h3>
-                      <p className="text-lg font-bold text-slate-800">
-                        {t.packedCount}: <span className={packingResult.stats.targetQty > 0 && packingResult.stats.totalPacked < packingResult.stats.targetQty ? 'text-red-500' : 'text-green-600'}>{packingResult.stats.totalPacked}</span> / {t.targetLabel}: {packingResult.stats.targetQty === 0 ? t.maxAuto : packingResult.stats.targetQty}
-                      </p>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-500 mb-1">{t.resultTitle}</h3>
+                        <p className="text-lg font-bold text-slate-800">{t.packedCount}: <span className={packingResult.stats.totalPacked < packingResult.stats.targetQty ? 'text-red-500' : 'text-green-600'}>{packingResult.stats.totalPacked}</span> / {t.targetLabel}: {packingResult.stats.targetQty === 0 ? t.maxAuto : packingResult.stats.targetQty}</p>
+                      </div>
+                      <div className="flex space-x-6">
+                        {['L', 'W', 'H'].map(d => (
+                          <div key={d} className="text-center">
+                            <p className="text-xs text-slate-500 font-bold mb-1">{t['gap'+d]}</p>
+                            <p className={`text-lg font-bold ${packingResult.gaps[d] < 0 ? 'text-red-600' : 'text-slate-800'}`}>{packingResult.gaps[d]}mm</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex space-x-4 sm:space-x-6">
-                      <div className="text-center">
-                        <p className="text-xs text-slate-500 font-bold mb-1">{t.gapL}</p>
-                        <p className={`text-lg font-bold ${packingResult.gaps.L < 0 ? 'text-red-600' : 'text-orange-600'}`}>{packingResult.gaps.L} <span className="text-xs">mm</span></p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-slate-500 font-bold mb-1">{t.gapW}</p>
-                        <p className={`text-lg font-bold ${packingResult.gaps.W < 0 ? 'text-red-600' : 'text-blue-600'}`}>{packingResult.gaps.W} <span className="text-xs">mm</span></p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-slate-500 font-bold mb-1">{t.gapH}</p>
-                        <p className={`text-lg font-bold ${packingResult.gaps.H < 0 ? 'text-red-600' : 'text-green-600'}`}>{packingResult.gaps.H} <span className="text-xs">mm</span></p>
-                      </div>
-                      <div className="flex items-center border-l border-slate-200 pl-4 sm:pl-6">
-                        <button onClick={exportToDXF} className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm transition-colors shadow-sm whitespace-nowrap">
-                          <DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}
-                        </button>
+
+                    {/* AI 智能包裝建議引擎 */}
+                    <div className="space-y-4">
+                      <h3 className="text-base font-black text-slate-800 flex items-center">
+                        {t.packAdviceTitle}
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* 方案 C (圖面層疊) */}
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'C' ? 'bg-indigo-50 border-indigo-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                          <div>
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-bold text-indigo-900 text-sm leading-tight">{t.methodC}</h4>
+                              {packingResult.stats.recommendedPlan === 'C' && <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
+                            </div>
+                            <p className="text-[11px] text-indigo-700/80 mb-3">{t.methodCDesc}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-indigo-100/50">
+                            <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.methodC_bottom}</span><span className="font-bold text-indigo-600">{packingResult.stats.planC.nBottom} {t.sheets}</span></div>
+                            <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">{t.methodC_top}</span><span className="font-bold text-indigo-600">{packingResult.stats.planC.nTop} {t.sheets}</span></div>
+                            <div className="border-t border-indigo-50 pt-2 flex justify-between items-end">
+                              <span className="text-[10px] text-slate-400 font-bold">{t.totalSuggest}</span>
+                              <span className="text-2xl font-black text-indigo-700">{packingResult.stats.planC.total} <span className="text-xs">{t.sheets}</span></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 方案 A (標準十字) */}
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'A' ? 'bg-emerald-50 border-emerald-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                          <div>
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-bold text-emerald-900 text-sm leading-tight">{t.methodB}</h4>
+                              {packingResult.stats.recommendedPlan === 'A' && <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
+                            </div>
+                            <p className="text-[11px] text-emerald-700/80 mb-3">{t.crossWrapDesc}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-emerald-100/50">
+                            <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.crossL}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nL} {t.sheets}</span></div>
+                            <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.crossW}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nW} {t.sheets}</span></div>
+                            <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">{t.crossTop}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nTop} {t.sheets}</span></div>
+                            <div className="border-t border-emerald-50 pt-2 flex justify-between items-end">
+                              <span className="text-[10px] text-slate-400 font-bold">{t.totalSuggest}</span>
+                              <span className="text-2xl font-black text-emerald-700">{packingResult.stats.planA.total} <span className="text-xs">{t.sheets}</span></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 方案 B (局部填充) */}
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'B' ? 'bg-sky-50 border-sky-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                          <div>
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-bold text-sky-900 text-sm leading-tight">{t.methodA}</h4>
+                              {packingResult.stats.recommendedPlan === 'B' && <span className="bg-sky-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
+                            </div>
+                            <p className="text-[11px] text-sky-700/80 mb-3">{t.fillDesc}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-sky-100/50">
+                            <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">L向 ({packingResult.gaps.L}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsL} {t.sheets}</span></div>
+                            <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">W向 ({packingResult.gaps.W}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsW} {t.sheets}</span></div>
+                            <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">H向 ({packingResult.gaps.H}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsH} {t.sheets}</span></div>
+                            <div className="border-t border-sky-50 pt-2 flex justify-between items-end">
+                              <span className="text-[9px] text-slate-400 leading-tight">{t.totalSuggest}<br/>{t.crumpleRate}</span>
+                              <span className="text-2xl font-black text-sky-700">{packingResult.stats.planB.total} <span className="text-xs">{t.sheets}</span></span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* 3D 視窗 */}
-                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[500px]">
-                  {!threeLoaded && <div className="absolute inset-0 flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>}
-                  
-                  <div className="absolute top-4 right-4 z-10 flex space-x-2">
-                    {['iso', 'top', 'front', 'side'].map(v => (
-                      <button key={v} onClick={() => changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium shadow-sm transition-colors">
-                        {t['view' + v.charAt(0).toUpperCase() + v.slice(1)]}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none bg-slate-100"></div>
-                  
+                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
+                  <div ref={canvasRef} className="w-full h-full rounded-lg bg-slate-100 overflow-hidden"></div>
                   {packingResult.packed.length > 0 && (
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-4 z-20">
-                      <div className="flex items-center space-x-4 w-full sm:w-auto">
-                        <span className="text-blue-700 font-bold text-sm bg-blue-50 px-2 py-1 rounded">{t.packedCount}: {renderStep} / {packingResult.packed.length}</span>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input type="checkbox" checked={isTransparent} onChange={e => setIsTransparent(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
-                          <Eye className="w-4 h-4 text-slate-600" />
-                          <span className="text-sm text-slate-700">{t.xrayLabel}</span>
-                        </label>
+                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 p-3 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-4 z-20 border border-slate-200">
+                      <div className="flex items-center space-x-4">
+                        <span className="text-blue-700 font-bold text-sm bg-blue-50 px-2 py-1 rounded">{renderStep} / {packingResult.packed.length}</span>
+                        <label className="flex items-center space-x-2 cursor-pointer text-sm"><input type="checkbox" checked={isTransparent} onChange={e => setIsTransparent(e.target.checked)} /><span>{t.xrayLabel}</span></label>
                       </div>
-                      <div className="flex-grow flex items-center w-full">
-                        <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                      </div>
+                      <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg accent-blue-600" />
                     </div>
                   )}
                 </div>
-
-                {/* 結果說明區塊 */}
-                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/60 text-sm text-slate-600 shadow-sm">
-                  <h3 className="font-bold text-blue-800 flex items-center mb-3"><InfoIcon className="w-4 h-4 mr-1.5 text-blue-600" />{t.infoResTitle}</h3>
-                  <ul className="list-disc pl-5 space-y-1.5">
-                    <li><span className="font-semibold text-slate-700">{t.infoRes1}</span></li>
-                    <li>{t.infoRes2}</li>
-                    <li>{t.infoRes3}</li>
-                  </ul>
-                </div>
-
               </div>
             </div>
           </div>
+
+          {/* 操作說明 Modal 彈窗 */}
+          {isHelpModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+                <div className="flex justify-between items-center p-5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur z-10">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center"><InfoIcon className="w-5 h-5 mr-2 text-blue-600" />{t.helpModalTitle}</h2>
+                  <button onClick={() => setIsHelpModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                </div>
+                <div className="p-6 space-y-6 text-sm text-slate-700">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec1Title}</h3>
+                    <p className="leading-relaxed">{t.helpSec1Desc}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec2Title}</h3>
+                    <p className="leading-relaxed">{t.helpSec2Desc}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec3Title}</h3>
+                    <p className="leading-relaxed">{t.helpSec3Desc}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec4Title}</h3>
+                    <p className="leading-relaxed">{t.helpSec4Desc}</p>
+                  </div>
+                </div>
+                <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end sticky bottom-0">
+                  <button onClick={() => setIsHelpModalOpen(false)} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm">{t.closeBtn}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
