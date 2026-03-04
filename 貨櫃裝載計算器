@@ -19,6 +19,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
+  <!-- 引入 html-to-image 替換 html2canvas，解決文字錯位與表單元素消失問題 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
   <style>
     .touch-none { touch-action: none; }
     input[type=range]::-webkit-slider-thumb {
@@ -30,6 +33,11 @@
       cursor: pointer;
       box-shadow: 0 0 2px rgba(0,0,0,0.3);
     }
+    /* 說明視窗滾動條美化 */
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
@@ -53,12 +61,16 @@
     const DownloadIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
     const Globe = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
     const Ruler = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"></path><line x1="6" y1="18" x2="10.1" y2="13.9"></line><line x1="8" y1="20" x2="12.1" y2="15.9"></line><line x1="10" y1="22" x2="14.1" y2="17.9"></line><line x1="14" y1="20" x2="18.1" y2="15.9"></line><line x1="16" y1="18" x2="20.1" y2="13.9"></line></svg>;
+    const CameraIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
+    const BookOpen = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
 
     // --- 多語系翻譯字典 ---
     const translations = {
       zh: {
         appTitle: "貨櫃裝載計算器",
         langToggle: "日本語切替",
+        screenshot: "截圖", // 需求修改：改名為「截圖」
+        createdBy: "作成：分室",
         supportGap: "支援自訂預留空間",
         containerSet: "貨櫃種類設定",
         containerSetSub: "使用 JIS / ISO 規定的「最小內部尺寸」",
@@ -78,6 +90,14 @@
         W: "寬(W) mm",
         H: "高(H) mm",
         QTY: "數量 (0=自動)",
+        tolPlus: "正公差(+)",
+        tolMinus: "負公差(-)",
+        calcMode: "計算基準",
+        calcNominal: "標準外寸",
+        calcMax: "最大(正公差)",
+        calcMin: "最小(負公差)",
+        calcMid: "中間值",
+        calcSizeLabel: "實際運算尺寸:",
         calcBtn: "開始自動計算",
         calculating: "計算中...",
         strategyTitle: "裝載方向策略",
@@ -119,15 +139,38 @@
           '40GP': "40呎標準櫃 (40' GP)",
           '40HQ': "40呎高櫃 (40' HQ)"
         },
-        remainingGapsTitle: "整體剩餘間隙 (Remaining Gaps)",
+        remainingGapsTitle: "整體剩餘間隙",
         remainL: "深度 (Z)",
         remainW: "寬度 (X)",
         remainH: "高度 (Y)",
-        actualGap: "實際"
+        actualGap: "實際",
+        actualGap2: "實際(含預留)",
+        // 說明手冊翻譯
+        helpBtn: "使用說明",
+        helpTitle: "貨櫃裝載計算器 - 操作與功能說明",
+        helpSection1: "一、操作使用說明",
+        helpS1_1: "1. 選擇貨櫃種類 (提供標準 20呎、40呎及40呎高櫃) 並設定四側所需的「預留空間」。",
+        helpS1_2: "2. 新增箱體種類，輸入各箱體的外箱長寬高、數量 (輸入0代表盡可能塞滿空間) 以及「正負公差」。",
+        helpS1_3: "3. 若有設定公差，請選擇計算基準(標準外寸、最大、最小或中間值)讓系統進行精密運算。",
+        helpS1_4: "4. 選擇合適的「裝載方向策略」後，點擊「開始自動計算」產生 3D 裝載圖與結果分析。",
+        helpSection2: "二、功能按鈕說明",
+        helpS2_1: "【截圖】：將目前整個工具網頁的畫面擷取並儲存為 JPG 圖片，方便匯報或記錄。",
+        helpS2_2: "【導出3視圖 (.dxf)】：計算完成後，此按鈕會亮起。點擊可將裝載結果轉換成 2D CAD 可讀取的 DXF 格式 (包含俯視、前視、側視三大視圖)。",
+        helpS2_3: "【視角切換】：位於 3D 圖形區右上角，可快速將相機視角切換為「等角、俯視、前視、側視」。",
+        helpS2_4: "【透視】：位於 3D 圖形區下方，打勾後會將所有箱體半透明化，方便您查看內部的堆疊與間隙狀態。",
+        helpS2_5: "【裝載順序拉桿】：位於 3D 圖形區下方，可透過拖曳時間軸滑桿，一步步查看箱體裝入貨櫃的先後順序與過程。",
+        helpSection3: "三、裝載結果摘要詳細分析說明",
+        helpS3_1: "【總裝載箱數】：當次運算下，成功排入貨櫃內部的總箱子數量。",
+        helpS3_2: "【空間利用率】：所有成功裝載的箱體總體積 ÷ 貨櫃的內部總容積 (包含預留空間) 所算出的百分比。",
+        helpS3_3: "【有效裝載總體積】：純粹被箱體實體所佔用的體積總和。",
+        helpS3_4: "【為何會有短缺警告？】：有時候即使空間利用率未達 100%，系統仍會提示裝不下。這是因為剩餘的空間已經被切割成「畸零的破碎空間」，導致不管如何旋轉剩下的箱子，都無法找出一段完整的長、寬、高來容納它。遇到此情況，建議參考畫面上的「整體剩餘間隙 (Remaining Gaps)」數值來微調預留空間或包裝尺寸。",
+        closeBtn: "我知道了，關閉"
       },
       ja: {
         appTitle: "コンテナ積載計算ツール",
         langToggle: "中文切替",
+        screenshot: "撮影",
+        createdBy: "作成：分室",
         supportGap: "余白のカスタマイズ対応",
         containerSet: "コンテナ種類設定",
         containerSetSub: "JIS / ISO 規定の「最小内部寸法」を使用",
@@ -147,6 +190,14 @@
         W: "幅(W) mm",
         H: "高さ(H) mm",
         QTY: "数量 (0=自動)",
+        tolPlus: "正公差(+)",
+        tolMinus: "負公差(-)",
+        calcMode: "計算基準",
+        calcNominal: "標準外寸",
+        calcMax: "最大(正公差)",
+        calcMin: "最小(負公差)",
+        calcMid: "中間値",
+        calcSizeLabel: "計算寸法:",
         calcBtn: "自動計算を開始",
         calculating: "計算中...",
         strategyTitle: "積載方向の戦略",
@@ -188,17 +239,38 @@
           '40GP': "40フィート標準 (40' GP)",
           '40HQ': "40フィートハイキューブ (40' HQ)"
         },
-        remainingGapsTitle: "残りスペース (Remaining Gaps)",
+        remainingGapsTitle: "残りスペース",
         remainL: "奥行 (Z)",
         remainW: "幅 (X)",
         remainH: "高さ (Y)",
-        actualGap: "實質"
+        actualGap: "實質",
+        actualGap2: "実寸(余白含)",
+        // 說明手冊翻譯
+        helpBtn: "ヘルプ",
+        helpTitle: "操作・機能ガイド",
+        helpSection1: "一、操作手順",
+        helpS1_1: "1. コンテナの種類を選択し、四方の余白を設定します。",
+        helpS1_2: "2. 箱を追加し、外寸、数量（0は最大まで）、公差を入力します。",
+        helpS1_3: "3. 公差を設定した場合、計算基準（最大/最小など）を選択します。",
+        helpS1_4: "4. 「自動計算を開始」をクリックして、3D積載図と結果概要を生成します。",
+        helpSection2: "二、機能ボタンの説明",
+        helpS2_1: "【撮影】現在の画面全体をJPG画像として保存します。",
+        helpS2_2: "【3面図を出力(.dxf)】現在の積載結果を2D CADで読み込めるDXF形式で出力します。",
+        helpS2_3: "【視点切替】3D図の右上にあるボタンで、等角投影、平面、正面、側面図をすばやく切り替えられます。",
+        helpS2_4: "【透過】チェックを入れると箱が半透明になり、内部の積載状況を確認しやすくなります。",
+        helpS2_5: "【積載順序スライダー】3D図の下部にあるスライダーで、箱が積載される順序を確認できます。",
+        helpSection3: "三、積載結果の概要と詳細な分析",
+        helpS3_1: "【総積載箱数】コンテナに正常に積載された箱の合計数。",
+        helpS3_2: "【空間利用率】積載された全ての箱の体積 ÷ コンテナの内部総容積（余白を含む）のパーセンテージ。",
+        helpS3_3: "【有効積載総体積】実際に箱が占めている体積の合計。",
+        helpS3_4: "【なぜ不足が発生するのか？】空間利用率が100%に達していなくても、残りの空間が「デッドスペース」として細分化されている場合、箱が入らないことがあります。画面に表示される「残りスペース」を参考にして微調整してください。",
+        closeBtn: "閉じる"
       }
     };
 
     // --- 應用程式版本與更新日期 ---
-    const APP_VERSION = "1.31";
-    const APP_UPDATED_DATE = "2026/02/25";
+    const APP_VERSION = "1.32";
+    const APP_UPDATED_DATE = "2026/03/04";
 
     // --- 常數與工具函數 ---
     const CONTAINERS = {
@@ -255,13 +327,14 @@
       const [rightGap, setRightGap] = useState(10); 
       const [topGap, setTopGap] = useState(50); 
       const [boxTypes, setBoxTypes] = useState([
-        { id: generateId(), name: `${translations.zh.defaultBoxPrefix} A`, L: 600, W: 400, H: 400, color: DEFAULT_COLORS[0], qty: 0 }
+        { id: generateId(), name: `${translations.zh.defaultBoxPrefix} A`, L: 600, W: 400, H: 400, color: DEFAULT_COLORS[0], qty: 0, tolPlus: 0, tolMinus: 0, calcMode: 'nominal' }
       ]);
       const [packingResult, setPackingResult] = useState({ packed: [], error: null, stats: null });
       const [isCalculating, setIsCalculating] = useState(false);
       const [packingStrategy, setPackingStrategy] = useState('auto');
       const [renderStep, setRenderStep] = useState(0);
       const [isTransparent, setIsTransparent] = useState(false);
+      const [showHelp, setShowHelp] = useState(false); // 新增狀態：控制說明視窗
       
       const meshesRef = useRef([]); 
       const dimGroupRef = useRef(null);
@@ -269,6 +342,23 @@
       const sceneRef = useRef(null);
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
+
+      // 截圖功能 (使用 html-to-image 解決排版錯位問題)
+      const handleScreenshot = () => {
+        const element = document.getElementById('app-container');
+        if (window.htmlToImage) {
+          window.htmlToImage.toJpeg(element, { quality: 0.95, backgroundColor: "#f8fafc", pixelRatio: 2 })
+            .then(function (dataUrl) {
+              const link = document.createElement('a');
+              link.download = `Container_Plan_${new Date().getTime()}.jpg`;
+              link.href = dataUrl;
+              link.click();
+            })
+            .catch(function (error) {
+              console.error('截圖發生錯誤:', error);
+            });
+        }
+      };
 
       const runPacking = () => {
         setIsCalculating(true);
@@ -283,7 +373,18 @@
             let finiteInventory = [], infiniteInventory = [];
             
             boxTypes.forEach(b => {
-              let item = { ...b, w: b.W, h: b.H, d: b.L };
+              // 處理公差尺寸計算
+              let adjL = b.L, adjW = b.W, adjH = b.H;
+              if (b.calcMode === 'max') {
+                adjL += b.tolPlus; adjW += b.tolPlus; adjH += b.tolPlus;
+              } else if (b.calcMode === 'min') {
+                adjL -= b.tolMinus; adjW -= b.tolMinus; adjH -= b.tolMinus;
+              } else if (b.calcMode === 'mid') {
+                const diff = (b.tolPlus - b.tolMinus) / 2;
+                adjL += diff; adjW += diff; adjH += diff;
+              }
+
+              let item = { ...b, w: adjW, h: adjH, d: adjL };
               if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
               else { item.remaining = Infinity; infiniteInventory.push(item); }
             });
@@ -399,7 +500,11 @@
         canvasRef.current.innerHTML = '';
         const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
         const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000); cameraRef.current = camera;
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
+        
+        // 加入 preserveDrawingBuffer: true 讓截圖工具能夠讀取到 WebGL 的畫面資料，避免黑畫面
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); 
+        renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
+        
         const controls = new window.THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controlsRef.current = controls;
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); dirLight.position.set(10000, 20000, 10000); scene.add(dirLight);
@@ -448,9 +553,9 @@
           const addDim = (p1, p2, text, color, sx, sy, sz) => {
             const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), new THREE.LineBasicMaterial({ color, linewidth: 2 })); dimGroupRef.current.add(line);
             const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5).add(new THREE.Vector3(sx, sy, sz));
-            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 150;
-            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 55px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 512, 75); ctx.fillText(text, 512, 75);
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })); sprite.scale.set(2048, 300, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
+            const canvas = document.createElement('canvas'); canvas.width = 1536; canvas.height = 150;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 55px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 768, 75); ctx.fillText(text, 768, 75);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })); sprite.scale.set(3072, 300, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
           };
 
           gW.forEach((g, i) => {
@@ -460,7 +565,7 @@
               const p2 = new THREE.Vector3(lX, y0, lZ + offset);
               addExtLine(new THREE.Vector3(lX - g, y0, lZ), p1, '#2563eb');
               addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#2563eb');
-              addDim(p1, p2, `${t.remainW}: ${g}mm`, '#2563eb', 0, 0, 150);
+              addDim(p1, p2, `${t.remainW}: ${g}mm (${t.actualGap2}: ${g + rightGap}mm)`, '#2563eb', 0, 0, 150);
             }
           });
 
@@ -471,7 +576,7 @@
               const p2 = new THREE.Vector3(lX + offset, lY, lZ);
               addExtLine(new THREE.Vector3(lX, lY - g, lZ), p1, '#16a34a');
               addExtLine(new THREE.Vector3(lX, lY, lZ), p2, '#16a34a');
-              addDim(p1, p2, `${t.remainH}: ${g}mm`, '#16a34a', 200, 0, 0);
+              addDim(p1, p2, `${t.remainH}: ${g}mm (${t.actualGap2}: ${g + topGap}mm)`, '#16a34a', 200, 0, 0);
             }
           });
 
@@ -482,7 +587,7 @@
               const p2 = new THREE.Vector3(lX, y0 - offset, lZ);
               addExtLine(new THREE.Vector3(lX, y0, lZ - g), p1, '#ea580c');
               addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#ea580c');
-              addDim(p1, p2, `${t.remainL}: ${g}mm`, '#ea580c', 0, -200, 0);
+              addDim(p1, p2, `${t.remainL}: ${g}mm (${t.actualGap2}: ${g + doorGap}mm)`, '#ea580c', 0, -200, 0);
             }
           });
         }
@@ -511,7 +616,7 @@
       }, [renderStep, isTransparent, packingResult]);
 
       const handleBoxChange = (id, f, v) => setBoxTypes(boxTypes.map(b => b.id === id ? { ...b, [f]: v } : b));
-      const addBoxType = () => setBoxTypes([...boxTypes, { id: generateId(), name: `${t.defaultBoxPrefix} ${String.fromCharCode(65 + boxTypes.length)}`, L: 500, W: 400, H: 300, color: DEFAULT_COLORS[boxTypes.length % DEFAULT_COLORS.length], qty: 0 }]);
+      const addBoxType = () => setBoxTypes([...boxTypes, { id: generateId(), name: `${t.defaultBoxPrefix} ${String.fromCharCode(65 + boxTypes.length)}`, L: 500, W: 400, H: 300, color: DEFAULT_COLORS[boxTypes.length % DEFAULT_COLORS.length], qty: 0, tolPlus: 0, tolMinus: 0, calcMode: 'nominal' }]);
       const removeBoxType = (id) => setBoxTypes(boxTypes.filter(b => b.id !== id));
 
       const exportToDXF = () => {
@@ -630,9 +735,66 @@
       };
 
       const c = CONTAINERS[containerType];
+      const hasResult = packingResult.packed && packingResult.packed.length > 0;
 
       return (
-        <div className="min-h-screen p-4 md:p-6 bg-slate-50">
+        <div id="app-container" className="min-h-screen p-4 md:p-6 bg-slate-50 relative">
+          
+          {/* 說明視窗 Modal */}
+          {showHelp && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 transition-opacity">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+                <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center">
+                    <BookOpen className="w-6 h-6 mr-2 text-indigo-600"/> 
+                    {t.helpTitle}
+                  </h2>
+                  <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto custom-scrollbar space-y-7 text-sm text-slate-700 bg-white">
+                   <section>
+                     <h3 className="text-base font-bold text-blue-800 mb-3 border-l-4 border-blue-600 pl-3 bg-blue-50/50 py-1">{t.helpSection1}</h3>
+                     <ul className="space-y-2.5 list-none pl-1">
+                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_1}</li>
+                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_2}</li>
+                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_3}</li>
+                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_4}</li>
+                     </ul>
+                   </section>
+                   <section>
+                     <h3 className="text-base font-bold text-teal-800 mb-3 border-l-4 border-teal-600 pl-3 bg-teal-50/50 py-1">{t.helpSection2}</h3>
+                     <ul className="space-y-3 list-none pl-1">
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">截圖</strong><br/>{t.helpS2_1}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">導出3視圖(.dxf)</strong><br/>{t.helpS2_2}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">視角切換</strong><br/>{t.helpS2_3}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">透視</strong><br/>{t.helpS2_4}</li>
+                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">裝載順序拉桿</strong><br/>{t.helpS2_5}</li>
+                     </ul>
+                   </section>
+                   <section>
+                     <h3 className="text-base font-bold text-indigo-800 mb-3 border-l-4 border-indigo-600 pl-3 bg-indigo-50/50 py-1">{t.helpSection3}</h3>
+                     <ul className="space-y-3 list-none pl-1">
+                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_1}</span></li>
+                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_2}</span></li>
+                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_3}</span></li>
+                     </ul>
+                     <div className="mt-4 bg-orange-50 p-4 rounded-xl border border-orange-200">
+                        <div className="font-bold text-orange-800 flex items-center mb-1"><AlertTriangle className="w-4 h-4 mr-1.5"/> 為什麼會裝不下？</div>
+                        <p className="text-orange-800/80 leading-relaxed">{t.helpS3_4}</p>
+                     </div>
+                   </section>
+                </div>
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+                  <button onClick={() => setShowHelp(false)} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg font-medium transition-colors shadow-sm">
+                    {t.closeBtn}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="max-w-7xl mx-auto space-y-6">
             <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
               <div className="flex items-center space-x-3">
@@ -640,13 +802,34 @@
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center">
                   {t.appTitle}
                   <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">
-                    Ver. {APP_VERSION} - {APP_UPDATED_DATE}
+                    Ver. {APP_VERSION} - {APP_UPDATED_DATE} {t.createdBy}
                   </span>
                 </h1>
               </div>
-              <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
-                <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
-              </button>
+              
+              {/* 修改：頂部功能按鈕區塊排版與順序 */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 將 DXF 按鈕移至此，設定如果沒有計算結果則不可點擊 */}
+                <button 
+                  onClick={exportToDXF} 
+                  disabled={!hasResult}
+                  className={`flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm ${hasResult ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                >
+                  <DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}
+                </button>
+                
+                <button onClick={handleScreenshot} className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                  <CameraIcon className="w-4 h-4 mr-1.5" /> {t.screenshot}
+                </button>
+                
+                <button onClick={() => setShowHelp(true)} className="flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm font-medium">
+                  <BookOpen className="w-4 h-4 mr-1.5" /> {t.helpBtn}
+                </button>
+
+                <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                  <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
+                </button>
+              </div>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -679,9 +862,9 @@
                     <h2 className="text-lg font-semibold flex items-center"><Package className="w-5 h-5 mr-2 text-slate-600" /> {t.boxSet}</h2>
                     <button onClick={addBoxType} className="text-blue-600 hover:text-blue-700 text-sm flex items-center"><Plus className="w-4 h-4 mr-1" /> {t.addBoxBtn}</button>
                   </div>
-                  <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+                  <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                     {boxTypes.map((box) => (
-                      <div key={box.id} className="p-4 border border-slate-100 bg-slate-50 rounded-lg relative group">
+                      <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
                         <button onClick={() => removeBoxType(box.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
                         <div className="flex items-center space-x-3 mb-3">
                           <input type="color" value={box.color} onChange={(e) => handleBoxChange(box.id, 'color', e.target.value)} className="w-6 h-6 rounded cursor-pointer border-0 p-0" />
@@ -692,6 +875,35 @@
                             <div key={f}><label className="block text-xs text-slate-500 mb-1">{t[lbl]}</label><input type="number" min={f==='qty'?0:1} value={box[f]} onChange={(e) => handleBoxChange(box.id, f, Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white" /></div>
                           ))}
                         </div>
+                        
+                        <div className="grid grid-cols-4 gap-2 text-sm mt-3 pt-3 border-t border-slate-200">
+                          <div className="col-span-1">
+                            <label className="block text-[10px] text-slate-500 mb-1">{t.tolPlus}</label>
+                            <input type="number" value={box.tolPlus} onChange={(e) => handleBoxChange(box.id, 'tolPlus', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs" />
+                          </div>
+                          <div className="col-span-1">
+                            <label className="block text-[10px] text-slate-500 mb-1">{t.tolMinus}</label>
+                            <input type="number" value={box.tolMinus} onChange={(e) => handleBoxChange(box.id, 'tolMinus', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
+                            <select value={box.calcMode} onChange={(e) => handleBoxChange(box.id, 'calcMode', e.target.value)} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs">
+                              <option value="nominal">{t.calcNominal}</option>
+                              <option value="max">{t.calcMax}</option>
+                              <option value="min">{t.calcMin}</option>
+                              <option value="mid">{t.calcMid}</option>
+                            </select>
+                          </div>
+                        </div>
+                        {box.calcMode !== 'nominal' && (
+                          <div className="mt-2 text-[11px] text-blue-700 bg-blue-50 p-1.5 rounded font-medium">
+                            {t.calcSizeLabel} {
+                              box.calcMode === 'max' ? `${box.L+box.tolPlus} x ${box.W+box.tolPlus} x ${box.H+box.tolPlus}` :
+                              box.calcMode === 'min' ? `${box.L-box.tolMinus} x ${box.W-box.tolMinus} x ${box.H-box.tolMinus}` :
+                              `${box.L+(box.tolPlus-box.tolMinus)/2} x ${box.W+(box.tolPlus-box.tolMinus)/2} x ${box.H+(box.tolPlus-box.tolMinus)/2}`
+                            }
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -709,7 +921,7 @@
                     </select>
                   </div>
 
-                  <button onClick={() => runPacking()} disabled={isCalculating} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50">
+                  <button onClick={() => runPacking()} disabled={isCalculating} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors">
                     {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
                     {isCalculating ? t.calculating : t.calcBtn}
                   </button>
@@ -722,25 +934,25 @@
                   
                   <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col space-y-1.5">
                     {boxTypes.map(b => (
-                      <div key={b.id} className="bg-white/80 backdrop-blur px-2 py-1 rounded-md border border-slate-200 shadow-sm flex items-center text-[10px] w-max">
+                      <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-1 rounded-md border border-slate-200 shadow-sm flex items-center text-[10px] w-max">
                         <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{backgroundColor: b.color}}></span>
                         <span className="font-medium text-slate-700 truncate">{b.name}</span>
                       </div>
                     ))}
                     
                     {packingResult.stats?.remainingGaps && packingResult.packed.length > 0 && (
-                      <div className="bg-white/80 backdrop-blur p-2.5 rounded-md border border-slate-200 shadow-sm mt-2 pointer-events-auto w-max">
-                        <div className="flex items-center text-slate-700 font-bold text-[11px] mb-1.5">
-                          <Ruler className="w-3.5 h-3.5 mr-1 text-blue-600" /> {t.remainingGapsTitle}
+                      <div className="bg-white/95 backdrop-blur p-3 rounded-md border border-slate-200 shadow-sm mt-2 pointer-events-auto w-max">
+                        <div className="flex items-center text-slate-800 font-bold text-xs mb-2">
+                          <Ruler className="w-4 h-4 mr-1 text-blue-600" /> {t.remainingGapsTitle}
                         </div>
-                        <div className="flex gap-3 text-[10px]">
+                        <div className="flex gap-4 text-xs">
                           {[['remainL', 'd', doorGap, 'text-orange-600'], ['remainW', 'w', rightGap, 'text-blue-600'], ['remainH', 'h', topGap, 'text-green-600']].map(([lbl, key, gVal, tCls], index) => (
-                            <div key={key} className={`flex flex-col ${index > 0 ? 'border-l border-slate-300 pl-3' : ''}`}>
-                              <span className="text-slate-500 font-bold mb-0.5">{t[lbl]}</span>
+                            <div key={key} className={`flex flex-col ${index > 0 ? 'border-l border-slate-300 pl-4' : ''}`}>
+                              <span className="text-slate-500 font-bold mb-1">{t[lbl]}</span>
                               {packingResult.stats.remainingGaps[key].map((g, idx) => (
-                                <div key={idx} className="flex items-baseline space-x-1 leading-tight mb-0.5 last:mb-0">
+                                <div key={idx} className="flex flex-col mb-1.5 last:mb-0">
                                   <span className={`font-bold ${tCls}`}>{g}mm</span>
-                                  <span className="text-slate-400 scale-90 origin-left whitespace-nowrap">({t.actualGap} {g+gVal})</span>
+                                  <span className="text-[10px] text-slate-500 whitespace-nowrap">{t.actualGap2}: <span className="font-semibold">{g+gVal}</span>mm</span>
                                 </div>
                               ))}
                             </div>
@@ -781,7 +993,6 @@
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-5">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                       <h3 className="text-lg font-semibold text-slate-800 flex items-center"><CheckCircle2 className="w-5 h-5 mr-2 text-green-500" /> {t.summaryTitle}</h3>
-                      <button onClick={exportToDXF} className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm"><DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}</button>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
