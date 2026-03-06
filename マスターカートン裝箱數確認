@@ -56,9 +56,191 @@
     const ShieldCheck = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>;
     const PackageIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>;
     const CameraIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
-    const AlertTriangle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
     const StarIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
     const HelpCircle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
+
+    // --- 全新等角 45 度 3D 動畫 SVG ---
+    // 方案 C: 實務層疊鋪底 (立體 U 型交疊 + 落下產品 + 封頂)
+    const LayeredUWrapIcon = ({ className }) => (
+      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <defs>
+          <pattern id="bubC" width="6" height="6" patternUnits="userSpaceOnUse">
+             <circle cx="3" cy="3" r="2" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.3"/>
+          </pattern>
+        </defs>
+        <style>
+          {`
+            @keyframes dropU1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropU2 { 0%, 20% { transform: translateY(-30px); opacity: 0; } 30%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropU3 { 0%, 35% { transform: translateY(-30px); opacity: 0; } 45%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropBoxC { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropTopC { 0%, 75% { transform: translateY(-20px); opacity: 0; } 85%, 100% { transform: translateY(0); opacity: 1; } }
+            .u1 { animation: dropU1 6s ease-out infinite; }
+            .u2 { animation: dropU2 6s ease-out infinite; }
+            .u3 { animation: dropU3 6s ease-out infinite; }
+            .boxC { animation: dropBoxC 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
+            .topC { animation: dropTopC 6s ease-out infinite; }
+          `}
+        </style>
+        {/* 外箱立體虛線框架 */}
+        <g stroke="currentColor" strokeWidth="1" opacity="0.25" strokeDasharray="3 3">
+          <path d="M60,95 L20,75 L60,55 L100,75 Z" />
+          <path d="M60,55 L20,35 L60,15 L100,35 Z" />
+          <path d="M20,75 L20,35 M60,95 L60,55 M100,75 L100,35" />
+        </g>
+        
+        {/* 第1層 U型 (底 + 左後 + 右前) */}
+        <g className="u1" stroke="currentColor" strokeWidth="1">
+          <polygon points="22,74 58,56 58,18 22,36" fill="url(#bubC)" />
+          <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.1" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="url(#bubC)" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.2" />
+          <polygon points="60,93 98,74 98,36 60,55" fill="url(#bubC)" />
+          <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.1" />
+        </g>
+        
+        {/* 第2層 U型 (稍微往上偏移模擬厚度) */}
+        <g className="u2" transform="translate(0, -3)" stroke="currentColor" strokeWidth="0.5" opacity="0.8">
+          <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
+          <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
+        </g>
+
+        {/* 第3層 U型 */}
+        <g className="u3" transform="translate(0, -6)" stroke="currentColor" strokeWidth="0.5" opacity="0.6">
+          <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
+          <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
+        </g>
+
+        {/* 製品落下 (置中實體方塊) */}
+        <g className="boxC" stroke="white" strokeWidth="1">
+          <polygon points="40,78 60,88 80,78 60,68" fillOpacity="0.8"/>
+          <polygon points="40,78 60,88 60,78 40,68" fillOpacity="0.9"/>
+          <polygon points="80,78 60,88 60,78 80,68" fillOpacity="0.7"/>
+        </g>
+
+        {/* 頂層覆蓋平鋪 */}
+        <g className="topC" stroke="currentColor" strokeWidth="1">
+          <polygon points="25,55 60,72.5 95,55 60,37.5" fill="url(#bubC)" />
+          <polygon points="25,55 60,72.5 95,55 60,37.5" fill="currentColor" opacity="0.3" />
+        </g>
+      </svg>
+    );
+
+    // 方案 A: 整體十字包覆 (立體縱橫十字鋪底 + 落下產品 + 封頂)
+    const CrossWrapIcon = ({ className }) => (
+      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <defs>
+          <pattern id="bubA" width="6" height="6" patternUnits="userSpaceOnUse">
+             <circle cx="3" cy="3" r="2" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.3"/>
+          </pattern>
+        </defs>
+        <style>
+          {`
+            @keyframes dropCross1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropCross2 { 0%, 25% { transform: translateY(-30px); opacity: 0; } 35%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropBoxA { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes dropTopA { 0%, 80% { transform: translateY(-20px); opacity: 0; } 90%, 100% { transform: translateY(0); opacity: 1; } }
+            .c1 { animation: dropCross1 6s ease-out infinite; }
+            .c2 { animation: dropCross2 6s ease-out infinite; }
+            .boxA { animation: dropBoxA 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
+            .topA { animation: dropTopA 6s ease-out infinite; }
+          `}
+        </style>
+        <g stroke="currentColor" strokeWidth="1" opacity="0.25" strokeDasharray="3 3">
+          <path d="M60,95 L20,75 L60,55 L100,75 Z" />
+          <path d="M60,55 L20,35 L60,15 L100,35 Z" />
+          <path d="M20,75 L20,35 M60,95 L60,55 M100,75 L100,35" />
+        </g>
+
+        {/* 十字橫向 U 型 (左前 到 右後) */}
+        <g className="c1" stroke="currentColor" strokeWidth="1">
+          <polygon points="22,74 60,93 60,55 22,36" fill="url(#bubA)" />
+          <polygon points="22,74 60,93 60,55 22,36" fill="currentColor" opacity="0.1" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="url(#bubA)" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.2" />
+          <polygon points="98,74 58,56 58,18 98,36" fill="url(#bubA)" />
+          <polygon points="98,74 58,56 58,18 98,36" fill="currentColor" opacity="0.1" />
+        </g>
+
+        {/* 十字縱向 U 型 (右前 到 左後) */}
+        <g className="c2" stroke="currentColor" strokeWidth="1">
+          <polygon points="60,93 98,74 98,36 60,55" fill="url(#bubA)" />
+          <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
+          <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
+          <polygon points="22,74 58,56 58,18 22,36" fill="url(#bubA)" />
+          <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
+        </g>
+
+        <g className="boxA" stroke="white" strokeWidth="1">
+          <polygon points="40,78 60,88 80,78 60,68" fillOpacity="0.8"/>
+          <polygon points="40,78 60,88 60,78 40,68" fillOpacity="0.9"/>
+          <polygon points="80,78 60,88 60,78 80,68" fillOpacity="0.7"/>
+        </g>
+
+        <g className="topA" stroke="currentColor" strokeWidth="1">
+          <polygon points="25,55 60,72.5 95,55 60,37.5" fill="url(#bubA)" />
+          <polygon points="25,55 60,72.5 95,55 60,37.5" fill="currentColor" opacity="0.3" />
+        </g>
+      </svg>
+    );
+
+    // 方案 B: 局部間隙填充 (立體晃動 + 氣泡團膨脹塞入)
+    const VoidFillIcon = ({ className }) => (
+      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <defs>
+          <pattern id="bubB" width="6" height="6" patternUnits="userSpaceOnUse">
+             <circle cx="3" cy="3" r="2" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+          </pattern>
+        </defs>
+        <style>
+          {`
+            @keyframes vibrateB { 0%, 15% { transform: translate(0, 0); } 20% { transform: translate(3px, -1.5px); } 25% { transform: translate(-3px, 1.5px); } 30% { transform: translate(1.5px, 0); } 35%, 100% { transform: translate(0, 0); } }
+            @keyframes popFill1 { 0%, 40% { transform: scale(0); opacity: 0; } 50%, 100% { transform: scale(1); opacity: 1; } }
+            @keyframes popFill2 { 0%, 45% { transform: scale(0); opacity: 0; } 55%, 100% { transform: scale(1); opacity: 1; } }
+            @keyframes popFillTop { 0%, 60% { transform: scale(0); opacity: 0; } 70%, 100% { transform: scale(1); opacity: 1; } }
+            .box-vib { animation: vibrateB 6s ease-in-out infinite; fill: currentColor; }
+            .vf1 { animation: popFill1 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 80px 80px; }
+            .vf2 { animation: popFill2 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 30px 70px; }
+            .vft { animation: popFillTop 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 60px 45px; }
+          `}
+        </style>
+        <g stroke="currentColor" strokeWidth="1" opacity="0.25" strokeDasharray="3 3">
+          <path d="M60,95 L20,75 L60,55 L100,75 Z" />
+          <path d="M60,55 L20,35 L60,15 L100,35 Z" />
+          <path d="M20,75 L20,35 M60,95 L60,55 M100,75 L100,35" />
+        </g>
+
+        {/* 在內部晃動的產品 */}
+        <g className="box-vib" stroke="white" strokeWidth="1">
+          <polygon points="35,80 55,90 75,80 55,70" fillOpacity="0.3"/>
+          <polygon points="35,80 55,90 55,70 35,60" fillOpacity="0.4"/>
+          <polygon points="75,80 55,90 55,70 75,60" fillOpacity="0.2"/>
+        </g>
+
+        {/* 右前側縫隙揉捏氣泡紙 */}
+        <g className="vf1" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z" fill="currentColor" opacity="0.3"/>
+          <path d="M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z" fill="url(#bubB)"/>
+          <path d="M 74,83 Q 80,78 86,84" fill="none" opacity="0.8"/>
+        </g>
+
+        {/* 左前側縫隙揉捏氣泡紙 */}
+        <g className="vf2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z" fill="currentColor" opacity="0.3"/>
+          <path d="M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z" fill="url(#bubB)"/>
+          <path d="M 29,70 Q 36,62 40,68" fill="none" opacity="0.8"/>
+        </g>
+
+        {/* 頂部縫隙揉捏氣泡紙 */}
+        <g className="vft" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z" fill="currentColor" opacity="0.3"/>
+          <path d="M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z" fill="url(#bubB)"/>
+          <path d="M 52,52 Q 60,46 66,52" fill="none" opacity="0.8"/>
+        </g>
+      </svg>
+    );
 
     const translations = {
       zh: {
@@ -90,14 +272,14 @@
         packedCount: "已裝載", targetLabel: "目標", maxAuto: "最大",
         gapL: "長度間隙", gapW: "寬度間隙", gapH: "高度間隙",
         packAdviceTitle: "📦 智能包裝策略判定引擎",
-        methodC: "方案 C：實務層疊鋪底 (U型+頂蓋)",
-        methodCDesc: "依圖面工法：將多張氣泡紙以U型層疊鋪於底部，放入製品後反折，再以1張平鋪封頂。",
-        methodC_bottom: "U型鋪底(含側邊)", methodC_top: "頂部平鋪",
+        methodC: "方案 C：實務層疊鋪底 (U型+封頂)",
+        methodCDesc: "依現場實務，氣泡紙呈「U字型」層層交疊鋪於底部與兩側形成搖籃。放入產品後向內反折，最上方平鋪一張封頂。提供極佳的底部與多層防護。",
+        methodC_bottom: "立體U型鋪底(含側邊)", methodC_top: "頂部平鋪封頂",
         methodB: "方案 A：整體十字包覆 (標準)",
-        crossWrapDesc: "將氣泡紙鋪於底部成十字型，四周均勻包覆，適合間隙較小(<20mm)時的全面防護。",
-        crossL: "長向鋪設", crossW: "寬向鋪設", crossTop: "頂部覆蓋",
-        methodA: "方案 B：局部間隙填充 (揉捏/塞墊)",
-        fillDesc: "針對特定過大空洞進行局部緩衝補強，防止產品在箱內產生鐘擺位移。",
+        crossWrapDesc: "氣泡紙呈「十字交叉」平鋪於空箱。放入產品後，四面延伸的氣泡紙依序反折包覆，頂部再平鋪一張。提供六面均勻的保護，適合間隙較小(<20mm)。",
+        crossL: "長向 U型鋪底", crossW: "寬向 U型鋪底", crossTop: "頂部平鋪封頂",
+        methodA: "方案 B：局部間隙填充 (塞墊)",
+        fillDesc: "當側邊或上方的剩餘縫隙超過 20mm 時，將氣泡紙揉捏成團直接塞入空洞中。能有效固定產品，防止運輸中發生「鐘擺效應」導致撞擊破損。",
         totalSuggest: "總計建議",
         crumpleRate: "(含空氣揉捏率 1.2x)",
         recommendBadge: "最適推薦",
@@ -105,17 +287,19 @@
         viewIso: "等角", viewTop: "俯視", viewFront: "前視", viewSide: "側視",
         xrayLabel: "透視模式", exportDXF: "導出DXF (.dxf)",
         screenshot: "截圖", screenshoting: "截圖中...",
-        helpBtn: "操作說明",
+        helpBtn: "詳細操作說明",
         helpModalTitle: "使用說明與功能介紹",
-        helpSec1Title: "1. 基本設定",
-        helpSec1Desc: "請在左側輸入外箱與製品盒子的長、寬、高。可透過「正負公差」與「計算狀態」來模擬最大或最小的極端組裝情況。",
+        helpSec1Title: "1. 尺寸與公差設定",
+        helpSec1Desc: "在左側輸入外箱內寸與製品外寸。實務中紙箱與產品皆有製造誤差，可透過輸入「正負公差」並切換「計算狀態」來模擬最極端的情況（例如：外箱最小公差 vs 製品最大公差，確認是否發生干涉）。",
         helpSec2Title: "2. 緩衝材設定 (氣泡紙)",
-        helpSec2Desc: "「箱間間隙」用於模擬製品排列時的預留空間。設定下方的氣泡紙規格，系統將在計算後給出最佳的包裝方式與張數建議。",
-        helpSec3Title: "3. 3D 視圖與結果",
-        helpSec3Desc: "計算後，右側會顯示 3D 裝載結果。藍色透明塊代表剩餘可填充空間。若出現紅字負數與紅色箱體，即表示發生干涉（放不下）。可使用滑鼠左鍵旋轉、右鍵平移、滾輪縮放視角。",
-        helpSec4Title: "4. 包裝方案建議",
-        helpSec4Desc: "系統會根據各軸的剩餘間隙與堆疊層數，自動推薦採用「整體十字包覆法」或是「局部間隙填充法」，並為您估算實際需要裁切的氣泡紙張數。",
-        closeBtn: "關閉"
+        helpSec2Desc: "「箱間間隙」用於模擬並預留產品間的緩衝空間。設定氣泡紙的長寬厚規格後，系統會依據剩餘間隙的立體體積，替您換算出建議準備的氣泡紙「張數」。",
+        helpSec3Title: "3. 3D 視圖與顏色解讀",
+        helpSec3Desc: "計算完成後，右側會顯示 3D 裝載圖。藍色半透明區塊代表「剩餘可填充空間」。若畫面上出現紅色的箱體或數據，代表超出外箱邊界產生了「干涉（裝不下）」。支援滑鼠左鍵旋轉、右鍵平移、滾輪縮放。",
+        helpSec4Title: "4. 智能包裝方案 (包含 3D 動圖解說)",
+        helpSec4Desc: "演算法會依據算出的「剩餘間隙大小」與「堆疊層數」，自動判斷並推薦最適合的實務工法。間隙小推薦「十字包覆」；堆疊多層推薦「層疊鋪底」；若間隙大於 20mm 則會觸發位移警告，推薦使用「局部填充」塞入縫隙以防產品搖晃。",
+        helpSec5Title: "🎯 關於 ISTA-1A 落下試驗預測 (擴充概念)",
+        helpSec5Desc: "本計算器目前基於幾何空間轉換。若未來需精準推估 ISTA-1A 試驗是否合格，實務上可採用「經驗公式法」。只需追加輸入 (1)包裝件總重 (2)產品脆弱度 G值 (3)氣泡紙動態緩衝曲線 (4)ISTA落下高度，即可由程式反推「最少所需緩衝厚度」。只要本系統計算的剩餘間隙大於該厚度，即可預測落下試驗 PASS！",
+        closeBtn: "我知道了，關閉視窗"
       },
       ja: {
         appTitle: "梱包隙間確認計算ツール",
@@ -140,20 +324,20 @@
         strategyAlignH: "強制: 製品の「高さ(h)」を合わせる",
         tolPlus: "プラス公差 (+)", tolMinus: "マイナス公差 (-)",
         calcState: "計算用寸法状態",
-        stateMax: "最大寸法", stateNominal: "基本寸法", stateMin: "最小寸法",
+        stateMax: "最大寸法 (+公差)", stateNominal: "基本寸法", stateMin: "最小寸法",
         calcBtn: "隙間計算を開始", calcIng: "計算中...",
         resultTitle: "積載結果ステータス",
         packedCount: "積載済", targetLabel: "目標", maxAuto: "最大",
         gapL: "長さの隙間", gapW: "幅の隙間", gapH: "高さの隙間",
         packAdviceTitle: "📦 スマート梱包戦略判定エンジン",
         methodC: "プラン C：実務的積層敷き (U型+天面)",
-        methodCDesc: "図面工法：気泡緩衝材をU型に重ねて底に敷き、製品を入れた後に折り返し、1枚を天面に平敷きします。",
-        methodC_bottom: "U型底敷き(側面含)", methodC_top: "天面平敷き",
+        methodCDesc: "気泡緩衝材を「U字型」に重ねて底と側面に敷き、クッションの揺りかごを作ります。製品を入れた後に折り返し、最後に天面に1枚平敷きします。多層積み重ねに最適です。",
+        methodC_bottom: "立体U型底敷き(側面含)", methodC_top: "天面平敷き",
         methodB: "プラン A：標準十字敷き詰め",
-        crossWrapDesc: "底面に十字に敷き、四方を均等に包み込みます。隙間が小さい(<20mm)場合の全面保護に適しています。",
-        crossL: "長さ方向", crossW: "幅方向", crossTop: "天面",
+        crossWrapDesc: "緩衝材を「十字」に交差させて空箱に敷きます。製品を入れた後、四方の緩衝材を順に折り返し、最後に天面に1枚敷きます。6面すべてを均一に保護します。",
+        crossL: "長さ方向 U型敷き", crossW: "幅方向 U型敷き", crossTop: "天面カバー",
         methodA: "プラン B：部分的な隙間充填 (丸め/パッド)",
-        fillDesc: "過大な空間に対し部分的な緩衝補強を行い、箱内での製品の移動（振り子現象）を防ぎます。",
+        fillDesc: "箱内の縦横の隙間が大きすぎる（20mm以上）場合、気泡緩衝材を丸めたりして空間に直接詰め込みます。輸送中の「振り子現象」による衝突破損を防ぎます。",
         totalSuggest: "合計目安",
         crumpleRate: "(丸め効率 1.2x)",
         recommendBadge: "最適推奨",
@@ -161,22 +345,24 @@
         viewIso: "等角投影", viewTop: "平面図", viewFront: "正面図", viewSide: "側面図",
         xrayLabel: "透過モード", exportDXF: "DXF出力 (.dxf)",
         screenshot: "スクショ", screenshoting: "撮影中...",
-        helpBtn: "操作説明",
+        helpBtn: "詳細な操作説明",
         helpModalTitle: "使い方と機能紹介",
-        helpSec1Title: "1. 基本設定",
-        helpSec1Desc: "左側に外箱と製品箱の寸法を入力します。「公差」と「計算状態」で最大・最小の極端なケースをシミュレートできます。",
-        helpSec2Title: "2. 緩衝材設定 (気泡緩衝材)",
-        helpSec2Desc: "「箱間厚み」は製品間のスペースを模擬します。気泡緩衝材の規格を設定することで、最適な梱包方法と枚数が提案されます。",
-        helpSec3Title: "3. 3Dビューと結果",
+        helpSec1Title: "1. 寸法と公差の設定",
+        helpSec1Desc: "実務における製造誤差を考慮し、「公差」と「計算状態」を使用して、最も厳しい組み立て条件（例：外箱の最小公差 vs 製品の最大公差）をシミュレートできます。",
+        helpSec2Title: "2. 緩衝材の設定 (気泡緩衝材)",
+        helpSec2Desc: "「箱間厚み」は製品間のスペースを模擬します。気泡緩衝材の規格を設定することで、残り体積から必要な枚数を算出します。",
+        helpSec3Title: "3. 3Dビューと色の見方",
         helpSec3Desc: "計算後、右側に3D結果が表示されます。青い透過ブロックは充填可能な領域です。赤字のマイナス数値や赤い箱は干渉（収まらない）を示します。マウス操作：左回転、右移動、ホイール縮尺。",
-        helpSec4Title: "4. 梱包プランの提案",
-        helpSec4Desc: "各軸の残り隙間と積層数に基づき、「十字敷き詰め」または「部分充填」を自動で推奨し、必要な緩衝材の枚数を見積もります。",
-        closeBtn: "閉じる"
+        helpSec4Title: "4. 梱包プランの提案 (3Dアニメーション付き)",
+        helpSec4Desc: "各軸の残り隙間と積層数に基づき、アニメーション図解付きで「積層敷き」「十字敷き詰め」または「部分充填」を自動で推奨し、必要な緩衝材の枚数を見積もります。",
+        helpSec5Title: "🎯 ISTA-1A 落下試験予測について (拡張コンセプト)",
+        helpSec5Desc: "現在このツールは幾何学的空間の変換に基づいています。将来的にISTA-1A試験の合否を正確に予測するには、「経験公式法」が最適です。追加で(1)総重量 (2)製品のG値 (3)緩衝材の動的緩衝曲線 (4)ISTA落下高さを入力すれば、プログラムが「必要な最小緩衝厚み」を逆算し、本ツールの隙間寸法と比較することで落下試験のPASS予測が可能になります。",
+        closeBtn: "確認して閉じる"
       }
     };
 
-    const APP_VERSION = "1.9";
-    const APP_UPDATED_DATE = "2026/03/04";
+    const APP_VERSION = "1.13";
+    const APP_UPDATED_DATE = "2026/03/06";
 
     function App() {
       const [lang, setLang] = useState('zh');
@@ -185,7 +371,6 @@
       const [isScreenshotting, setIsScreenshotting] = useState(false);
       const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
       
-      // 預設帶入圖四的使用者真實數據
       const [outerCarton, setOuterCarton] = useState({ L: 421, W: 396, H: 353, tolPlus: 5, tolMinus: 5, calcState: 'nominal' });
       const [innerBox, setInnerBox] = useState({ 
         L: 382, W: 378, H: 114, qty: 0, color: '#3b82f6', 
@@ -209,7 +394,6 @@
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
 
-      // --- 截圖與 DXF 功能保持不變 ---
       const handleScreenshot = async () => {
         setIsScreenshotting(true);
         try {
@@ -320,53 +504,35 @@
             H: Number((effOuter.H - bestResult.maxY).toFixed(2))
           };
 
-          // ---------------------------------------------------------
-          // --- 核心演算法：3種實務包裝方案推演 ---
-          // ---------------------------------------------------------
-          const sL = innerBox.sheetL;
-          const sW = innerBox.sheetW;
-          const tolFactor = 1.05; // 5% 實務容許空隙
-          const eff_sW = sW * tolFactor;
-          const sheetArea = sL * sW;
+          const sL = innerBox.sheetL; const sW = innerBox.sheetW;
+          const tolFactor = 1.05; const eff_sW = sW * tolFactor; const sheetArea = sL * sW;
 
-          // 【方案 B: 局部間隙填充 (Void Fill)】
+          // 方案 B
           const vL = effOuter.W * effOuter.H * Math.max(0, gaps.L);
           const vW = Math.max(0, gaps.W) * effOuter.H * (effOuter.L - Math.max(0, gaps.L));
           const vH = (effOuter.W - Math.max(0, gaps.W)) * Math.max(0, gaps.H) * (effOuter.L - Math.max(0, gaps.L));
-          const sheetVol = sL * sW * innerBox.sheetH;
-          const crumpleFactor = 1.2; 
+          const sheetVol = sL * sW * innerBox.sheetH; const crumpleFactor = 1.2; 
           const getSheets = (v) => sheetVol > 0 ? Math.ceil((v / sheetVol) / crumpleFactor) : 0;
-          const planB = { 
-            sheetsL: getSheets(vL), sheetsW: getSheets(vW), sheetsH: getSheets(vH), 
-            total: getSheets(vL) + getSheets(vW) + getSheets(vH) 
-          };
+          const planB = { sheetsL: getSheets(vL), sheetsW: getSheets(vW), sheetsH: getSheets(vH), total: getSheets(vL) + getSheets(vW) + getSheets(vH) };
 
-          // 【方案 A: 整體十字包覆 (Cross Wrap)】
-          const reqL_A = effOuter.L + 2 * effOuter.H; 
-          const reqW_A = effOuter.W + 2 * effOuter.H; 
+          // 方案 A
+          const reqL_A = effOuter.L + 2 * effOuter.H; const reqW_A = effOuter.W + 2 * effOuter.H; 
           const nL_A = Math.min(Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW), Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor)));
           const nW_A = Math.min(Math.ceil(reqW_A / sL) * Math.ceil(effOuter.L / eff_sW), Math.ceil(reqW_A / sW) * Math.ceil(effOuter.L / (sL * tolFactor)));
           const nTop_A = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
           const planA = { nL: nL_A, nW: nW_A, nTop: nTop_A, total: nL_A + nW_A + nTop_A };
 
-          // 【方案 C: 實務層疊鋪底法 (Layered U-Wrap, 圖面工法)】
-          // 針對多層堆疊，底部鋪疊張數 = 堆疊層數 (實務上常以每箱墊一張，或總層數為準。此處完美還原 3層=3張底 + 1張蓋 = 4張)
+          // 方案 C
           const bottomLayerSheets = bestResult.layersY > 0 ? bestResult.layersY : 1; 
-          // 確認是否足以覆蓋長寬 U 型
           const baseU_L = Math.min(Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW), Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor)));
-          // 如果單張U型不足以覆蓋，則依實際面積加乘，否則直接以層數給定張數
           const nBottom_C = Math.max(bottomLayerSheets, baseU_L); 
           const nTop_C = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
           const planC = { nBottom: nBottom_C, nTop: nTop_C, total: nBottom_C + nTop_C };
 
-          // --- AI 智能推薦判定 ---
           let recommendedPlan = 'A';
           const maxLateralGap = Math.max(gaps.L, gaps.W);
-          if (maxLateralGap > 25) {
-            recommendedPlan = 'B'; // 側邊間隙太大，必須塞入填充物防止鐘擺效應
-          } else if (bestResult.layersY > 1) {
-            recommendedPlan = 'C'; // 堆疊層數多且間隙小，推薦實務鋪底法
-          }
+          if (maxLateralGap > 25) recommendedPlan = 'B';
+          else if (bestResult.layersY > 1) recommendedPlan = 'C';
 
           setPackingResult({ 
             packed: bestResult.packed, gaps, 
@@ -469,7 +635,7 @@
                 </h1>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setIsHelpModalOpen(true)} className="flex items-center bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
+                <button onClick={() => setIsHelpModalOpen(true)} className="flex items-center bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm hover:shadow-md">
                   <HelpCircle className="w-4 h-4 mr-1.5" /> {t.helpBtn}
                 </button>
                 <button onClick={exportToDXF} disabled={!packingResult.packed || packingResult.packed.length === 0} className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
@@ -561,7 +727,7 @@
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                   <h2 className="text-md font-semibold text-slate-800 mb-4 flex items-center"><span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm mr-2">3</span>{t.step3Title}</h2>
                   <div className="mb-4">
-                    <label className="flex items-center space-x-2 cursor-pointer mb-3 bg-blue-50 p-2 rounded border border-blue-200">
+                    <label className="flex items-center space-x-2 cursor-pointer mb-3 bg-blue-50 p-2 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
                       <input type="checkbox" checked={showFilling} onChange={e => setShowFilling(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
                       <span className="text-sm font-bold text-blue-800">{t.showFiller}</span>
                     </label>
@@ -572,7 +738,7 @@
                       <option value="alignH">{t.strategyAlignH}</option>
                     </select>
                   </div>
-                  <button onClick={runPacking} disabled={isCalculating} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center">
+                  <button onClick={runPacking} disabled={isCalculating} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center shadow-md">
                     {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
                     {isCalculating ? t.calcIng : t.calcBtn}
                   </button>
@@ -598,22 +764,26 @@
                     </div>
 
                     {/* AI 智能包裝建議引擎 */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-2">
                       <h3 className="text-base font-black text-slate-800 flex items-center">
                         {t.packAdviceTitle}
                       </h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* 方案 C (圖面層疊) */}
-                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'C' ? 'bg-indigo-50 border-indigo-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                        {/* 方案 C (層疊鋪底) */}
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'C' ? 'bg-indigo-50 border-indigo-300 best-plan-glow shadow-md' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
                           <div>
                             <div className="flex justify-between items-start mb-2">
                               <h4 className="font-bold text-indigo-900 text-sm leading-tight">{t.methodC}</h4>
                               {packingResult.stats.recommendedPlan === 'C' && <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
                             </div>
-                            <p className="text-[11px] text-indigo-700/80 mb-3">{t.methodCDesc}</p>
+                            {/* 3D SVG 動畫圖示 */}
+                            <div className="w-full h-32 mb-4 bg-white/70 rounded-lg border border-indigo-100/60 flex items-center justify-center text-indigo-400 shadow-sm overflow-hidden">
+                              <LayeredUWrapIcon className="h-full w-full max-w-[80%] text-indigo-500" />
+                            </div>
+                            <p className="text-[12px] text-indigo-700/90 leading-relaxed mb-4 font-medium tracking-wide">{t.methodCDesc}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-indigo-100/50">
+                          <div className="bg-white rounded-lg p-2 border border-indigo-100/50 shadow-inner">
                             <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.methodC_bottom}</span><span className="font-bold text-indigo-600">{packingResult.stats.planC.nBottom} {t.sheets}</span></div>
                             <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">{t.methodC_top}</span><span className="font-bold text-indigo-600">{packingResult.stats.planC.nTop} {t.sheets}</span></div>
                             <div className="border-t border-indigo-50 pt-2 flex justify-between items-end">
@@ -624,15 +794,18 @@
                         </div>
 
                         {/* 方案 A (標準十字) */}
-                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'A' ? 'bg-emerald-50 border-emerald-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'A' ? 'bg-emerald-50 border-emerald-300 best-plan-glow shadow-md' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
                           <div>
                             <div className="flex justify-between items-start mb-2">
                               <h4 className="font-bold text-emerald-900 text-sm leading-tight">{t.methodB}</h4>
                               {packingResult.stats.recommendedPlan === 'A' && <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
                             </div>
-                            <p className="text-[11px] text-emerald-700/80 mb-3">{t.crossWrapDesc}</p>
+                            <div className="w-full h-32 mb-4 bg-white/70 rounded-lg border border-emerald-100/60 flex items-center justify-center text-emerald-400 shadow-sm overflow-hidden">
+                              <CrossWrapIcon className="h-full w-full max-w-[80%] text-emerald-500" />
+                            </div>
+                            <p className="text-[12px] text-emerald-700/90 leading-relaxed mb-4 font-medium tracking-wide">{t.crossWrapDesc}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-emerald-100/50">
+                          <div className="bg-white rounded-lg p-2 border border-emerald-100/50 shadow-inner">
                             <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.crossL}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nL} {t.sheets}</span></div>
                             <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">{t.crossW}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nW} {t.sheets}</span></div>
                             <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">{t.crossTop}</span><span className="font-bold text-emerald-600">{packingResult.stats.planA.nTop} {t.sheets}</span></div>
@@ -644,15 +817,18 @@
                         </div>
 
                         {/* 方案 B (局部填充) */}
-                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'B' ? 'bg-sky-50 border-sky-300 best-plan-glow' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
+                        <div className={`col-span-1 border rounded-xl p-4 flex flex-col justify-between ${packingResult.stats.recommendedPlan === 'B' ? 'bg-sky-50 border-sky-300 best-plan-glow shadow-md' : 'bg-slate-50 border-slate-200 opacity-80 hover:opacity-100 transition'}`}>
                           <div>
                             <div className="flex justify-between items-start mb-2">
                               <h4 className="font-bold text-sky-900 text-sm leading-tight">{t.methodA}</h4>
                               {packingResult.stats.recommendedPlan === 'B' && <span className="bg-sky-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0 shadow flex items-center"><StarIcon className="w-3 h-3 mr-0.5"/> {t.recommendBadge}</span>}
                             </div>
-                            <p className="text-[11px] text-sky-700/80 mb-3">{t.fillDesc}</p>
+                            <div className="w-full h-32 mb-4 bg-white/70 rounded-lg border border-sky-100/60 flex items-center justify-center text-sky-400 shadow-sm overflow-hidden">
+                              <VoidFillIcon className="h-full w-full max-w-[80%] text-sky-500" />
+                            </div>
+                            <p className="text-[12px] text-sky-700/90 leading-relaxed mb-4 font-medium tracking-wide">{t.fillDesc}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-sky-100/50">
+                          <div className="bg-white rounded-lg p-2 border border-sky-100/50 shadow-inner">
                             <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">L向 ({packingResult.gaps.L}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsL} {t.sheets}</span></div>
                             <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">W向 ({packingResult.gaps.W}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsW} {t.sheets}</span></div>
                             <div className="flex justify-between text-xs mb-2"><span className="text-slate-500">H向 ({packingResult.gaps.H}mm)</span><span className="font-bold text-sky-600">{packingResult.stats.planB.sheetsH} {t.sheets}</span></div>
@@ -668,14 +844,14 @@
                 )}
 
                 <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
-                  <div ref={canvasRef} className="w-full h-full rounded-lg bg-slate-100 overflow-hidden"></div>
+                  <div ref={canvasRef} className="w-full h-full rounded-lg bg-slate-100 overflow-hidden cursor-move"></div>
                   {packingResult.packed.length > 0 && (
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 p-3 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-4 z-20 border border-slate-200">
+                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 p-3 rounded-lg shadow-md flex flex-col sm:flex-row items-center gap-4 z-20 border border-slate-200 backdrop-blur">
                       <div className="flex items-center space-x-4">
                         <span className="text-blue-700 font-bold text-sm bg-blue-50 px-2 py-1 rounded">{renderStep} / {packingResult.packed.length}</span>
                         <label className="flex items-center space-x-2 cursor-pointer text-sm"><input type="checkbox" checked={isTransparent} onChange={e => setIsTransparent(e.target.checked)} /><span>{t.xrayLabel}</span></label>
                       </div>
-                      <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg accent-blue-600" />
+                      <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg accent-blue-600 cursor-pointer" />
                     </div>
                   )}
                 </div>
@@ -683,36 +859,59 @@
             </div>
           </div>
 
-          {/* 操作說明 Modal 彈窗 */}
+          {/* 懸浮操作說明 Modal 彈窗 */}
           {isHelpModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s_ease-out]">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col border border-slate-200">
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur z-10">
-                  <h2 className="text-xl font-bold text-slate-800 flex items-center"><InfoIcon className="w-5 h-5 mr-2 text-blue-600" />{t.helpModalTitle}</h2>
-                  <button onClick={() => setIsHelpModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                  <h2 className="text-xl font-black text-slate-800 flex items-center"><InfoIcon className="w-6 h-6 mr-2 text-blue-600" />{t.helpModalTitle}</h2>
+                  <button onClick={() => setIsHelpModalOpen(false)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                   </button>
                 </div>
-                <div className="p-6 space-y-6 text-sm text-slate-700">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec1Title}</h3>
-                    <p className="leading-relaxed">{t.helpSec1Desc}</p>
+                <div className="p-6 md:p-8 space-y-8 text-sm text-slate-700">
+                  {/* 第1節 */}
+                  <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div className="flex-shrink-0 bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg">1</div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec1Title}</h3>
+                      <p className="leading-relaxed text-slate-600">{t.helpSec1Desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec2Title}</h3>
-                    <p className="leading-relaxed">{t.helpSec2Desc}</p>
+                  {/* 第2節 */}
+                  <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div className="flex-shrink-0 bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg">2</div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec2Title}</h3>
+                      <p className="leading-relaxed text-slate-600">{t.helpSec2Desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec3Title}</h3>
-                    <p className="leading-relaxed">{t.helpSec3Desc}</p>
+                  {/* 第3節 */}
+                  <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div className="flex-shrink-0 bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg">3</div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec3Title}</h3>
+                      <p className="leading-relaxed text-slate-600">{t.helpSec3Desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec4Title}</h3>
-                    <p className="leading-relaxed">{t.helpSec4Desc}</p>
+                  {/* 第4節 */}
+                  <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div className="flex-shrink-0 bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg">4</div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base mb-2">{t.helpSec4Title}</h3>
+                      <p className="leading-relaxed text-slate-600">{t.helpSec4Desc}</p>
+                    </div>
+                  </div>
+                  
+                  {/* ISTA 擴充概念區塊 (Highligt) */}
+                  <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-amber-200 text-amber-800 text-[10px] font-bold px-3 py-1 rounded-bl-lg">進階知識庫</div>
+                    <h3 className="font-black text-amber-900 text-base mb-2">{t.helpSec5Title}</h3>
+                    <p className="leading-relaxed text-amber-800/90">{t.helpSec5Desc}</p>
                   </div>
                 </div>
-                <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end sticky bottom-0">
-                  <button onClick={() => setIsHelpModalOpen(false)} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm">{t.closeBtn}</button>
+                <div className="p-5 border-t border-slate-100 bg-white flex justify-end sticky bottom-0 z-10">
+                  <button onClick={() => setIsHelpModalOpen(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold transition-all shadow-md hover:shadow-lg">{t.closeBtn}</button>
                 </div>
               </div>
             </div>
