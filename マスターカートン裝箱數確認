@@ -43,7 +43,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useTransition, useCallback } = React;
 
     // --- 圖示元件 ---
     const BoxIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
@@ -70,16 +70,16 @@
         </defs>
         <style>
           {`
-            @keyframes dropU1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropU2 { 0%, 20% { transform: translateY(-30px); opacity: 0; } 30%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropU3 { 0%, 35% { transform: translateY(-30px); opacity: 0; } 45%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropBoxC { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropTopC { 0%, 75% { transform: translateY(-20px); opacity: 0; } 85%, 100% { transform: translateY(0); opacity: 1; } }
-            .u1 { animation: dropU1 6s ease-out infinite; }
-            .u2 { animation: dropU2 6s ease-out infinite; }
-            .u3 { animation: dropU3 6s ease-out infinite; }
-            .boxC { animation: dropBoxC 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
-            .topC { animation: dropTopC 6s ease-out infinite; }
+            @keyframes svg-c-dropU1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-c-dropU2 { 0%, 20% { transform: translateY(-30px); opacity: 0; } 30%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-c-dropU3 { 0%, 35% { transform: translateY(-30px); opacity: 0; } 45%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-c-dropBox { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-c-dropTop { 0%, 75% { transform: translateY(-20px); opacity: 0; } 85%, 100% { transform: translateY(0); opacity: 1; } }
+            .svg-c-u1 { animation: svg-c-dropU1 6s ease-out infinite; }
+            .svg-c-u2 { animation: svg-c-dropU2 6s ease-out infinite; }
+            .svg-c-u3 { animation: svg-c-dropU3 6s ease-out infinite; }
+            .svg-c-box { animation: svg-c-dropBox 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
+            .svg-c-top { animation: svg-c-dropTop 6s ease-out infinite; }
           `}
         </style>
         {/* 外箱立體虛線框架 */}
@@ -90,7 +90,7 @@
         </g>
         
         {/* 第1層 U型 (底 + 左後 + 右前) */}
-        <g className="u1" stroke="currentColor" strokeWidth="1">
+        <g className="svg-c-u1" stroke="currentColor" strokeWidth="1">
           <polygon points="22,74 58,56 58,18 22,36" fill="url(#bubC)" />
           <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.1" />
           <polygon points="22,74 60,93 98,74 58,56" fill="url(#bubC)" />
@@ -100,28 +100,28 @@
         </g>
         
         {/* 第2層 U型 (稍微往上偏移模擬厚度) */}
-        <g className="u2" transform="translate(0, -3)" stroke="currentColor" strokeWidth="0.5" opacity="0.8">
+        <g className="svg-c-u2" transform="translate(0, -3)" stroke="currentColor" strokeWidth="0.5" opacity="0.8">
           <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
           <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
           <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
         </g>
 
         {/* 第3層 U型 */}
-        <g className="u3" transform="translate(0, -6)" stroke="currentColor" strokeWidth="0.5" opacity="0.6">
+        <g className="svg-c-u3" transform="translate(0, -6)" stroke="currentColor" strokeWidth="0.5" opacity="0.6">
           <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
           <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
           <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
         </g>
 
         {/* 製品落下 (置中實體方塊) */}
-        <g className="boxC" stroke="white" strokeWidth="1">
+        <g className="svg-c-box" stroke="white" strokeWidth="1">
           <polygon points="40,78 60,88 80,78 60,68" fillOpacity="0.8"/>
           <polygon points="40,78 60,88 60,78 40,68" fillOpacity="0.9"/>
           <polygon points="80,78 60,88 60,78 80,68" fillOpacity="0.7"/>
         </g>
 
         {/* 頂層覆蓋平鋪 */}
-        <g className="topC" stroke="currentColor" strokeWidth="1">
+        <g className="svg-c-top" stroke="currentColor" strokeWidth="1">
           <polygon points="25,55 60,72.5 95,55 60,37.5" fill="url(#bubC)" />
           <polygon points="25,55 60,72.5 95,55 60,37.5" fill="currentColor" opacity="0.3" />
         </g>
@@ -138,14 +138,14 @@
         </defs>
         <style>
           {`
-            @keyframes dropCross1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropCross2 { 0%, 25% { transform: translateY(-30px); opacity: 0; } 35%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropBoxA { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
-            @keyframes dropTopA { 0%, 80% { transform: translateY(-20px); opacity: 0; } 90%, 100% { transform: translateY(0); opacity: 1; } }
-            .c1 { animation: dropCross1 6s ease-out infinite; }
-            .c2 { animation: dropCross2 6s ease-out infinite; }
-            .boxA { animation: dropBoxA 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
-            .topA { animation: dropTopA 6s ease-out infinite; }
+            @keyframes svg-a-dropCross1 { 0%, 5% { transform: translateY(-30px); opacity: 0; } 15%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-a-dropCross2 { 0%, 25% { transform: translateY(-30px); opacity: 0; } 35%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-a-dropBox { 0%, 55% { transform: translateY(-40px); opacity: 0; } 65%, 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes svg-a-dropTop { 0%, 80% { transform: translateY(-20px); opacity: 0; } 90%, 100% { transform: translateY(0); opacity: 1; } }
+            .svg-a-c1 { animation: svg-a-dropCross1 6s ease-out infinite; }
+            .svg-a-c2 { animation: svg-a-dropCross2 6s ease-out infinite; }
+            .svg-a-box { animation: svg-a-dropBox 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; fill: currentColor; }
+            .svg-a-top { animation: svg-a-dropTop 6s ease-out infinite; }
           `}
         </style>
         <g stroke="currentColor" strokeWidth="1" opacity="0.25" strokeDasharray="3 3">
@@ -155,7 +155,7 @@
         </g>
 
         {/* 十字橫向 U 型 (左前 到 右後) */}
-        <g className="c1" stroke="currentColor" strokeWidth="1">
+        <g className="svg-a-c1" stroke="currentColor" strokeWidth="1">
           <polygon points="22,74 60,93 60,55 22,36" fill="url(#bubA)" />
           <polygon points="22,74 60,93 60,55 22,36" fill="currentColor" opacity="0.1" />
           <polygon points="22,74 60,93 98,74 58,56" fill="url(#bubA)" />
@@ -165,7 +165,7 @@
         </g>
 
         {/* 十字縱向 U 型 (右前 到 左後) */}
-        <g className="c2" stroke="currentColor" strokeWidth="1">
+        <g className="svg-a-c2" stroke="currentColor" strokeWidth="1">
           <polygon points="60,93 98,74 98,36 60,55" fill="url(#bubA)" />
           <polygon points="60,93 98,74 98,36 60,55" fill="currentColor" opacity="0.15" />
           <polygon points="22,74 60,93 98,74 58,56" fill="currentColor" opacity="0.25" />
@@ -173,13 +173,13 @@
           <polygon points="22,74 58,56 58,18 22,36" fill="currentColor" opacity="0.15" />
         </g>
 
-        <g className="boxA" stroke="white" strokeWidth="1">
+        <g className="svg-a-box" stroke="white" strokeWidth="1">
           <polygon points="40,78 60,88 80,78 60,68" fillOpacity="0.8"/>
           <polygon points="40,78 60,88 60,78 40,68" fillOpacity="0.9"/>
           <polygon points="80,78 60,88 60,78 80,68" fillOpacity="0.7"/>
         </g>
 
-        <g className="topA" stroke="currentColor" strokeWidth="1">
+        <g className="svg-a-top" stroke="currentColor" strokeWidth="1">
           <polygon points="25,55 60,72.5 95,55 60,37.5" fill="url(#bubA)" />
           <polygon points="25,55 60,72.5 95,55 60,37.5" fill="currentColor" opacity="0.3" />
         </g>
@@ -196,14 +196,14 @@
         </defs>
         <style>
           {`
-            @keyframes vibrateB { 0%, 15% { transform: translate(0, 0); } 20% { transform: translate(3px, -1.5px); } 25% { transform: translate(-3px, 1.5px); } 30% { transform: translate(1.5px, 0); } 35%, 100% { transform: translate(0, 0); } }
-            @keyframes popFill1 { 0%, 40% { transform: scale(0); opacity: 0; } 50%, 100% { transform: scale(1); opacity: 1; } }
-            @keyframes popFill2 { 0%, 45% { transform: scale(0); opacity: 0; } 55%, 100% { transform: scale(1); opacity: 1; } }
-            @keyframes popFillTop { 0%, 60% { transform: scale(0); opacity: 0; } 70%, 100% { transform: scale(1); opacity: 1; } }
-            .box-vib { animation: vibrateB 6s ease-in-out infinite; fill: currentColor; }
-            .vf1 { animation: popFill1 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 80px 80px; }
-            .vf2 { animation: popFill2 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 30px 70px; }
-            .vft { animation: popFillTop 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 60px 45px; }
+            @keyframes svg-b-vibrate { 0%, 15% { transform: translate(0, 0); } 20% { transform: translate(3px, -1.5px); } 25% { transform: translate(-3px, 1.5px); } 30% { transform: translate(1.5px, 0); } 35%, 100% { transform: translate(0, 0); } }
+            @keyframes svg-b-popFill1 { 0%, 40% { transform: scale(0); opacity: 0; } 50%, 100% { transform: scale(1); opacity: 1; } }
+            @keyframes svg-b-popFill2 { 0%, 45% { transform: scale(0); opacity: 0; } 55%, 100% { transform: scale(1); opacity: 1; } }
+            @keyframes svg-b-popFillTop { 0%, 60% { transform: scale(0); opacity: 0; } 70%, 100% { transform: scale(1); opacity: 1; } }
+            .svg-b-box-vib { animation: svg-b-vibrate 6s ease-in-out infinite; fill: currentColor; }
+            .svg-b-vf1 { animation: svg-b-popFill1 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 80px 80px; }
+            .svg-b-vf2 { animation: svg-b-popFill2 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 30px 70px; }
+            .svg-b-vft { animation: svg-b-popFillTop 6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite; transform-origin: 60px 45px; }
           `}
         </style>
         <g stroke="currentColor" strokeWidth="1" opacity="0.25" strokeDasharray="3 3">
@@ -213,28 +213,28 @@
         </g>
 
         {/* 在內部晃動的產品 */}
-        <g className="box-vib" stroke="white" strokeWidth="1">
+        <g className="svg-b-box-vib" stroke="white" strokeWidth="1">
           <polygon points="35,80 55,90 75,80 55,70" fillOpacity="0.3"/>
           <polygon points="35,80 55,90 55,70 35,60" fillOpacity="0.4"/>
           <polygon points="75,80 55,90 55,70 75,60" fillOpacity="0.2"/>
         </g>
 
         {/* 右前側縫隙揉捏氣泡紙 */}
-        <g className="vf1" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        <g className="svg-b-vf1" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
           <path d="M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z" fill="currentColor" opacity="0.3"/>
           <path d="M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z" fill="url(#bubB)"/>
           <path d="M 74,83 Q 80,78 86,84" fill="none" opacity="0.8"/>
         </g>
 
         {/* 左前側縫隙揉捏氣泡紙 */}
-        <g className="vf2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        <g className="svg-b-vf2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
           <path d="M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z" fill="currentColor" opacity="0.3"/>
           <path d="M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z" fill="url(#bubB)"/>
           <path d="M 29,70 Q 36,62 40,68" fill="none" opacity="0.8"/>
         </g>
 
         {/* 頂部縫隙揉捏氣泡紙 */}
-        <g className="vft" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        <g className="svg-b-vft" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
           <path d="M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z" fill="currentColor" opacity="0.3"/>
           <path d="M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z" fill="url(#bubB)"/>
           <path d="M 52,52 Q 60,46 66,52" fill="none" opacity="0.8"/>
@@ -361,7 +361,7 @@
       }
     };
 
-    const APP_VERSION = "1.13";
+    const APP_VERSION = "1.14";
     const APP_UPDATED_DATE = "2026/03/06";
 
     function App() {
@@ -382,7 +382,8 @@
       const [showFilling, setShowFilling] = useState(true);
       
       const [packingResult, setPackingResult] = useState({ packed: [], gaps: null, stats: null, config: null });
-      const [isCalculating, setIsCalculating] = useState(false);
+      // [修正 #4] 改用 useTransition 取代 setTimeout workaround，讓 UI 優先更新後才執行計算
+      const [isPending, startTransition] = useTransition();
       const [renderStep, setRenderStep] = useState(0);
       const [isTransparent, setIsTransparent] = useState(false);
       
@@ -393,6 +394,10 @@
       const sceneRef = useRef(null);
       const cameraRef = useRef(null);
       const controlsRef = useRef(null);
+      // [修正 #5] 持久化 renderer 與 boxGroup ref，避免每次計算後重建 WebGL context
+      const rendererRef = useRef(null);
+      const boxGroupRef = useRef(null);
+      const animFrameRef = useRef(null);
 
       const handleScreenshot = async () => {
         setIsScreenshotting(true);
@@ -412,7 +417,10 @@
         let dxf = `0\nSECTION\n2\nENTITIES\n`;
         const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => { dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`; };
         const addRect = (x, y, w, h, layer = "0", color = 256) => { addLine(x, y, x + w, y, layer, color); addLine(x + w, y, x + w, y + h, layer, color); addLine(x + w, y + h, x, y + h, layer, color); addLine(x, y + h, x, y, layer, color); };
-        const getACIColor = () => 5;
+        // DXF ACI 色碼對應：依深度層次分色，讓圖層有層次感
+        // ACI 5=藍, 3=綠, 4=青, 2=黃, 6=洋紅, 1=紅 (保留給干涉)
+        const ACI_PALETTE = [5, 3, 4, 2, 6, 30, 40, 50, 140, 170];
+        const getACIColor = (layerIndex) => ACI_PALETTE[layerIndex % ACI_PALETTE.length];
         const cW = effOuter.W * scale; const cH = effOuter.H * scale; const cD = effOuter.L * scale;
         const fvX = 0, fvY = 0; addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
         const tvX = 0, tvY = cH + gap; addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
@@ -433,9 +441,9 @@
             topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); }); botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); }); leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); }); rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
           }
         };
-        let frontFaces = packingResult.packed.map(p => ({ x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale, depth: (p.z + p.d) * scale, color: getACIColor(), layer: "BOXES_FRONT" })); processView(frontFaces, fvX, fvY);
-        let topFaces = packingResult.packed.map(p => ({ x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale, depth: (p.y + p.h) * scale, color: getACIColor(), layer: "BOXES_TOP" })); processView(topFaces, tvX, tvY);
-        let sideFaces = packingResult.packed.map(p => ({ x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale, depth: (p.x + p.w) * scale, color: getACIColor(), layer: "BOXES_SIDE" })); processView(sideFaces, svX, svY);
+        let frontFaces = packingResult.packed.map((p, i) => ({ x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale, depth: (p.z + p.d) * scale, color: getACIColor(i), layer: "BOXES_FRONT" })); processView(frontFaces, fvX, fvY);
+        let topFaces = packingResult.packed.map((p, i) => ({ x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale, depth: (p.y + p.h) * scale, color: getACIColor(i), layer: "BOXES_TOP" })); processView(topFaces, tvX, tvY);
+        let sideFaces = packingResult.packed.map((p, i) => ({ x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale, depth: (p.x + p.w) * scale, color: getACIColor(i), layer: "BOXES_SIDE" })); processView(sideFaces, svX, svY);
         dxf += `0\nENDSEC\n0\nEOF\n`;
         const blob = new Blob([dxf], { type: 'application/dxf' }); const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = `GapCalc_3View.dxf`;
@@ -443,8 +451,9 @@
       };
 
       const runPacking = () => {
-        setIsCalculating(true);
-        setTimeout(() => {
+        // [修正 #4] startTransition 讓 React 將此次 setState 標記為低優先級，
+        // UI（按鈕 spinner）會立即更新，計算完成後才 commit 結果
+        startTransition(() => {
           const getEffDim = (val, plus, minus, state) => {
             if (state === 'max') return Math.max(0.1, val + plus);
             if (state === 'min') return Math.max(0.1, val - minus);
@@ -522,56 +531,116 @@
           const nTop_A = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
           const planA = { nL: nL_A, nW: nW_A, nTop: nTop_A, total: nL_A + nW_A + nTop_A };
 
-          // 方案 C
-          const bottomLayerSheets = bestResult.layersY > 0 ? bestResult.layersY : 1; 
-          const baseU_L = Math.min(Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW), Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor)));
-          const nBottom_C = Math.max(bottomLayerSheets, baseU_L); 
+          // [修正 #3] 方案 C：nBottom_C 改為依氣泡紙張數計算（與 planA 邏輯相同），
+          // 不再以「層數(layersY)」與「張數(baseU_L)」進行 Math.max 的跨單位比較。
+          // 方案 C 底部 U 型張數 = 每個 Y 層各需一組 U 型包覆（長向），乘以層數
+          const sheetsPerULayer = Math.min(
+            Math.ceil(reqL_A / sL) * Math.ceil(effOuter.W / eff_sW),
+            Math.ceil(reqL_A / sW) * Math.ceil(effOuter.W / (sL * tolFactor))
+          );
+          const nBottom_C = sheetsPerULayer * Math.max(1, bestResult.layersY);
           const nTop_C = Math.ceil((effOuter.L * effOuter.W) / (sheetArea * 0.9));
           const planC = { nBottom: nBottom_C, nTop: nTop_C, total: nBottom_C + nTop_C };
 
+          // [修正 #1] 空間利用率計算
+          const innerVol = bestResult.count * effInner.L * effInner.W * effInner.H;
+          const outerVol = effOuter.L * effOuter.W * effOuter.H;
+          const utilizationRate = outerVol > 0 ? Math.round((innerVol / outerVol) * 100) : 0;
+
+          // [修正 #2] 三軸複合評分推薦邏輯（取代單一閾值硬編碼）
+          // 評分依據：各軸間隙佔外箱對應邊長的比例 + 層數因子
+          const gapRatioL = effOuter.L > 0 ? gaps.L / effOuter.L : 0;
+          const gapRatioW = effOuter.W > 0 ? gaps.W / effOuter.W : 0;
+          const gapRatioH = effOuter.H > 0 ? gaps.H / effOuter.H : 0;
+          const maxAbsGap = Math.max(gaps.L, gaps.W, gaps.H);
+          const maxGapRatio = Math.max(gapRatioL, gapRatioW, gapRatioH);
+          const isMultiLayer = bestResult.layersY > 1;
+          // 任一軸間隙絕對值 > 25mm 且比例 > 8% → 局部填充最有效
           let recommendedPlan = 'A';
-          const maxLateralGap = Math.max(gaps.L, gaps.W);
-          if (maxLateralGap > 25) recommendedPlan = 'B';
-          else if (bestResult.layersY > 1) recommendedPlan = 'C';
+          if (maxAbsGap > 25 && maxGapRatio > 0.08) {
+            recommendedPlan = 'B';
+          } else if (isMultiLayer && maxAbsGap <= 25) {
+            // 多層且間隙小 → 層疊鋪底更實務
+            recommendedPlan = 'C';
+          } else if (isMultiLayer && maxAbsGap > 25) {
+            // 多層但間隙也大 → 仍以局部填充優先
+            recommendedPlan = 'B';
+          }
+          // else: 單層 + 小間隙 → 標準十字 (A)
 
           setPackingResult({ 
             packed: bestResult.packed, gaps, 
-            stats: { totalPacked: bestResult.count, targetQty: innerBox.qty, planA, planB, planC, recommendedPlan, maxLateralGap },
+            stats: { totalPacked: bestResult.count, targetQty: innerBox.qty, planA, planB, planC, recommendedPlan, maxAbsGap, utilizationRate },
             config: { effOuter, effInner }
           });
-          setRenderStep(bestResult.packed.length); setIsCalculating(false);
-        }, 50); 
+          setRenderStep(bestResult.packed.length);
+        }); // end startTransition
       };
 
+      // [修正 #5-a] Scene 初始化：僅在 canvas 掛載後執行一次，保留 renderer 不重建
       useEffect(() => {
         if (!threeLoaded || !canvasRef.current || !window.THREE) return;
+        if (rendererRef.current) return; // 已初始化則跳過
         const { THREE } = window;
         const width = canvasRef.current.clientWidth, height = canvasRef.current.clientHeight;
-        canvasRef.current.innerHTML = '';
-        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene;
         const camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000); cameraRef.current = camera;
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); 
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
-        
+        rendererRef.current = renderer;
         const controls = new window.THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controlsRef.current = controls;
         scene.add(new THREE.AmbientLight(0xffffff, 0.7));
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); dirLight.position.set(1000, 2000, 1000); scene.add(dirLight);
+        // 建立持久 group 容器
+        boxGroupRef.current = new THREE.Group(); scene.add(boxGroupRef.current);
+        fillerGroupRef.current = new THREE.Group(); scene.add(fillerGroupRef.current);
+        dimGroupRef.current = new THREE.Group(); scene.add(dimGroupRef.current);
+        const anim = () => { animFrameRef.current = requestAnimationFrame(anim); controls.update(); renderer.render(scene, camera); }; anim();
+        return () => {
+          if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+          renderer.dispose();
+          rendererRef.current = null;
+        };
+      }, [threeLoaded]);
 
+      // [修正 #5-b] 僅在計算結果更新時重建 mesh，Scene/Camera/Renderer 持續沿用
+      useEffect(() => {
+        if (!sceneRef.current || !window.THREE || !packingResult.packed) return;
+        const { THREE } = window;
+        const scene = sceneRef.current;
         const effOuter = packingResult.config ? packingResult.config.effOuter : outerCarton;
-        const containerGeo = new THREE.BoxGeometry(effOuter.W, effOuter.H, effOuter.L);
-        scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2, transparent: true, opacity: 0.8 })));
 
-        const group = new THREE.Group();
+        // 清除舊 mesh
+        meshesRef.current = [];
+        while (boxGroupRef.current.children.length) {
+          const m = boxGroupRef.current.children[0];
+          m.geometry?.dispose(); m.material?.dispose();
+          boxGroupRef.current.remove(m);
+        }
+        while (fillerGroupRef.current.children.length) {
+          const m = fillerGroupRef.current.children[0];
+          m.geometry?.dispose(); m.material?.dispose();
+          fillerGroupRef.current.remove(m);
+        }
+        while (dimGroupRef.current.children.length) {
+          const m = dimGroupRef.current.children[0];
+          m.geometry?.dispose();
+          dimGroupRef.current.remove(m);
+        }
+        // 重建外箱邊框
+        scene.children.filter(c => c.isLineSegments && c.userData.isContainer).forEach(c => scene.remove(c));
+        const containerGeo = new THREE.BoxGeometry(effOuter.W, effOuter.H, effOuter.L);
+        const containerEdges = new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2, transparent: true, opacity: 0.8 }));
+        containerEdges.userData.isContainer = true;
+        scene.add(containerEdges);
+
         packingResult.packed.forEach((p) => {
           const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), new THREE.MeshLambertMaterial({ color: p.color }));
           mesh.position.set(p.x + p.w / 2 - effOuter.W / 2, p.y + p.h / 2 - effOuter.H / 2, p.z + p.d / 2 - effOuter.L / 2);
           mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 })));
-          meshesRef.current.push(mesh); group.add(mesh);
+          meshesRef.current.push(mesh); boxGroupRef.current.add(mesh);
         });
-        scene.add(group);
 
-        fillerGroupRef.current = new THREE.Group();
         if (packingResult.gaps && packingResult.packed.length > 0 && showFilling) {
           const { L: gL, W: gW, H: gH } = packingResult.gaps;
           const fMat = new THREE.MeshLambertMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.4 });
@@ -587,9 +656,7 @@
           if (gW > 0) createF(gW, effOuter.H, effOuter.L - Math.max(0, gL), effOuter.W - gW, 0, 0);
           if (gH > 0) createF(effOuter.W - Math.max(0, gW), gH, effOuter.L - Math.max(0, gL), 0, effOuter.H - gH, 0);
         }
-        scene.add(fillerGroupRef.current);
 
-        dimGroupRef.current = new THREE.Group();
         if (packingResult.gaps && packingResult.packed.length > 0) {
           const { L: gL, W: gW, H: gH } = packingResult.gaps;
           const mX = effOuter.W/2, mY = effOuter.H/2, mZ = effOuter.L/2;
@@ -601,21 +668,18 @@
             const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
             const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 50px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 256, 64); ctx.fillText(text, 256, 64);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
-            
-            sprite.scale.set(200, 50, 1); 
-            sprite.position.copy(mid); 
-            dimGroupRef.current.add(sprite);
+            sprite.scale.set(200, 50, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
           };
           addDim(new THREE.Vector3(pX, -mY+10, pZ), new THREE.Vector3(pX, -mY+10, mZ), `${t.gapL}: ${gL}mm`, gL < 0 ? '#ef4444' : '#ea580c', 50, 30, 0);
           addDim(new THREE.Vector3(pX, -mY+10, pZ), new THREE.Vector3(mX, -mY+10, pZ), `${t.gapW}: ${gW}mm`, gW < 0 ? '#ef4444' : '#2563eb', 0, -30, 50);
           addDim(new THREE.Vector3(pX, pY, pZ), new THREE.Vector3(pX, mY, pZ), `${t.gapH}: ${gH}mm`, gH < 0 ? '#ef4444' : '#16a34a', 50, 0, 50);
         }
-        scene.add(dimGroupRef.current);
 
         const maxD = Math.max(effOuter.L, effOuter.W, effOuter.H);
-        camera.position.set(maxD * 1.2, maxD * 0.8, maxD * 1.2); controls.target.set(0,0,0); controls.update();
-        const anim = () => { requestAnimationFrame(anim); controls.update(); renderer.render(scene, camera); }; anim();
-        return () => renderer.dispose();
+        if (cameraRef.current && controlsRef.current) {
+          cameraRef.current.position.set(maxD * 1.2, maxD * 0.8, maxD * 1.2);
+          controlsRef.current.target.set(0,0,0); controlsRef.current.update();
+        }
       }, [packingResult, threeLoaded, outerCarton, lang, showFilling]);
 
       useEffect(() => {
@@ -738,9 +802,9 @@
                       <option value="alignH">{t.strategyAlignH}</option>
                     </select>
                   </div>
-                  <button onClick={runPacking} disabled={isCalculating} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center shadow-md">
-                    {isCalculating ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
-                    {isCalculating ? t.calcIng : t.calcBtn}
+                  <button onClick={runPacking} disabled={isPending} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center shadow-md">
+                    {isPending ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
+                    {isPending ? t.calcIng : t.calcBtn}
                   </button>
                 </div>
               </div>
@@ -760,6 +824,10 @@
                             <p className={`text-lg font-bold ${packingResult.gaps[d] < 0 ? 'text-red-600' : 'text-slate-800'}`}>{packingResult.gaps[d]}mm</p>
                           </div>
                         ))}
+                        <div className="text-center border-l border-slate-200 pl-6">
+                          <p className="text-xs text-slate-500 font-bold mb-1">{lang === 'zh' ? '空間利用率' : '空間充填率'}</p>
+                          <p className={`text-lg font-bold ${packingResult.stats.utilizationRate >= 80 ? 'text-green-600' : packingResult.stats.utilizationRate >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{packingResult.stats.utilizationRate}%</p>
+                        </div>
                       </div>
                     </div>
 
