@@ -3,1138 +3,808 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 / コンテナ積載計算ツール</title>
-  
-  <!-- 引入 Tailwind CSS -->
+  <title>貨櫃裝載計算器 v1.41</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- 引入 React 與 ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
-  <!-- 引入 Babel 用於在瀏覽器中編譯 JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- 引入 Three.js 及其控制器 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
-  <!-- 引入 html-to-image 替換 html2canvas，解決文字錯位與表單元素消失問題 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
-
   <style>
-    .touch-none { touch-action: none; }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 16px;
-      width: 16px;
-      border-radius: 50%;
-      background: #2563eb;
-      cursor: pointer;
-      box-shadow: 0 0 2px rgba(0,0,0,0.3);
-    }
-    /* 說明視窗滾動條美化 */
-    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .touch-none{touch-action:none}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:16px;width:16px;border-radius:50%;background:#2563eb;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.3)}
+    .scr::-webkit-scrollbar{width:8px}
+    .scr::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px}
+    .scr::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+    .scr::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+    .hint-overlay{position:absolute;bottom:72px;right:10px;background:rgba(15,23,42,.72);backdrop-filter:blur(6px);color:#e2e8f0;font-size:10px;padding:6px 10px;border-radius:8px;pointer-events:none;z-index:15;line-height:1.8;border:1px solid rgba(255,255,255,.1)}
+    .hint-key{display:inline-block;background:rgba(255,255,255,.18);border-radius:3px;padding:0 4px;margin-right:3px;font-family:monospace;font-size:9px}
+    @keyframes shine{0%{background-position:-200% center}100%{background-position:200% center}}
+    .prog-bar{background:linear-gradient(90deg,#4f46e5 0%,#818cf8 40%,#4f46e5 60%,#4f46e5 100%);background-size:200% auto;animation:shine 1.5s linear infinite;transition:width .3s ease;height:100%;border-radius:9999px}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .modal-in{animation:fadeUp .22s ease-out}
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
-  <div id="root"></div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+// ── EPS 容差常數（修正1：浮點誤差） ──────────────────────────────────────
+const EPS = 0.5;
 
-    // --- 圖示元件 ---
-    const Package = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
-    const Plus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
-    const Trash2 = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
-    const RefreshCw = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
-    const BoxIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
-    const AlertCircle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
-    const Play = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
-    const Info = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
-    const CheckCircle2 = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
-    const AlertTriangle = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
-    const Eye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
-    const DownloadIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
-    const Globe = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
-    const Ruler = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"></path><line x1="6" y1="18" x2="10.1" y2="13.9"></line><line x1="8" y1="20" x2="12.1" y2="15.9"></line><line x1="10" y1="22" x2="14.1" y2="17.9"></line><line x1="14" y1="20" x2="18.1" y2="15.9"></line><line x1="16" y1="18" x2="20.1" y2="13.9"></line></svg>;
-    const CameraIcon = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
-    const BookOpen = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
-    const Sparkles = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>;
+// ── 常數 ─────────────────────────────────────────────────────────────────
+const CONTAINERS = {
+  '20GP': {id:'20GP', w:2330, h:2350, d:5867},
+  '40GP': {id:'40GP', w:2330, h:2350, d:11998},
+  '40HQ': {id:'40HQ', w:2330, h:2655, d:11998}
+};
+const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
+const uid = () => Math.random().toString(36).slice(2,9);
+const APP_VER = '1.41';
+const APP_DATE = '2026/03/06';
 
-    // --- 多語系翻譯字典 ---
-    const translations = {
-      zh: {
-        appTitle: "貨櫃裝載計算器",
-        langToggle: "日本語切替",
-        screenshot: "截圖",
-        createdBy: "作成：分室",
-        supportGap: "支援自訂預留空間",
-        containerSet: "貨櫃種類設定",
-        containerSetSub: "使用 JIS / ISO 規定的「最小內部尺寸」",
-        innerGapTitle: "最內側預留空間 (mm)",
-        doorGapTitle: "門口預留空間 (mm)",
-        rightGapTitle: "右側預留空間 (mm)",
-        topGapTitle: "上方預留空間 (mm)",
-        innerDim: "內部總尺寸 (深x寬x高)",
-        effectiveDepth: "有效裝載深度",
-        effectiveWidth: "有效裝載寬度",
-        effectiveHeight: "有效裝載高度",
-        boxSet: "箱體尺寸設定(外寸)",
-        addBoxBtn: "新增箱體",
-        boxNamePH: "箱體名稱",
-        defaultBoxPrefix: "紙箱",
-        L: "長(L) mm",
-        W: "寬(W) mm",
-        H: "高(H) mm",
-        QTY: "數量 (0=自動)",
-        tolPlus: "正公差(+)",
-        tolMinus: "負公差(-)",
-        calcMode: "計算基準",
-        calcNominal: "標準外寸",
-        calcMax: "最大(正公差)",
-        calcMin: "最小(負公差)",
-        calcMid: "中間值",
-        calcSizeLabel: "實際運算尺寸:",
-        calcBtn: "標準計算",
-        calculating: "計算中...",
-        deepOptBtn: "深層優化 (GRASP)",
-        optimizing: "深度優化中",
-        strategyTitle: "裝載方向策略",
-        strategyAuto: "自動最佳化 (整體數量最多且最整齊)",
-        strategyLength: "優先以 箱長 (L) 貼合貨櫃深",
-        strategyWidth: "優先以 箱寬 (W) 貼合貨櫃深",
-        viewIso: "等角",
-        viewTop: "俯視",
-        viewFront: "前視",
-        viewSide: "側視",
-        controlsHint: "左鍵: 旋轉 | 右鍵: 平移 | 滾輪: 縮放",
-        playbackPrefix: "裝載順序：",
-        boxUnit: "箱",
-        xrayLabel: "透視",
-        innerLayer: "最內側",
-        doorLayer: "門口",
-        summaryTitle: "裝載結果摘要",
-        exportDXF: "導出3視圖 (.dxf)",
-        totalBoxes: "總裝載箱數",
-        utilization: "空間利用率 (含保留區)",
-        effectiveVol: "有效裝載總體積",
-        totalVol: "總容積",
-        detailTitle: "各類別裝載數量明細：",
-        warningTitle: "部分指定箱體未能完全裝入！",
-        shortfall: "短缺",
-        req: "需求",
-        packed: "實裝",
-        analysisTitle: "🔍 原因分析：",
-        analysis1: "即使整體空間利用率未達 100%，剩餘的空間可能已經被切割得",
-        analysis2: "過於零碎 (畸零空間)",
-        analysis3: "。這導致剩餘空間的「連續長度、寬度或高度」不足以容納短缺的箱體（無論它如何旋轉）。",
-        suggestionTitle: "💡 改善建議：",
-        sug1: "嘗試使用「深層優化(GRASP)」功能，讓系統探索更多排列可能性。",
-        sug2: "嘗試更換更大的貨櫃尺寸（例如：改用 40' HQ）。",
-        sug3: "確認是否能微調該箱體的包裝尺寸，使其更容易填補剩餘縫隙。",
-        sug4: "若許可，減少「最內側」、「門口」、「右側」或「上方」的預留空間尺寸。",
-        containers: {
-          '20GP': "20呎標準櫃 (20' GP)",
-          '40GP': "40呎標準櫃 (40' GP)",
-          '40HQ': "40呎高櫃 (40' HQ)"
-        },
-        remainingGapsTitle: "整體剩餘間隙",
-        remainL: "深度 (Z)",
-        remainW: "寬度 (X)",
-        remainH: "高度 (Y)",
-        actualGap: "實際",
-        actualGap2: "實際(含預留)",
-        helpBtn: "使用說明",
-        helpTitle: "貨櫃裝載計算器 - 操作與功能說明",
-        helpSection1: "一、操作使用說明",
-        helpS1_1: "1. 選擇貨櫃種類 (提供標準 20呎、40呎及40呎高櫃) 並設定四側所需的「預留空間」。",
-        helpS1_2: "2. 新增箱體種類，輸入各箱體的外箱長寬高、數量 (輸入0代表盡可能塞滿空間) 以及「正負公差」。",
-        helpS1_3: "3. 若有設定公差，請選擇計算基準(標準外寸、最大、最小或中間值)讓系統進行精密運算。",
-        helpS1_4: "4. 選擇合適的「裝載方向策略」後，點擊「標準計算」或「深層優化」產生 3D 裝載圖。",
-        helpSection2: "二、功能按鈕說明",
-        helpS2_1: "【截圖】：將目前整個工具網頁的畫面擷取並儲存為 JPG 圖片，方便匯報或記錄。",
-        helpS2_2: "【導出3視圖 (.dxf)】：計算完成後，此按鈕會亮起。點擊可將裝載結果轉換成 2D CAD 可讀取的 DXF 格式。",
-        helpS2_3: "【標準計算】：單次快速演算，適合快速報價或結構簡單的箱體組合。",
-        helpS2_6: "【深層優化 (GRASP)】：額外執行數十次導入隨機擾動的迭代演算(貪婪隨機自適應搜尋)，有機會在複雜組合中找出更緊密的排列方式，提升利用率。",
-        helpS2_4: "【透視】：位於 3D 圖形區下方，打勾後會將所有箱體半透明化，方便查看內部的堆疊與間隙狀態。",
-        helpS2_5: "【裝載順序拉桿】：位於 3D 圖形區下方，拖曳滑桿可一步步查看箱體裝入貨櫃的先後順序。",
-        helpSection3: "三、裝載結果摘要詳細分析說明",
-        helpS3_1: "【總裝載箱數】：當次運算下，成功排入貨櫃內部的總箱子數量。",
-        helpS3_2: "【空間利用率】：所有成功裝載的箱體總體積 ÷ 貨櫃的內部總容積 (包含預留空間) 所算出的百分比。",
-        helpS3_3: "【有效裝載總體積】：純粹被箱體實體所佔用的體積總和。",
-        helpS3_4: "【為何會有短缺警告？】：有時候即使空間利用率未達 100%，系統仍會提示裝不下。這是因為剩餘的空間已經被切割成「畸零的破碎空間」，導致不管如何旋轉剩下的箱子，都無法找出一段完整的長、寬、高來容納它。遇到此情況，建議嘗試點擊「深層優化」或參考畫面上的「整體剩餘間隙」數值來微調尺寸。",
-        closeBtn: "我知道了，關閉"
-      },
-      ja: {
-        appTitle: "コンテナ積載計算ツール",
-        langToggle: "中文切替",
-        screenshot: "撮影",
-        createdBy: "作成：分室",
-        supportGap: "余白のカスタマイズ対応",
-        containerSet: "コンテナ種類設定",
-        containerSetSub: "JIS / ISO 規定の「最小内部寸法」を使用",
-        innerGapTitle: "最奥部余白 (mm)",
-        doorGapTitle: "ドア側余白 (mm)",
-        rightGapTitle: "右側余白 (mm)",
-        topGapTitle: "上部余白 (mm)",
-        innerDim: "內部總寸法 (奥行x幅x高さ)",
-        effectiveDepth: "有効積載奥行",
-        effectiveWidth: "有効積載幅",
-        effectiveHeight: "有効積載高さ",
-        boxSet: "箱寸法設定(外寸)",
-        addBoxBtn: "箱を追加",
-        boxNamePH: "箱の名前",
-        defaultBoxPrefix: "ダンボール",
-        L: "長さ(L) mm",
-        W: "幅(W) mm",
-        H: "高さ(H) mm",
-        QTY: "数量 (0=自動)",
-        tolPlus: "正公差(+)",
-        tolMinus: "負公差(-)",
-        calcMode: "計算基準",
-        calcNominal: "標準外寸",
-        calcMax: "最大(正公差)",
-        calcMin: "最小(負公差)",
-        calcMid: "中間値",
-        calcSizeLabel: "計算寸法:",
-        calcBtn: "標準計算を開始",
-        calculating: "計算中...",
-        deepOptBtn: "深層最適化 (GRASP)",
-        optimizing: "最適化中",
-        strategyTitle: "積載方向の戦略",
-        strategyAuto: "自動最適化 (全体数量最大かつ整列)",
-        strategyLength: "優先: 箱の長さ(L)を奥行に合わせる",
-        strategyWidth: "優先: 箱の幅(W)を奥行に合わせる",
-        viewIso: "等角投影",
-        viewTop: "平面図",
-        viewFront: "正面図",
-        viewSide: "側面図",
-        controlsHint: "左：回転 | 右：移動 | ﾎｲｰﾙ：縮尺",
-        playbackPrefix: "積載順序：",
-        boxUnit: "箱",
-        xrayLabel: "透過",
-        innerLayer: "最奥",
-        doorLayer: "ドア",
-        summaryTitle: "積載結果の概要",
-        exportDXF: "3面図を出力 (.dxf)",
-        totalBoxes: "総積載箱数",
-        utilization: "空間利用率 (余白含む)",
-        effectiveVol: "有効積載総体積",
-        totalVol: "総容積",
-        detailTitle: "各カテゴリの積載数詳細：",
-        warningTitle: "一部の指定箱が完全に積載されませんでした！",
-        shortfall: "不足",
-        req: "要求",
-        packed: "実際の積載",
-        analysisTitle: "🔍 原因分析：",
-        analysis1: "全体の空間利用率が100%に達していなくても、残りの空間が細かく分割されすぎている（",
-        analysis2: "デッドスペース",
-        analysis3: "）可能性があります。そのため、残りの空間の「連続する長さ、幅、または高さ」が不足し、どのように回転させても不足している箱を収めることができません。",
-        suggestionTitle: "💡 改善の提案：",
-        sug1: "「深層最適化」を試して、システムに他の積載パターンを探索させてください。",
-        sug2: "より大きなコンテナサイズ（例：40' HQ）に変更してみてください。",
-        sug3: "隙間を埋めやすくするため、箱の梱包寸法を微調整できないか確認してください。",
-        sug4: "可能であれば、「最奥部」、「ドア側」、「右側」、または「上部」の余白サイズを減らしてください。",
-        containers: {
-          '20GP': "20フィート標準 (20' GP)",
-          '40GP': "40フィート標準 (40' GP)",
-          '40HQ': "40フィートハイキューブ (40' HQ)"
-        },
-        remainingGapsTitle: "残りスペース",
-        remainL: "奥行 (Z)",
-        remainW: "幅 (X)",
-        remainH: "高さ (Y)",
-        actualGap: "實質",
-        actualGap2: "実寸(余白含)",
-        helpBtn: "ヘルプ",
-        helpTitle: "操作・機能ガイド",
-        helpSection1: "一、操作手順",
-        helpS1_1: "1. コンテナの種類を選択し、四方の余白を設定します。",
-        helpS1_2: "2. 箱を追加し、外寸、数量（0は最大まで）、公差を入力します。",
-        helpS1_3: "3. 公差を設定した場合、計算基準（最大/最小など）を選択します。",
-        helpS1_4: "4. 「標準計算」または「深層最適化」をクリックして、3D積載図と結果概要を生成します。",
-        helpSection2: "二、機能ボタンの説明",
-        helpS2_1: "【撮影】現在の画面全体をJPG画像として保存します。",
-        helpS2_2: "【3面図を出力(.dxf)】現在の積載結果を2D CADで読み込めるDXF形式で出力します。",
-        helpS2_3: "【標準計算】1回の高速計算。迅速な見積もりや単純な構成に適しています。",
-        helpS2_6: "【深層最適化 (GRASP)】ランダムな変動を取り入れた反復計算を数十回実行し、複雑な組み合わせからさらに隙間のない積載案を探索します。",
-        helpS2_4: "【透過】チェックを入れると箱が半透明になり、内部の積載状況を確認しやすくなります。",
-        helpS2_5: "【積載順序スライダー】3D図の下部にあるスライダーで、箱が積載される順序を確認できます。",
-        helpSection3: "三、積載結果の概要と詳細な分析",
-        helpS3_1: "【総積載箱数】コンテナに正常に積載された箱の合計数。",
-        helpS3_2: "【空間利用率】積載された全ての箱の体積 ÷ コンテナの内部総容積（余白を含む）のパーセンテージ。",
-        helpS3_3: "【有効積載総体積】実際に箱が占めている体積の合計。",
-        helpS3_4: "【なぜ不足が発生するのか？】空間利用率が100%に達していなくても、残りの空間が「デッドスペース」として細分化されている場合、箱が入らないことがあります。画面に表示される「残りスペース」を参考にして微調整してください。",
-        closeBtn: "閉じる"
-      }
-    };
+// ── 多語系 ────────────────────────────────────────────────────────────────
+const T = {
+  zh:{
+    title:'貨櫃裝載計算器', lang:'日本語切替', shot:'截圖', by:'作成：分室',
+    ctnSet:'貨櫃種類設定', ctnSub:'使用 JIS/ISO 規定的「最小內部尺寸」',
+    gInner:'最內側預留 (mm)', gDoor:'門口預留 (mm)', gRight:'右側預留 (mm)', gTop:'上方預留 (mm)',
+    gSupport:'支撐面積閾值 (%)', gSupportL:'寬鬆(高裝載率)', gSupportR:'嚴格(高穩定性)',
+    dimTotal:'內部尺寸 (深×寬×高)', dimD:'有效深度', dimW:'有效寬度', dimH:'有效高度',
+    boxSet:'箱體尺寸設定(外寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱',
+    fL:'長(L) mm', fW:'寬(W) mm', fH:'高(H) mm', fQ:'數量 (0=自動)',
+    tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
+    mNom:'標準外寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間值',
+    mLabel:'運算尺寸:',
+    stratTitle:'裝載方向策略',
+    stratAuto:'自動最佳化 (整體數量最多)',
+    stratL:'優先以 箱長(L) 貼合貨櫃深',
+    stratW:'優先以 箱寬(W) 貼合貨櫃深',
+    calcBtn:'標準計算', calcIng:'計算中…',
+    graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
+    vIso:'等角', vTop:'俯視', vFront:'前視', vSide:'側視',
+    play:'裝載順序：', xray:'透視', inner:'最內側', door:'門口',
+    export:'導出3視圖 (.dxf)', sumTitle:'裝載結果摘要',
+    totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
+    detail:'各類別裝載數量：', boxU:'箱',
+    warnTitle:'部分箱體未能完全裝入！', wShort:'短缺', wReq:'需求', wPack:'實裝',
+    wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。',
+    wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。',
+    remTitle:'整體剩餘間隙', remD:'深度(Z)', remW:'寬度(X)', remH:'高度(Y)', remInc:'含預留',
+    helpBtn:'使用說明', helpTitle:'操作說明',
+    closeBtn:'關閉',
+    fixTitle:'v'+APP_VER+' 修正項目',
+    fix1:'修正1：極端點浮點數容差 EPS=0.5mm，去重量化至1mm格',
+    fix2:'修正2：GRASP 100次迭代、Fisher-Yates洗牌、擾動機率提升',
+    fix3:'修正3：支撐閾值可調 20~80%（預設50%，原固定80%）',
+    fix4:'修正4：深層優化流光進度條',
+    fix5:'修正5：3D畫布右下角常駐操作提示',
+    ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
+  },
+  ja:{
+    title:'コンテナ積載計算ツール', lang:'中文切替', shot:'撮影', by:'作成：分室',
+    ctnSet:'コンテナ種類設定', ctnSub:'JIS/ISO 規定の「最小内部寸法」を使用',
+    gInner:'最奥部余白 (mm)', gDoor:'ドア側余白 (mm)', gRight:'右側余白 (mm)', gTop:'上部余白 (mm)',
+    gSupport:'支持面積しきい値 (%)', gSupportL:'緩やか(高積載率)', gSupportR:'厳格(高安定性)',
+    dimTotal:'内部寸法 (奥行×幅×高)', dimD:'有効奥行', dimW:'有効幅', dimH:'有効高さ',
+    boxSet:'箱寸法設定(外寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール',
+    fL:'長さ(L) mm', fW:'幅(W) mm', fH:'高さ(H) mm', fQ:'数量 (0=自動)',
+    tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
+    mNom:'標準外寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間値',
+    mLabel:'計算寸法:',
+    stratTitle:'積載方向の戦略',
+    stratAuto:'自動最適化 (全体数量最大)',
+    stratL:'優先: 箱の長さ(L)を奥行に合わせる',
+    stratW:'優先: 箱の幅(W)を奥行に合わせる',
+    calcBtn:'標準計算', calcIng:'計算中…',
+    graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
+    vIso:'等角投影', vTop:'平面図', vFront:'正面図', vSide:'側面図',
+    play:'積載順序：', xray:'透過', inner:'最奥', door:'ドア',
+    export:'3面図を出力 (.dxf)', sumTitle:'積載結果の概要',
+    totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
+    detail:'各カテゴリ積載数：', boxU:'箱',
+    warnTitle:'一部の箱が積載されませんでした！', wShort:'不足', wReq:'要求', wPack:'実積載',
+    wAnal:'🔍 原因：残りスペースがデッドスペースに細分化され、箱を収められません。',
+    wSug:'💡 提案：深層最適化を試す / 大きなコンテナに変更 / 余白を縮小。',
+    remTitle:'残りスペース', remD:'奥行(Z)', remW:'幅(X)', remH:'高さ(Y)', remInc:'余白含',
+    helpBtn:'ヘルプ', helpTitle:'操作ガイド',
+    closeBtn:'閉じる',
+    fixTitle:'v'+APP_VER+' 修正内容',
+    fix1:'修正1：極端点の浮動小数点許容差 EPS=0.5mm、1mm格子で重複除去',
+    fix2:'修正2：GRASP 100回反復、Fisher-Yatesシャッフル、摂動確率向上',
+    fix3:'修正3：支持しきい値を20~80%で調整可能（デフォルト50%、旧80%）',
+    fix4:'修正4：深層最適化プログレスバー（流光アニメ）',
+    fix5:'修正5：3Dキャンバス右下に常駐操作ヒント',
+    ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
+  }
+};
 
-    // --- 應用程式版本與更新日期 ---
-    const APP_VERSION = "1.33";
-    const APP_UPDATED_DATE = "2026/03/04";
+// ── SVG アイコン ─────────────────────────────────────────────────────────
+const Ico = {
+  Pkg:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  Plus: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  Del:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+  Spin: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+  Box:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  Warn: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Play: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+  Eye:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  Dl:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Glob: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+  Rule: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"/><line x1="6" y1="18" x2="10.1" y2="13.9"/><line x1="8" y1="20" x2="12.1" y2="15.9"/><line x1="10" y1="22" x2="14.1" y2="17.9"/><line x1="14" y1="20" x2="18.1" y2="15.9"/><line x1="16" y1="18" x2="20.1" y2="13.9"/></svg>,
+  Cam:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+  Book: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  Star: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
+  Chk:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  X:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+};
 
-    // --- 常數與工具函數 ---
-    const CONTAINERS = {
-      '20GP': { id: '20GP', w: 2330, h: 2350, d: 5867, maxWeight: 28200 },
-      '40GP': { id: '40GP', w: 2330, h: 2350, d: 11998, maxWeight: 28800 },
-      '40HQ': { id: '40HQ', w: 2330, h: 2655, d: 11998, maxWeight: 28600 }
-    };
-    const DEFAULT_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
-    const generateId = () => Math.random().toString(36).substr(2, 9);
-    
-    const isColliding = (x, y, z, w, h, d, packed) => {
-      for (let b of packed) {
-        if (!(x >= b.x + b.w || x + w <= b.x || y >= b.y + b.h || y + h <= b.y || z >= b.z + b.d || z + d <= b.z)) return true;
-      }
-      return false;
-    };
-    
-    const isSupported = (x, y, z, w, h, d, packed) => {
-      if (y === 0) return true; 
-      let supportedArea = 0;
-      for (let b of packed) {
-        if (Math.abs((b.y + b.h) - y) < 1.0) {
-          let ix1 = Math.max(x, b.x), iz1 = Math.max(z, b.z), ix2 = Math.min(x + w, b.x + b.w), iz2 = Math.min(z + d, b.z + b.d);
-          if (ix1 < ix2 && iz1 < iz2) supportedArea += (ix2 - ix1) * (iz2 - iz1);
+// ── 裝載演算法核心 ────────────────────────────────────────────────────────
+function isColliding(x,y,z,w,h,d,packed){
+  for(const b of packed){
+    if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS)) return true;
+  }
+  return false;
+}
+
+function isSupported(x,y,z,w,h,d,packed,thresh){
+  if(y<EPS) return true;
+  let area=0;
+  for(const b of packed){
+    if(Math.abs((b.y+b.h)-y)<EPS){
+      const ix1=Math.max(x,b.x), iz1=Math.max(z,b.z);
+      const ix2=Math.min(x+w,b.x+b.w), iz2=Math.min(z+d,b.z+b.d);
+      if(ix1<ix2-EPS&&iz1<iz2-EPS) area+=(ix2-ix1)*(iz2-iz1);
+    }
+  }
+  return area/(w*d)>=thresh;
+}
+
+function getOrientations(b, strat){
+  const u=new Set(), res=[];
+  const perms=[[b.w,b.h,b.d],[b.d,b.h,b.w]];
+  for(const p of perms){
+    const k=`${Math.round(p[0])},${Math.round(p[1])},${Math.round(p[2])}`;
+    if(!u.has(k)){
+      u.add(k);
+      let pref=true;
+      if(strat==='length'&&Math.abs(p[2]-b.d)>EPS) pref=false;
+      if(strat==='width' &&Math.abs(p[2]-b.w)>EPS) pref=false;
+      res.push({w:p[0],h:p[1],d:p[2],pref});
+    }
+  }
+  return res;
+}
+
+function dedupPoints(pts){
+  const s=new Set(), r=[];
+  for(const p of pts){
+    const k=`${Math.round(p.x)},${Math.round(p.y)},${Math.round(p.z)}`;
+    if(!s.has(k)){s.add(k);r.push(p);}
+  }
+  return r;
+}
+
+function ptInsideBox(p,b){
+  return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;
+}
+
+function simulate(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize){
+  let pts=[{x:0,y:0,z:innerGap}], packed=[];
+  const finInv=[], infInv=[];
+  boxTypes.forEach(b=>{
+    let aL=b.L, aW=b.W, aH=b.H;
+    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
+    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
+    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
+    const item={...b,w:aW,h:aH,d:aL};
+    if(b.qty>0){item.remaining=b.qty;finInv.push(item);}
+    else{item.remaining=Infinity;infInv.push(item);}
+  });
+  let count=0;
+  for(const inv of [finInv,infInv]){
+    if(!inv.length) continue;
+    let canPack=true;
+    while(canPack&&count<3000){
+      canPack=false;
+      pts.sort((a,b)=>{
+        if(Math.abs(a.z-b.z)>1) return a.z-b.z;
+        if(randomize&&Math.random()<0.45) return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);
+        return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;
+      });
+      for(const pt of pts){
+        let bIdx=-1, bOri=null, bVol=-1, bFit=-1, bD=-1, bPref=false;
+        let idx=inv.map((_,i)=>i);
+        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]];}}
+        for(const i of idx){
+          const box=inv[i];
+          if(box.remaining<=0) continue;
+          let cs=strat;
+          if(randomize&&Math.random()>0.65) cs=Math.random()>0.5?'length':'width';
+          for(const ori of getOrientations(box,cs)){
+            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS) continue;
+            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){
+              const vol=ori.w*ori.h*ori.d;
+              const fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);
+              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol;
+              let better=false;
+              if(bIdx===-1) better=true;
+              else if(ori.pref&&!bPref) better=true;
+              else if(!ori.pref&&bPref) better=false;
+              else if(ev>bVol) better=true;
+              else if(ev===bVol&&fit>bFit) better=true;
+              else if(ev===bVol&&fit===bFit&&ori.d>bD) better=true;
+              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}
+            }
+          }
+        }
+        if(bIdx!==-1){
+          const bb=inv[bIdx];
+          packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});
+          bb.remaining--;count++;canPack=true;
+          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});
+          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));
+          pts=dedupPoints(pts);
+          break;
         }
       }
-      return (supportedArea / (w * d)) >= 0.8; 
-    };
-    
-    const getOrientations = (b, strategy = 'length') => {
-      const unique = new Set(), orientations = [];
-      const perms = [[b.w, b.h, b.d], [b.d, b.h, b.w]]; 
-      for (let p of perms) {
-        const key = p.join(',');
-        if (!unique.has(key)) { 
-          unique.add(key); 
-          let isPreferred = true; 
-          if (strategy === 'length' && p[2] !== b.d) isPreferred = false; 
-          if (strategy === 'width' && p[2] !== b.w) isPreferred = false;  
-          orientations.push({ w: p[0], h: p[1], d: p[2], isPreferred }); 
-        }
+    }
+  }
+  return packed;
+}
+
+function getGaps(packed, container, axis, limit){
+  if(!packed.length) return [limit];
+  const step=50, vis=new Set();
+  if(axis==='X'){
+    const dY=Math.ceil(container.h/step),dZ=Math.ceil(container.d/step),g=new Float32Array(dY*dZ).fill(-1);
+    packed.forEach(p=>{const lim=p.x+p.w,sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let y=sy;y<ey&&y<dY;y++)for(let z=sz;z<ez&&z<dZ;z++){const i=y*dZ+z;if(lim>g[i])g[i]=lim;}});
+    g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
+  }else if(axis==='Y'){
+    const dX=Math.ceil(container.w/step),dZ=Math.ceil(container.d/step),g=new Float32Array(dX*dZ).fill(-1);
+    packed.forEach(p=>{const lim=p.y+p.h,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let x=sx;x<ex&&x<dX;x++)for(let z=sz;z<ez&&z<dZ;z++){const i=x*dZ+z;if(lim>g[i])g[i]=lim;}});
+    g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
+  }else{
+    const dX=Math.ceil(container.w/step),dY=Math.ceil(container.h/step),g=new Float32Array(dX*dY).fill(-1);
+    packed.forEach(p=>{const lim=p.z+p.d,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step);for(let x=sx;x<ex&&x<dX;x++)for(let y=sy;y<ey&&y<dY;y++){const i=x*dY+y;if(lim>g[i])g[i]=lim;}});
+    g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
+  }
+  const lims=Array.from(vis).sort((a,b)=>b-a);
+  const gaps=lims.map(l=>Math.max(0,limit-l)).filter((g,i,a)=>g>=0&&a.indexOf(g)===i);
+  return gaps.length?gaps.slice(0,3):[0];
+}
+
+// ── Modal 元件 ────────────────────────────────────────────────────────────
+function Modal({onClose, title, children}){
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
+            <Ico.X c="w-5 h-5"/>
+          </button>
+        </div>
+        <div className="p-5 overflow-y-auto scr">{children}</div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+          <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">{T.zh.closeBtn}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── メインアプリ ──────────────────────────────────────────────────────────
+function App(){
+  const [lang, setLang] = useState('zh');
+  const t = T[lang];
+
+  const [ctnType,  setCtnType]  = useState('20GP');
+  const [doorGap,  setDoorGap]  = useState(248);
+  const [innerGap, setInnerGap] = useState(20);
+  const [rightGap, setRightGap] = useState(10);
+  const [topGap,   setTopGap]   = useState(50);
+  const [suppPct,  setSuppPct]  = useState(50);
+
+  const [boxes, setBoxes] = useState([{
+    id:uid(), name:'紙箱 A', L:600, W:400, H:400,
+    color:COLORS[0], qty:0, tolPlus:0, tolMinus:0, calcMode:'nominal'
+  }]);
+  const [strat, setStrat]   = useState('auto');
+  const [result, setResult] = useState({packed:[], stats:null});
+  const [loading, setLoading]   = useState(false);
+  const [graspOn, setGraspOn]   = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [step, setStep]         = useState(0);
+  const [xray, setXray]         = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [fixOpen,  setFixOpen]  = useState(false);
+
+  const canvasRef   = useRef(null);
+  const meshesRef   = useRef([]);
+  const dimRef      = useRef(null);
+  const camRef      = useRef(null);
+  const ctrlRef     = useRef(null);
+
+  // ── スクリーンショット ────────────────────────────────────────────────
+  const doShot = () => {
+    const el=document.getElementById('app-root');
+    if(window.htmlToImage){
+      window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#f8fafc',pixelRatio:2})
+        .then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
+    }
+  };
+
+  // ── 計算実行 ──────────────────────────────────────────────────────────
+  const doCalc = (deep) => {
+    setLoading(true);
+    if(deep){setGraspOn(true);setProgress(0);}
+    setTimeout(()=>{
+      const c=CONTAINERS[ctnType];
+      const maxX=Math.max(0,c.w-rightGap);
+      const maxY=Math.max(0,c.h-topGap);
+      const maxZ=Math.max(0,c.d-doorGap);
+      const thr=suppPct/100;
+
+      let best=[], bestVol=-1;
+      const tryIt=(arr)=>{const v=arr.reduce((s,p)=>s+p.w*p.h*p.d,0);if(v>bestVol){bestVol=v;best=arr;}};
+
+      if(strat==='auto'){
+        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'length',thr,false));
+        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'width', thr,false));
+      }else{
+        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,strat,thr,false));
       }
-      return orientations;
-    };
 
-    // --- 主程式組件 ---
-    function App() {
-      const [lang, setLang] = useState('zh');
-      const t = translations[lang];
-      const [threeLoaded, setThreeLoaded] = useState(true);
-      const [containerType, setContainerType] = useState('20GP');
-      const [doorGap, setDoorGap] = useState(248);
-      const [innerGap, setInnerGap] = useState(20);
-      const [rightGap, setRightGap] = useState(10); 
-      const [topGap, setTopGap] = useState(50); 
-      const [boxTypes, setBoxTypes] = useState([
-        { id: generateId(), name: `${translations.zh.defaultBoxPrefix} A`, L: 600, W: 400, H: 400, color: DEFAULT_COLORS[0], qty: 0, tolPlus: 0, tolMinus: 0, calcMode: 'nominal' }
-      ]);
-      const [packingResult, setPackingResult] = useState({ packed: [], error: null, stats: null });
-      const [isCalculating, setIsCalculating] = useState(false);
-      const [isDeepOptimizing, setIsDeepOptimizing] = useState(false); // 新增：是否處於深層優化狀態
-      const [optimizeProgress, setOptimizeProgress] = useState(0);     // 新增：深層優化進度
-      const [packingStrategy, setPackingStrategy] = useState('auto');
-      const [renderStep, setRenderStep] = useState(0);
-      const [isTransparent, setIsTransparent] = useState(false);
-      const [showHelp, setShowHelp] = useState(false);
-      
-      const meshesRef = useRef([]); 
-      const dimGroupRef = useRef(null);
-      const canvasRef = useRef(null);
-      const sceneRef = useRef(null);
-      const cameraRef = useRef(null);
-      const controlsRef = useRef(null);
+      if(!deep){finalize(best,c,maxX,maxY,maxZ);return;}
 
-      const handleScreenshot = () => {
-        const element = document.getElementById('app-container');
-        if (window.htmlToImage) {
-          window.htmlToImage.toJpeg(element, { quality: 0.95, backgroundColor: "#f8fafc", pixelRatio: 2 })
-            .then(function (dataUrl) {
-              const link = document.createElement('a');
-              link.download = `Container_Plan_${new Date().getTime()}.jpg`;
-              link.href = dataUrl;
-              link.click();
-            })
-            .catch(function (error) {
-              console.error('截圖發生錯誤:', error);
-            });
+      const ITER=100; let cur=0;
+      const loop=()=>{
+        for(let i=0;i<5&&cur<ITER;i++){
+          let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat;
+          tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,s2,thr,true));
+          if(cur%10===0){
+            tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'length',thr,true));
+            tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'width', thr,true));
+          }
+          cur++;
         }
+        setProgress(Math.round(cur/ITER*100));
+        if(cur<ITER) setTimeout(loop,10);
+        else finalize(best,c,maxX,maxY,maxZ);
       };
+      loop();
+    },50);
+  };
 
-      // 主要計算控制函數：結合單次標準計算與多次迭代的GRASP演算法
-      const handleCalculate = (isDeep) => {
-        setIsCalculating(true);
-        if (isDeep) {
-          setIsDeepOptimizing(true);
-          setOptimizeProgress(0);
-        }
+  const finalize=(packed,c,maxX,maxY,maxZ)=>{
+    let vol=0; const counts={};
+    packed.forEach(p=>{vol+=p.w*p.h*p.d;counts[p.typeId]=(counts[p.typeId]||0)+1;});
+    const rem={w:getGaps(packed,c,'X',maxX),h:getGaps(packed,c,'Y',maxY),d:getGaps(packed,c,'Z',maxZ)};
+    const warns=[];
+    boxes.forEach(b=>{if(b.qty>0&&(counts[b.id]||0)<b.qty) warns.push({name:b.name,color:b.color,req:b.qty,pk:counts[b.id]||0,lack:b.qty-(counts[b.id]||0)});});
+    setResult({packed,stats:{total:packed.length,util:((vol/(c.w*c.h*c.d))*100).toFixed(2),vol,counts,warns,rem}});
+    setStep(packed.length);
+    setLoading(false);setGraspOn(false);
+  };
 
-        setTimeout(() => {
-          const c = CONTAINERS[containerType];
-          const maxZ_limit = Math.max(0, c.d - doorGap);
-          const maxX_limit = Math.max(0, c.w - rightGap);
-          const maxY_limit = Math.max(0, c.h - topGap);
+  // ── 3D Scene ──────────────────────────────────────────────────────────
+  useEffect(()=>{
+    if(!canvasRef.current||!window.THREE) return;
+    const THREE=window.THREE;
+    canvasRef.current.innerHTML='';
+    meshesRef.current=[];
+    const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
+    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
+    const camera=new THREE.PerspectiveCamera(45,W/H,1,100000); camRef.current=camera;
+    const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+    renderer.setSize(W,H); canvasRef.current.appendChild(renderer.domElement);
+    const controls=new THREE.OrbitControls(camera,renderer.domElement);
+    controls.enableDamping=true; ctrlRef.current=controls;
+    scene.add(new THREE.AmbientLight(0xffffff,.6));
+    const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(10000,20000,10000); scene.add(dl);
 
-          // 封裝單次裝載邏輯，支援隨機擾動 (Randomize) 參數
-          const simulatePacking = (simStrategy, randomize = false) => {
-            let points = [{ x: 0, y: 0, z: innerGap }], packed = [];
-            let finiteInventory = [], infiniteInventory = [];
-            
-            boxTypes.forEach(b => {
-              let adjL = b.L, adjW = b.W, adjH = b.H;
-              if (b.calcMode === 'max') { adjL += b.tolPlus; adjW += b.tolPlus; adjH += b.tolPlus; }
-              else if (b.calcMode === 'min') { adjL -= b.tolMinus; adjW -= b.tolMinus; adjH -= b.tolMinus; }
-              else if (b.calcMode === 'mid') { const diff = (b.tolPlus - b.tolMinus) / 2; adjL += diff; adjW += diff; adjH += diff; }
-              let item = { ...b, w: adjW, h: adjH, d: adjL };
-              if (b.qty > 0) { item.remaining = b.qty; finiteInventory.push(item); }
-              else { item.remaining = Infinity; infiniteInventory.push(item); }
-            });
+    const c=CONTAINERS[ctnType];
+    scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),new THREE.LineBasicMaterial({color:0x334155,linewidth:2})));
 
-            let phases = [finiteInventory, infiniteInventory], packedCount = 0;
-            const MAX_BOXES = 3000;
-            
-            for (let currentInventory of phases) {
-              if (currentInventory.length === 0) continue; 
-              let canPack = true;
-              while (canPack && packedCount < MAX_BOXES) {
-                canPack = false;
-                
-                // 排序節點。若為深層優化(randomize)，有 30% 機率會改變 X/Y 軸的優先權，以探索不同形狀的畸零空間
-                points.sort((a, b) => {
-                  if (Math.abs(a.z - b.z) > 1.0) return a.z - b.z;
-                  if (randomize && Math.random() > 0.7) {
-                    return Math.abs(a.x - b.x) > 1.0 ? a.x - b.x : a.y - b.y;
-                  }
-                  return Math.abs(a.y - b.y) > 1.0 ? a.y - b.y : a.x - b.x;
-                });
+    const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
+    const corners=[new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)];
+    const edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+    const dpts=[];
+    edges.forEach(([i,j])=>{const p1=corners[i],p2=corners[j],dist=p1.distanceTo(p2),dir=new THREE.Vector3().subVectors(p2,p1).normalize();let cc=0;while(cc<dist){let n=Math.min(cc+150,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=190;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;}});
+    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})));
 
-                for (let pt of points) {
-                  let bestBoxIdx = -1, bestOri = null, maxVol = -1, maxFitCount = -1, maxDepth = -1, bestIsPreferred = false;
-                  
-                  // 打亂箱子陣列的檢查順序，讓體積相同的箱體有機會互相替換
-                  let checkIndices = currentInventory.map((_, i) => i);
-                  if (randomize) checkIndices.sort(() => Math.random() - 0.5);
+    const grp=new THREE.Group();
+    result.packed.forEach(p=>{
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(p.w,p.h,p.d),new THREE.MeshLambertMaterial({color:p.color}));
+      mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
+      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})));
+      meshesRef.current.push(mesh); grp.add(mesh);
+    });
+    scene.add(grp);
 
-                  for (let idx of checkIndices) {
-                    let box = currentInventory[idx];
-                    if (box.remaining <= 0) continue;
-
-                    // 在深層優化中，針對特定箱體偶爾(20%機率)打破全域的旋轉規則
-                    let currentStrategy = simStrategy;
-                    if (randomize && Math.random() > 0.8) {
-                        currentStrategy = Math.random() > 0.5 ? 'length' : 'width';
-                    }
-
-                    for (let ori of getOrientations(box, currentStrategy)) {
-                      if (pt.x + ori.w > maxX_limit || pt.y + ori.h > maxY_limit || pt.z + ori.d > maxZ_limit) continue;
-                      if (!isColliding(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed) && isSupported(pt.x, pt.y, pt.z, ori.w, ori.h, ori.d, packed)) {
-                        let vol = ori.w * ori.h * ori.d;
-                        let fitCount = Math.floor((maxX_limit - pt.x) / ori.w) * Math.floor((maxY_limit - pt.y) / ori.h) * Math.floor((maxZ_limit - pt.z) / ori.d);
-                        
-                        // 加入些微的隨機體積雜訊 (+/- 5%)，這會讓演算法偶爾挑選稍小的箱子，以換取未來更好的排列空間
-                        let evalVol = vol;
-                        if (randomize) evalVol *= (1 + (Math.random() * 0.1 - 0.05)); 
-
-                        let isBetter = false;
-                        if (bestBoxIdx === -1) {
-                          isBetter = true;
-                        } else if (ori.isPreferred && !bestIsPreferred) {
-                          isBetter = true; 
-                        } else if (!ori.isPreferred && bestIsPreferred) {
-                          isBetter = false; 
-                        } else {
-                          if (evalVol > maxVol) isBetter = true;
-                          else if (evalVol === maxVol && fitCount > maxFitCount) isBetter = true;
-                          else if (evalVol === maxVol && fitCount === maxFitCount && ori.d > maxDepth) isBetter = true;
-                        }
-
-                        if (isBetter) { maxVol = evalVol; maxFitCount = fitCount; maxDepth = ori.d; bestBoxIdx = idx; bestOri = ori; bestIsPreferred = ori.isPreferred; }
-                      }
-                    }
-                  }
-                  if (bestBoxIdx !== -1) {
-                    let bestBox = currentInventory[bestBoxIdx];
-                    packed.push({ x: pt.x, y: pt.y, z: pt.z, w: bestOri.w, h: bestOri.h, d: bestOri.d, color: bestBox.color, typeId: bestBox.id, name: bestBox.name });
-                    bestBox.remaining--; packedCount++; canPack = true;
-                    points.push({ x: pt.x + bestOri.w, y: pt.y, z: pt.z }, { x: pt.x, y: pt.y + bestOri.h, z: pt.z }, { x: pt.x, y: pt.y, z: pt.z + bestOri.d });
-                    points = points.filter(p => p !== pt && p.x < maxX_limit && p.y < maxY_limit && p.z < maxZ_limit && !packed.some(b => p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h && p.z > b.z && p.z < b.z + b.d));
-                    const pSet = new Set(), uniquePoints = [];
-                    for (let p of points) { let key = `${Math.round(p.x*10)},${Math.round(p.y*10)},${Math.round(p.z*10)}`; if (!pSet.has(key)) { pSet.add(key); uniquePoints.push(p); } }
-                    points = uniquePoints; break;
-                  }
-                }
-              }
-            }
-            return packed;
-          };
-
-          let bestPacked = [];
-          let bestVol = -1;
-
-          const checkAndSave = (packedArray) => {
-            let vol = packedArray.reduce((sum, p) => sum + (p.w * p.h * p.d), 0);
-            if (vol > bestVol) {
-              bestVol = vol;
-              bestPacked = packedArray;
-            }
-          };
-
-          // 1. 執行標準評估 (無隨機擾動)
-          if (packingStrategy === 'auto') {
-            checkAndSave(simulatePacking('length', false));
-            checkAndSave(simulatePacking('width', false));
-          } else {
-            checkAndSave(simulatePacking(packingStrategy, false));
-          }
-
-          // 如果不是深層優化，就直接顯示結果
-          if (!isDeep) {
-            finalizeResult(bestPacked, c, maxX_limit, maxY_limit, maxZ_limit);
-            return;
-          }
-
-          // 2. 深層優化 (非阻塞異步迭代)
-          const totalDeepIterations = 50; // 迭代次數
-          let currentIter = 0;
-
-          const deepLoop = () => {
-            // 每批次執行 5 次運算，避免主執行緒卡死
-            for (let i = 0; i < 5 && currentIter < totalDeepIterations; i++) {
-              let strat = packingStrategy;
-              if (strat === 'auto') {
-                  strat = Math.random() > 0.5 ? 'length' : 'width';
-              }
-              checkAndSave(simulatePacking(strat, true)); // 啟動 randomize
-              currentIter++;
-            }
-
-            setOptimizeProgress(Math.round((currentIter / totalDeepIterations) * 100));
-
-            if (currentIter < totalDeepIterations) {
-              // 讓出執行緒給 React 渲染進度條
-              setTimeout(deepLoop, 10);
-            } else {
-              // 優化完成，顯示最佳解
-              finalizeResult(bestPacked, c, maxX_limit, maxY_limit, maxZ_limit);
-            }
-          };
-
-          deepLoop();
-
-        }, 50); 
+    const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
+    if(result.stats?.rem&&result.packed.length>0){
+      const {w:gW,h:gH,d:gD}=result.stats.rem;
+      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})));
+      const addD=(p1,p2,txt,col,sx,sy,sz)=>{
+        dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,linewidth:2})));
+        const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
+        const cv=document.createElement('canvas'); cv.width=1536; cv.height=150;
+        const ctx=cv.getContext('2d'); ctx.fillStyle=col; ctx.font='bold 55px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.strokeStyle='white'; ctx.lineWidth=8; ctx.strokeText(txt,768,75); ctx.fillText(txt,768,75);
+        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true})); sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
       };
+      const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0, x0=eX0;
+      gW.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX-g,y0,lZ+off),p2=new THREE.Vector3(lX,y0,lZ+off);addL(new THREE.Vector3(lX-g,y0,lZ),p1,'#2563eb');addL(new THREE.Vector3(lX,y0,lZ),p2,'#2563eb');addD(p1,p2,t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)','#2563eb',0,0,150);}});
+      gH.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX+off,lY-g,lZ),p2=new THREE.Vector3(lX+off,lY,lZ);addL(new THREE.Vector3(lX,lY-g,lZ),p1,'#16a34a');addL(new THREE.Vector3(lX,lY,lZ),p2,'#16a34a');addD(p1,p2,t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)','#16a34a',200,0,0);}});
+      gD.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX,y0-off,lZ-g),p2=new THREE.Vector3(lX,y0-off,lZ);addL(new THREE.Vector3(lX,y0,lZ-g),p1,'#ea580c');addL(new THREE.Vector3(lX,y0,lZ),p2,'#ea580c');addD(p1,p2,t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)','#ea580c',0,-200,0);}});
+    }
+    scene.add(dimGrp);
 
-      // 彙整並計算顯示結果
-      const finalizeResult = (packed, c, maxX_limit, maxY_limit, maxZ_limit) => {
-        let totalBoxVolume = 0; 
-        const counts = {};
-        packed.forEach(p => { totalBoxVolume += (p.w * p.h * p.d); counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
-        
-        const getVisibleGaps = (packedItems, container, axisDirection, limitVal) => {
-          if (packedItems.length === 0) return [limitVal];
-          const step = 50; let visibleLimits = new Set();
-          if (axisDirection === 'X') {
-            const dY = Math.ceil(container.h / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dY * dZ).fill(-1);
-            packedItems.forEach(p => { const limit = p.x + p.w, sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let y=sy; y<ey && y<dY; y++) for (let z=sz; z<ez && z<dZ; z++) { const idx=y*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
-            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-          } else if (axisDirection === 'Y') {
-            const dX = Math.ceil(container.w / step), dZ = Math.ceil(container.d / step), grid = new Float32Array(dX * dZ).fill(-1);
-            packedItems.forEach(p => { const limit = p.y + p.h, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sz = Math.floor(p.z/step), ez = Math.ceil((p.z+p.d)/step); for (let x=sx; x<ex && x<dX; x++) for (let z=sz; z<ez && z<dZ; z++) { const idx=x*dZ+z; if (limit > grid[idx]) grid[idx]=limit; } });
-            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-          } else if (axisDirection === 'Z') {
-            const dX = Math.ceil(container.w / step), dY = Math.ceil(container.h / step), grid = new Float32Array(dX * dY).fill(-1);
-            packedItems.forEach(p => { const limit = p.z + p.d, sx = Math.floor(p.x/step), ex = Math.ceil((p.x+p.w)/step), sy = Math.floor(p.y/step), ey = Math.ceil((p.y+p.h)/step); for (let x=sx; x<ex && x<dX; x++) for (let y=sy; y<ey && y<dY; y++) { const idx=x*dY+y; if (limit > grid[idx]) grid[idx]=limit; } });
-            grid.forEach(v => { if (v>=0) visibleLimits.add(Math.round(v)); });
-          }
-          let limits = Array.from(visibleLimits).sort((a, b) => b - a);
-          let gaps = limits.map(l => Math.max(0, limitVal - l)).filter((g, i, a) => g >= 0 && a.indexOf(g) === i);
-          return (gaps.length === 0 ? [0] : gaps.slice(0, 3));
-        };
+    camera.position.set(c.w*1.5,c.h*1.5,c.d*1.2); controls.update();
+    const animate=()=>{requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
+    animate();
+    const onResize=()=>{if(!canvasRef.current)return;camera.aspect=canvasRef.current.clientWidth/canvasRef.current.clientHeight;camera.updateProjectionMatrix();renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);};
+    window.addEventListener('resize',onResize);
+    return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
+  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang]);
 
-        const remainingGaps = { w: getVisibleGaps(packed, c, 'X', maxX_limit), h: getVisibleGaps(packed, c, 'Y', maxY_limit), d: getVisibleGaps(packed, c, 'Z', maxZ_limit) };
-        let warnings = []; boxTypes.forEach(b => { if (b.qty > 0 && (counts[b.id] || 0) < b.qty) warnings.push({ name: b.name, color: b.color, requested: b.qty, packed: counts[b.id] || 0, shortfall: b.qty - (counts[b.id] || 0) }); });
+  useEffect(()=>{
+    meshesRef.current.forEach((m,i)=>{m.visible=i<step;m.material.transparent=xray;m.material.opacity=xray?.3:1;m.material.depthWrite=!xray;});
+    if(dimRef.current) dimRef.current.visible=(step===result.packed.length&&result.packed.length>0);
+  },[step,xray,result]);
 
-        setPackingResult({ packed, error: null, stats: { totalBoxes: packed.length, utilization: ((totalBoxVolume / (c.w * c.h * c.d)) * 100).toFixed(2), counts, totalBoxVolume, warnings, remainingGaps } });
-        setRenderStep(packed.length); 
-        setIsCalculating(false);
-        setIsDeepOptimizing(false);
-      }
+  const changeView=(v)=>{
+    const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
+    if(!cam||!ctrl) return;
+    ctrl.target.set(0,0,0);
+    if(v==='iso')   cam.position.set(c.w*1.5,c.h*1.5,c.d*1.2);
+    if(v==='top')   cam.position.set(0,Math.max(c.w,c.d)*1.2,.1);
+    if(v==='front') cam.position.set(0,0,c.d*1.5);
+    if(v==='side')  cam.position.set(c.d*1.5,0,0);
+    ctrl.update();
+  };
 
-      useEffect(() => {
-        if (!threeLoaded || !canvasRef.current || !window.THREE) return;
-        const { THREE } = window;
-        const width = canvasRef.current.clientWidth, height = canvasRef.current.clientHeight;
-        canvasRef.current.innerHTML = '';
-        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9); sceneRef.current = scene; meshesRef.current = [];
-        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000); cameraRef.current = camera;
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); 
-        renderer.setSize(width, height); canvasRef.current.appendChild(renderer.domElement);
-        
-        const controls = new window.THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controlsRef.current = controls;
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); dirLight.position.set(10000, 20000, 10000); scene.add(dirLight);
+  // ── DXF エクスポート ──────────────────────────────────────────────────
+  const doExport=()=>{
+    if(!result.packed.length) return;
+    const c=CONTAINERS[ctnType], sc=1/40, gap=1500*sc, eps=1e-4;
+    let dxf='0\nSECTION\n2\nENTITIES\n';
+    const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
+    const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
+    const aci=id=>{const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
+    const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
+    rect(0,0,cW,cH,'CONTAINER',7);
+    rect(0,cH+gap,cW,cD,'CONTAINER',7);
+    rect(cW+gap,0,cD,cH,'CONTAINER',7);
+    const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
+    const pview=(faces,dx,dy)=>{for(let i=0;i<faces.length;i++){const F=faces[i];let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];for(let j=0;j<faces.length;j++){if(i===j)continue;const O=faces[j];if(O.depth>F.depth+eps){if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);}}tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});rS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+F.w+dx,s.s+dy,F.x+F.w+dx,s.e+dy,F.lay,F.col);});}};
+    pview(result.packed.map(p=>({x:p.x*sc,y:p.y*sc,w:p.w*sc,h:p.h*sc,depth:(p.z+p.d)*sc,col:aci(p.typeId),lay:'FRONT'})),0,0);
+    pview(result.packed.map(p=>({x:p.x*sc,y:cD-(p.z+p.d)*sc,w:p.w*sc,h:p.d*sc,depth:(p.y+p.h)*sc,col:aci(p.typeId),lay:'TOP'})),0,cH+gap);
+    pview(result.packed.map(p=>({x:cD-(p.z+p.d)*sc,y:p.y*sc,w:p.d*sc,h:p.h*sc,depth:(p.x+p.w)*sc,col:aci(p.typeId),lay:'SIDE'})),cW+gap,0);
+    dxf+='0\nENDSEC\n0\nEOF\n';
+    const blob=new Blob([dxf],{type:'application/dxf'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='3view_'+ctnType+'.dxf';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  };
 
-        const c = CONTAINERS[containerType];
-        const containerGeo = new THREE.BoxGeometry(c.w, c.h, c.d);
-        const containerOutline = new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2 }));
-        scene.add(containerOutline);
+  const c=CONTAINERS[ctnType];
+  const hasPacked=result.packed.length>0;
 
-        const effMinX = -c.w / 2, effMaxX = effMinX + (c.w - rightGap), effMinY = -c.h / 2, effMaxY = effMinY + (c.h - topGap), effMinZ = -c.d / 2 + innerGap, effMaxZ = c.d / 2 - doorGap;
-        const corners = [new THREE.Vector3(effMinX, effMinY, effMinZ), new THREE.Vector3(effMaxX, effMinY, effMinZ), new THREE.Vector3(effMinX, effMaxY, effMinZ), new THREE.Vector3(effMaxX, effMaxY, effMinZ), new THREE.Vector3(effMinX, effMinY, effMaxZ), new THREE.Vector3(effMaxX, effMinY, effMaxZ), new THREE.Vector3(effMinX, effMaxY, effMaxZ), new THREE.Vector3(effMaxX, effMaxY, effMaxZ)];
-        const edgesDef = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
-        const doubleDotGeoPts = [];
-        edgesDef.forEach(([i, j]) => {
-          const p1 = corners[i], p2 = corners[j], distance = p1.distanceTo(p2), dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-          let curr = 0; while (curr < distance) {
-            let next = Math.min(curr + 150, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
-            curr += 190; if (curr >= distance) break;
-            next = Math.min(curr + 15, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
-            curr += 55; if (curr >= distance) break;
-            next = Math.min(curr + 15, distance); doubleDotGeoPts.push(p1.clone().add(dir.clone().multiplyScalar(curr)), p1.clone().add(dir.clone().multiplyScalar(next)));
-            curr += 55;
-          }
-        });
-        scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(doubleDotGeoPts), new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 })));
+  return (
+    <div id="app-root" className="min-h-screen p-4 md:p-6 bg-slate-50">
 
-        const group = new THREE.Group();
-        packingResult.packed.forEach((p, idx) => {
-          const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), new THREE.MeshLambertMaterial({ color: p.color }));
-          mesh.position.set(p.x + p.w / 2 - c.w / 2, p.y + p.h / 2 - c.h / 2, p.z + p.d / 2 - c.d / 2);
-          mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })));
-          meshesRef.current.push(mesh); group.add(mesh);
-        });
-        scene.add(group);
+      {helpOpen && (
+        <Modal onClose={()=>setHelpOpen(false)} title={t.helpTitle}>
+          <div className="space-y-4 text-sm text-slate-700">
+            <p>1. {lang==='zh'?'選擇貨櫃種類並設定四側預留空間。':'コンテナの種類を選択し、四方の余白を設定します。'}</p>
+            <p>2. {lang==='zh'?'新增箱體並輸入外箱長寬高、數量及公差。':'箱を追加し、外寸・数量・公差を入力します。'}</p>
+            <p>3. {lang==='zh'?'選擇裝載方向策略後，點擊「標準計算」或「深層優化」。':'積載方向を選択後「標準計算」または「深層最適化」をクリック。'}</p>
+            <p>4. {lang==='zh'?'支撐面積閾值：箱體底部需有多少比例的面積被支撐，才可放置。預設50%，越低裝載率越高但穩定性越低。':'支持面積しきい値：箱底部の支持比率。低いほど積載率は高いが安定性は低下します。'}</p>
+            <p>5. {lang==='zh'?'深層優化（GRASP）：執行100次隨機迭代，尋找更好的排列方案。':'深層最適化（GRASP）：100回のランダム反復で最良の配置を探索します。'}</p>
+          </div>
+        </Modal>
+      )}
 
-        dimGroupRef.current = new THREE.Group();
-        if (packingResult.stats?.remainingGaps && packingResult.packed.length > 0) {
-          const { w:gW, h:gH, d:gD } = packingResult.stats.remainingGaps, x0 = -c.w / 2, y0 = -c.h / 2, z0 = -c.d / 2, lX = x0 + c.w - rightGap, lY = y0 + c.h - topGap, lZ = z0 + c.d - doorGap;
-          
-          const addExtLine = (p1, p2, color) => {
-            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 });
-            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), mat);
-            dimGroupRef.current.add(line);
-          };
+      {fixOpen && (
+        <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle}>
+          <div className="space-y-3">
+            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5].map((f,i)=>(
+              <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
+                <span className="text-sm text-slate-700">{f}</span>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
 
-          const addDim = (p1, p2, text, color, sx, sy, sz) => {
-            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), new THREE.LineBasicMaterial({ color, linewidth: 2 })); dimGroupRef.current.add(line);
-            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5).add(new THREE.Vector3(sx, sy, sz));
-            const canvas = document.createElement('canvas'); canvas.width = 1536; canvas.height = 150;
-            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 55px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = 'white'; ctx.lineWidth = 8; ctx.strokeText(text, 768, 75); ctx.fillText(text, 768, 75);
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })); sprite.scale.set(3072, 300, 1); sprite.position.copy(mid); dimGroupRef.current.add(sprite);
-          };
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+          <div className="flex items-center gap-3">
+            <Ico.Pkg c="w-8 h-8 text-blue-600"/>
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2 flex-wrap">
+              {t.title}
+              <button onClick={()=>setFixOpen(true)} className="text-xs font-medium px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md border border-emerald-200 hover:bg-emerald-200 transition-colors">
+                {'Ver.'+APP_VER+' · '+APP_DATE+' '+t.by}
+              </button>
+            </h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={doExport} disabled={!hasPacked} className={'flex items-center px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
+              <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
+            </button>
+            <button onClick={doShot} className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+              <Ico.Cam c="w-4 h-4 mr-1.5"/>{t.shot}
+            </button>
+            <button onClick={()=>setHelpOpen(true)} className="flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg text-sm shadow-sm font-medium transition-colors">
+              <Ico.Book c="w-4 h-4 mr-1.5"/>{t.helpBtn}
+            </button>
+            <button onClick={()=>setLang(l=>l==='zh'?'ja':'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+              <Ico.Glob c="w-4 h-4 mr-1.5"/>{t.lang}
+            </button>
+          </div>
+        </header>
 
-          gW.forEach((g, i) => {
-            if (g > 0) {
-              const offset = 400 + i*300;
-              const p1 = new THREE.Vector3(lX - g, y0, lZ + offset);
-              const p2 = new THREE.Vector3(lX, y0, lZ + offset);
-              addExtLine(new THREE.Vector3(lX - g, y0, lZ), p1, '#2563eb');
-              addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#2563eb');
-              addDim(p1, p2, `${t.remainW}: ${g}mm (${t.actualGap2}: ${g + rightGap}mm)`, '#2563eb', 0, 0, 150);
-            }
-          });
-
-          gH.forEach((g, i) => {
-            if (g > 0) {
-              const offset = 400 + i*300;
-              const p1 = new THREE.Vector3(lX + offset, lY - g, lZ);
-              const p2 = new THREE.Vector3(lX + offset, lY, lZ);
-              addExtLine(new THREE.Vector3(lX, lY - g, lZ), p1, '#16a34a');
-              addExtLine(new THREE.Vector3(lX, lY, lZ), p2, '#16a34a');
-              addDim(p1, p2, `${t.remainH}: ${g}mm (${t.actualGap2}: ${g + topGap}mm)`, '#16a34a', 200, 0, 0);
-            }
-          });
-
-          gD.forEach((g, i) => {
-            if (g > 0) {
-              const offset = 400 + i*300;
-              const p1 = new THREE.Vector3(lX, y0 - offset, lZ - g);
-              const p2 = new THREE.Vector3(lX, y0 - offset, lZ);
-              addExtLine(new THREE.Vector3(lX, y0, lZ - g), p1, '#ea580c');
-              addExtLine(new THREE.Vector3(lX, y0, lZ), p2, '#ea580c');
-              addDim(p1, p2, `${t.remainL}: ${g}mm (${t.actualGap2}: ${g + doorGap}mm)`, '#ea580c', 0, -200, 0);
-            }
-          });
-        }
-        scene.add(dimGroupRef.current);
-
-        camera.position.set(c.w * 1.5, c.h * 1.5, c.d * 1.2); controls.update();
-        const animate = () => { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }; animate();
-        const handleResize = () => { if (!canvasRef.current) return; camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight); };
-        window.addEventListener('resize', handleResize);
-        return () => { window.removeEventListener('resize', handleResize); renderer.dispose(); };
-      }, [packingResult, threeLoaded, containerType, doorGap, innerGap, rightGap, topGap, lang]);
-
-      const changeView = (v) => {
-        const c = CONTAINERS[containerType], cam = cameraRef.current, ctrl = controlsRef.current; if (!cam || !ctrl) return;
-        ctrl.target.set(0, 0, 0);
-        if (v==='iso') cam.position.set(c.w*1.5, c.h*1.5, c.d*1.2);
-        else if (v==='top') cam.position.set(0, Math.max(c.w,c.d)*1.2, 0.1);
-        else if (v==='front') cam.position.set(0, 0, c.d*1.5);
-        else if (v==='side') cam.position.set(c.d*1.5, 0, 0);
-        ctrl.update();
-      };
-
-      useEffect(() => {
-        meshesRef.current.forEach((m, i) => { m.visible = i < renderStep; m.material.transparent = isTransparent; m.material.opacity = isTransparent ? 0.3 : 1.0; m.material.depthWrite = !isTransparent; });
-        if (dimGroupRef.current) dimGroupRef.current.visible = (renderStep === packingResult.packed.length && packingResult.packed.length > 0);
-      }, [renderStep, isTransparent, packingResult]);
-
-      const handleBoxChange = (id, f, v) => setBoxTypes(boxTypes.map(b => b.id === id ? { ...b, [f]: v } : b));
-      const addBoxType = () => setBoxTypes([...boxTypes, { id: generateId(), name: `${t.defaultBoxPrefix} ${String.fromCharCode(65 + boxTypes.length)}`, L: 500, W: 400, H: 300, color: DEFAULT_COLORS[boxTypes.length % DEFAULT_COLORS.length], qty: 0, tolPlus: 0, tolMinus: 0, calcMode: 'nominal' }]);
-      const removeBoxType = (id) => setBoxTypes(boxTypes.filter(b => b.id !== id));
-
-      const exportToDXF = () => {
-        if (!packingResult.packed || packingResult.packed.length === 0) return;
-
-        const c = CONTAINERS[containerType];
-        const scale = 1 / 40; 
-        const gap = 1500 * scale; 
-        const eps = 1e-4;
-
-        let dxf = `0\nSECTION\n2\nENTITIES\n`;
-
-        const addLine = (x1, y1, x2, y2, layer = "0", color = 256) => {
-          dxf += `0\nLINE\n8\n${layer}\n62\n${color}\n`;
-          dxf += `10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n`;
-          dxf += `11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;
-        };
-
-        const addRect = (x, y, w, h, layer = "0", color = 256) => {
-          addLine(x, y, x + w, y, layer, color);
-          addLine(x + w, y, x + w, y + h, layer, color);
-          addLine(x + w, y + h, x, y + h, layer, color);
-          addLine(x, y + h, x, y, layer, color);
-        };
-
-        const getACIColor = (typeId) => {
-          const idx = boxTypes.findIndex(b => b.id === typeId);
-          const aciMap = [5, 1, 3, 2, 6, 4]; 
-          return aciMap[idx % aciMap.length] || 7;
-        };
-
-        const cW = c.w * scale;
-        const cH = c.h * scale;
-        const cD = c.d * scale;
-
-        const fvX = 0, fvY = 0;
-        addRect(fvX, fvY, cW, cH, "CONTAINER", 7);
-
-        const tvX = 0, tvY = cH + gap;
-        addRect(tvX, tvY, cW, cD, "CONTAINER", 7);
-
-        const svX = cW + gap, svY = 0;
-        addRect(svX, svY, cD, cH, "CONTAINER", 7);
-
-        const clipSegment = (segments, minVal, maxVal) => {
-          let res = [];
-          for (let seg of segments) {
-            if (maxVal <= seg.s + eps || minVal >= seg.e - eps) {
-              res.push(seg);
-            } else {
-              if (minVal > seg.s + eps) res.push({s: seg.s, e: minVal});
-              if (maxVal < seg.e - eps) res.push({s: maxVal, e: seg.e});
-            }
-          }
-          return res;
-        };
-
-        const processView = (faces, dx, dy) => {
-          for (let i = 0; i < faces.length; i++) {
-            const F = faces[i];
-            let topSegs = [{s: F.x, e: F.x + F.w}];
-            let botSegs = [{s: F.x, e: F.x + F.w}];
-            let leftSegs = [{s: F.y, e: F.y + F.h}];
-            let rightSegs = [{s: F.y, e: F.y + F.h}];
-
-            for (let j = 0; j < faces.length; j++) {
-              if (i === j) continue;
-              const O = faces[j];
-              if (O.depth > F.depth + eps) {
-                if (O.y - eps <= F.y + F.h && F.y + F.h <= O.y + O.h + eps) topSegs = clipSegment(topSegs, O.x, O.x + O.w);
-                if (O.y - eps <= F.y && F.y <= O.y + O.h + eps) botSegs = clipSegment(botSegs, O.x, O.x + O.w);
-                if (O.x - eps <= F.x && F.x <= O.x + O.w + eps) leftSegs = clipSegment(leftSegs, O.y, O.y + O.h);
-                if (O.x - eps <= F.x + F.w && F.x + F.w <= O.x + O.w + eps) rightSegs = clipSegment(rightSegs, O.y, O.y + O.h);
-              }
-            }
-
-            topSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + F.h + dy, seg.e + dx, F.y + F.h + dy, F.layer, F.color); });
-            botSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(seg.s + dx, F.y + dy, seg.e + dx, F.y + dy, F.layer, F.color); });
-            leftSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + dx, seg.s + dy, F.x + dx, seg.e + dy, F.layer, F.color); });
-            rightSegs.forEach(seg => { if (seg.e - seg.s > eps) addLine(F.x + F.w + dx, seg.s + dy, F.x + F.w + dx, seg.e + dy, F.layer, F.color); });
-          }
-        };
-
-        let frontFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: p.y * scale, w: p.w * scale, h: p.h * scale,
-          depth: (p.z + p.d) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_FRONT"
-        }));
-        processView(frontFaces, fvX, fvY);
-
-        let topFaces = packingResult.packed.map(p => ({
-          x: p.x * scale, y: cD - (p.z + p.d) * scale, w: p.w * scale, h: p.d * scale,
-          depth: (p.y + p.h) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_TOP"
-        }));
-        processView(topFaces, tvX, tvY);
-
-        let sideFaces = packingResult.packed.map(p => ({
-          x: cD - (p.z + p.d) * scale, y: p.y * scale, w: p.d * scale, h: p.h * scale,
-          depth: (p.x + p.w) * scale,
-          color: getACIColor(p.typeId), layer: "BOXES_SIDE"
-        }));
-        processView(sideFaces, svX, svY);
-
-        dxf += `0\nENDSEC\n0\nEOF\n`;
-
-        const blob = new Blob([dxf], { type: 'application/dxf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `3view_1-40_${c.id}.dxf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      };
-
-      const c = CONTAINERS[containerType];
-      const hasResult = packingResult.packed && packingResult.packed.length > 0;
-
-      return (
-        <div id="app-container" className="min-h-screen p-4 md:p-6 bg-slate-50 relative">
-          
-          {/* 說明視窗 Modal */}
-          {showHelp && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 transition-opacity">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-                <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                  <h2 className="text-xl font-bold text-slate-800 flex items-center">
-                    <BookOpen className="w-6 h-6 mr-2 text-indigo-600"/> 
-                    {t.helpTitle}
-                  </h2>
-                  <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 左側パネル */}
+          <div className="lg:col-span-5 space-y-5">
+            {/* 貨櫃設定 */}
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+              <h2 className="text-base font-semibold flex items-center mb-1"><Ico.Box c="w-4 h-4 mr-2 text-slate-500"/>{t.ctnSet}</h2>
+              <p className="text-xs text-slate-400 mb-3 ml-6">{t.ctnSub}</p>
+              <select className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                value={ctnType} onChange={e=>{setCtnType(e.target.value);setResult({packed:[],stats:null});}}>
+                <option value="20GP">{t.ctn20}</option>
+                <option value="40GP">{t.ctn40}</option>
+                <option value="40HQ">{t.ctn40h}</option>
+              </select>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[[t.gInner,innerGap,setInnerGap],[t.gDoor,doorGap,setDoorGap],[t.gRight,rightGap,setRightGap],[t.gTop,topGap,setTopGap]].map(([lbl,v,fn],i)=>(
+                  <div key={i}>
+                    <label className="block text-xs text-slate-500 mb-1">{lbl}</label>
+                    <input type="number" min="0" value={v} onChange={e=>fn(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"/>
+                  </div>
+                ))}
+              </div>
+              {/* 修正3 支撐閾値 */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-medium text-amber-800 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1"/>{t.gSupport}</label>
+                  <span className="text-sm font-bold text-amber-700 bg-amber-100 px-2 rounded">{suppPct}%</span>
                 </div>
-                <div className="p-6 overflow-y-auto custom-scrollbar space-y-7 text-sm text-slate-700 bg-white">
-                   <section>
-                     <h3 className="text-base font-bold text-blue-800 mb-3 border-l-4 border-blue-600 pl-3 bg-blue-50/50 py-1">{t.helpSection1}</h3>
-                     <ul className="space-y-2.5 list-none pl-1">
-                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_1}</li>
-                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_2}</li>
-                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_3}</li>
-                       <li className="flex"><span className="text-blue-500 mr-2">▪</span>{t.helpS1_4}</li>
-                     </ul>
-                   </section>
-                   <section>
-                     <h3 className="text-base font-bold text-teal-800 mb-3 border-l-4 border-teal-600 pl-3 bg-teal-50/50 py-1">{t.helpSection2}</h3>
-                     <ul className="space-y-3 list-none pl-1">
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">截圖</strong><br/>{t.helpS2_1}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">導出3視圖(.dxf)</strong><br/>{t.helpS2_2}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">標準計算</strong><br/>{t.helpS2_3}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">深層優化 (GRASP)</strong><br/>{t.helpS2_6}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">視角切換</strong><br/>{t.helpS2_3}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">透視</strong><br/>{t.helpS2_4}</li>
-                       <li><strong className="text-teal-700 bg-teal-50 px-1 py-0.5 rounded mr-1">裝載順序拉桿</strong><br/>{t.helpS2_5}</li>
-                     </ul>
-                   </section>
-                   <section>
-                     <h3 className="text-base font-bold text-indigo-800 mb-3 border-l-4 border-indigo-600 pl-3 bg-indigo-50/50 py-1">{t.helpSection3}</h3>
-                     <ul className="space-y-3 list-none pl-1">
-                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_1}</span></li>
-                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_2}</span></li>
-                       <li className="flex"><span className="text-indigo-500 mr-2">▪</span><span>{t.helpS3_3}</span></li>
-                     </ul>
-                     <div className="mt-4 bg-orange-50 p-4 rounded-xl border border-orange-200">
-                        <div className="font-bold text-orange-800 flex items-center mb-1"><AlertTriangle className="w-4 h-4 mr-1.5"/> 為什麼會裝不下？</div>
-                        <p className="text-orange-800/80 leading-relaxed">{t.helpS3_4}</p>
-                     </div>
-                   </section>
+                <input type="range" min="20" max="80" step="5" value={suppPct} onChange={e=>setSuppPct(Number(e.target.value))} className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
+                <div className="flex justify-between text-[10px] text-amber-600 mt-1">
+                  <span>{t.gSupportL}</span><span>{t.gSupportR}</span>
                 </div>
-                <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-                  <button onClick={() => setShowHelp(false)} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg font-medium transition-colors shadow-sm">
-                    {t.closeBtn}
-                  </button>
-                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg">
+                {[[t.dimTotal,c.d+'x'+c.w+'x'+c.h+' mm','text-slate-700'],[t.dimD,Math.max(0,c.d-doorGap-innerGap)+' mm','text-blue-600'],[t.dimW,Math.max(0,c.w-rightGap)+' mm','text-blue-600'],[t.dimH,Math.max(0,c.h-topGap)+' mm','text-blue-600']].map(([lbl,v,cls],i)=>(
+                  <div key={i}><span className="block text-[10px] text-slate-400">{lbl}</span><span className={'font-medium text-sm '+cls}>{v}</span></div>
+                ))}
               </div>
             </div>
-          )}
 
-          <div className="max-w-7xl mx-auto space-y-6">
-            <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
-              <div className="flex items-center space-x-3">
-                <Package className="w-8 h-8 text-blue-600" />
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center">
-                  {t.appTitle}
-                  <span className="ml-3 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md border border-slate-300">
-                    Ver. {APP_VERSION} - {APP_UPDATED_DATE} {t.createdBy}
-                  </span>
-                </h1>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-2">
-                <button 
-                  onClick={exportToDXF} 
-                  disabled={!hasResult}
-                  className={`flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm ${hasResult ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                >
-                  <DownloadIcon className="w-4 h-4 mr-1.5" /> {t.exportDXF}
-                </button>
-                
-                <button onClick={handleScreenshot} className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
-                  <CameraIcon className="w-4 h-4 mr-1.5" /> {t.screenshot}
-                </button>
-                
-                <button onClick={() => setShowHelp(true)} className="flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm font-medium">
-                  <BookOpen className="w-4 h-4 mr-1.5" /> {t.helpBtn}
-                </button>
-
-                <button onClick={() => setLang(l => l==='zh' ? 'ja' : 'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors shadow-sm">
-                  <Globe className="w-4 h-4 mr-1.5" /> {t.langToggle}
+            {/* 箱體設定 */}
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-base font-semibold flex items-center"><Ico.Pkg c="w-4 h-4 mr-2 text-slate-500"/>{t.boxSet}</h2>
+                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length),L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'nominal'}])} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+                  <Ico.Plus c="w-4 h-4 mr-1"/>{t.addBox}
                 </button>
               </div>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-5 space-y-6">
-                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <h2 className="text-lg font-semibold flex items-center mb-1">
-                    <BoxIcon className="w-5 h-5 mr-2 text-slate-600" /> {t.containerSet}
-                  </h2>
-                  <p className="text-xs text-slate-500 mb-4 ml-7">{t.containerSetSub}</p>
-                  <select className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none mb-4" value={containerType} onChange={(e) => { setContainerType(e.target.value); setPackingResult({ packed: [], error: null, stats: null }); }}>
-                    {Object.values(CONTAINERS).map(c => <option key={c.id} value={c.id}>{t.containers[c.id]}</option>)}
-                  </select>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    {[['innerGapTitle', innerGap, setInnerGap], ['doorGapTitle', doorGap, setDoorGap], ['rightGapTitle', rightGap, setRightGap], ['topGapTitle', topGap, setTopGap]].map(([lbl, val, set], i) => (
-                      <div key={i}>
-                        <label className="block text-xs text-slate-500 mb-1">{t[lbl]}</label>
-                        <input type="number" min="0" value={val} onChange={(e) => set(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                    {[ ['innerDim', `${c.d}x${c.w}x${c.h} mm`, 'text-slate-800'], ['effectiveDepth', `${Math.max(0, c.d - doorGap - innerGap)} mm`, 'text-blue-600'], ['effectiveWidth', `${Math.max(0, c.w - rightGap)} mm`, 'text-blue-600'], ['effectiveHeight', `${Math.max(0, c.h - topGap)} mm`, 'text-blue-600'] ].map(([lbl, val, cls], i) => (
-                      <div key={i}><span className="block text-slate-400 text-xs">{t[lbl]}</span><span className={`font-medium ${cls}`}>{val}</span></div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold flex items-center"><Package className="w-5 h-5 mr-2 text-slate-600" /> {t.boxSet}</h2>
-                    <button onClick={addBoxType} className="text-blue-600 hover:text-blue-700 text-sm flex items-center"><Plus className="w-4 h-4 mr-1" /> {t.addBoxBtn}</button>
-                  </div>
-                  <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-                    {boxTypes.map((box) => (
-                      <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
-                        <button onClick={() => removeBoxType(box.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
-                        <div className="flex items-center space-x-3 mb-3">
-                          <input type="color" value={box.color} onChange={(e) => handleBoxChange(box.id, 'color', e.target.value)} className="w-6 h-6 rounded cursor-pointer border-0 p-0" />
-                          <input type="text" value={box.name} onChange={(e) => handleBoxChange(box.id, 'name', e.target.value)} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxNamePH} />
-                        </div>
-                        <div className="grid grid-cols-4 gap-2 text-sm">
-                          {[['L', 'L'], ['W', 'W'], ['H', 'H'], ['qty', 'QTY']].map(([f, lbl]) => (
-                            <div key={f}><label className="block text-xs text-slate-500 mb-1">{t[lbl]}</label><input type="number" min={f==='qty'?0:1} value={box[f]} onChange={(e) => handleBoxChange(box.id, f, Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white" /></div>
-                          ))}
-                        </div>
-                        
-                        <div className="grid grid-cols-4 gap-2 text-sm mt-3 pt-3 border-t border-slate-200">
-                          <div className="col-span-1">
-                            <label className="block text-[10px] text-slate-500 mb-1">{t.tolPlus}</label>
-                            <input type="number" value={box.tolPlus} onChange={(e) => handleBoxChange(box.id, 'tolPlus', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="block text-[10px] text-slate-500 mb-1">{t.tolMinus}</label>
-                            <input type="number" value={box.tolMinus} onChange={(e) => handleBoxChange(box.id, 'tolMinus', Number(e.target.value))} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs" />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
-                            <select value={box.calcMode} onChange={(e) => handleBoxChange(box.id, 'calcMode', e.target.value)} className="w-full p-1.5 border border-slate-300 rounded bg-white text-xs">
-                              <option value="nominal">{t.calcNominal}</option>
-                              <option value="max">{t.calcMax}</option>
-                              <option value="min">{t.calcMin}</option>
-                              <option value="mid">{t.calcMid}</option>
-                            </select>
-                          </div>
-                        </div>
-                        {box.calcMode !== 'nominal' && (
-                          <div className="mt-2 text-[11px] text-blue-700 bg-blue-50 p-1.5 rounded font-medium">
-                            {t.calcSizeLabel} {
-                              box.calcMode === 'max' ? `${box.L+box.tolPlus} x ${box.W+box.tolPlus} x ${box.H+box.tolPlus}` :
-                              box.calcMode === 'min' ? `${box.L-box.tolMinus} x ${box.W-box.tolMinus} x ${box.H-box.tolMinus}` :
-                              `${box.L+(box.tolPlus-box.tolMinus)/2} x ${box.W+(box.tolPlus-box.tolMinus)/2} x ${box.H+(box.tolPlus-box.tolMinus)/2}`
-                            }
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 mb-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">{t.strategyTitle}</label>
-                    <select 
-                      value={packingStrategy} 
-                      onChange={e => setPackingStrategy(e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="auto">{t.strategyAuto}</option>
-                      <option value="length">{t.strategyLength}</option>
-                      <option value="width">{t.strategyWidth}</option>
-                    </select>
-                  </div>
-
-                  {/* 修改：計算按鈕區分為「標準」與「深層優化」 */}
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <button 
-                      onClick={() => handleCalculate(false)} 
-                      disabled={isCalculating} 
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors text-sm"
-                    >
-                      {isCalculating && !isDeepOptimizing ? <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> : <Play className="w-4 h-4 mr-1.5" />}
-                      {isCalculating && !isDeepOptimizing ? t.calculating : t.calcBtn}
+              <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1 scr">
+                {boxes.map(box=>(
+                  <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
+                    <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Ico.Del c="w-4 h-4"/>
                     </button>
-
-                    <button 
-                      onClick={() => handleCalculate(true)} 
-                      disabled={isCalculating} 
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg flex items-center justify-center disabled:opacity-50 shadow-sm transition-colors text-sm relative overflow-hidden group"
-                    >
-                      <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
-                      {isDeepOptimizing ? <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-                      <span className="relative z-10">{isDeepOptimizing ? `${t.optimizing} ${optimizeProgress}%` : t.deepOptBtn}</span>
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-
-              <div className="lg:col-span-7 flex flex-col space-y-4">
-                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
-                  {!threeLoaded && <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-10 rounded-xl"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}
-                  
-                  <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col space-y-1.5">
-                    {boxTypes.map(b => (
-                      <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-1 rounded-md border border-slate-200 shadow-sm flex items-center text-[10px] w-max">
-                        <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{backgroundColor: b.color}}></span>
-                        <span className="font-medium text-slate-700 truncate">{b.name}</span>
-                      </div>
-                    ))}
-                    
-                    {packingResult.stats?.remainingGaps && packingResult.packed.length > 0 && (
-                      <div className="bg-white/95 backdrop-blur p-3 rounded-md border border-slate-200 shadow-sm mt-2 pointer-events-auto w-max">
-                        <div className="flex items-center text-slate-800 font-bold text-xs mb-2">
-                          <Ruler className="w-4 h-4 mr-1 text-blue-600" /> {t.remainingGapsTitle}
-                        </div>
-                        <div className="flex gap-4 text-xs">
-                          {[['remainL', 'd', doorGap, 'text-orange-600'], ['remainW', 'w', rightGap, 'text-blue-600'], ['remainH', 'h', topGap, 'text-green-600']].map(([lbl, key, gVal, tCls], index) => (
-                            <div key={key} className={`flex flex-col ${index > 0 ? 'border-l border-slate-300 pl-4' : ''}`}>
-                              <span className="text-slate-500 font-bold mb-1">{t[lbl]}</span>
-                              {packingResult.stats.remainingGaps[key].map((g, idx) => (
-                                <div key={idx} className="flex flex-col mb-1.5 last:mb-0">
-                                  <span className={`font-bold ${tCls}`}>{g}mm</span>
-                                  <span className="text-[10px] text-slate-500 whitespace-nowrap">{t.actualGap2}: <span className="font-semibold">{g+gVal}</span>mm</span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="absolute top-4 right-4 z-10 flex space-x-1.5">
-                    {['iso', 'top', 'front', 'side'].map(v => <button key={v} onClick={() => changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-medium shadow-sm">{t['view'+v.charAt(0).toUpperCase()+v.slice(1)]}</button>)}
-                  </div>
-
-                  <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none bg-slate-100"></div>
-                  
-                  {packingResult.packed.length > 0 && (
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-3 sm:gap-6 pointer-events-auto z-20">
-                      <div className="flex items-center space-x-3 w-full sm:w-auto flex-shrink-0">
-                        <span className="flex items-center text-blue-700 font-bold text-xs bg-blue-50 px-2 py-1 rounded">
-                          <Play className="w-3.5 h-3.5 mr-1.5" /> {t.playbackPrefix} {renderStep} / {packingResult.packed.length}
-                        </span>
-                        <label className="flex items-center space-x-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition-colors text-xs">
-                          <input type="checkbox" checked={isTransparent} onChange={e => setIsTransparent(e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300" />
-                          <Eye className="w-3.5 h-3.5 text-slate-600" />
-                          <span className="text-slate-700">{t.xrayLabel}</span>
-                        </label>
-                      </div>
-                      <div className="flex-grow flex items-center space-x-2 w-full">
-                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{t.innerLayer}</span>
-                        <input type="range" min="0" max={packingResult.packed.length} value={renderStep} onChange={e => setRenderStep(Number(e.target.value))} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{t.doorLayer}</span>
-                      </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="w-6 h-6 rounded border-0 p-0 cursor-pointer"/>
+                      <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
                     </div>
-                  )}
-                </div>
-
-                {packingResult.stats && (
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-5">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                      <h3 className="text-lg font-semibold text-slate-800 flex items-center"><CheckCircle2 className="w-5 h-5 mr-2 text-green-500" /> {t.summaryTitle}</h3>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[ ['totalBoxes', packingResult.stats.totalBoxes, 'text-slate-800'], ['utilization', packingResult.stats.utilization+'%', 'text-blue-600'], ['effectiveVol', (packingResult.stats.totalBoxVolume/1000000000).toFixed(2)+' m³', 'text-slate-800', `${t.totalVol} ${((c.w*c.h*c.d)/1000000000).toFixed(2)}m³`] ].map(([lbl, val, cls, sub], i) => (
-                        <div key={i} className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${i===2?'col-span-2':''}`}>
-                          <p className="text-xs text-slate-500 mb-1">{t[lbl]}</p>
-                          <p className={`text-xl font-bold ${cls}`}>{val} {sub && <span className="text-xs font-normal text-slate-400 ml-1">/ {sub}</span>}</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[['L',t.fL],['W',t.fW],['H',t.fH],['qty',t.fQ]].map(([f,lbl])=>(
+                        <div key={f}>
+                          <label className="block text-[10px] text-slate-500 mb-1">{lbl}</label>
+                          <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-sm bg-white"/>
                         </div>
                       ))}
                     </div>
-                    
-                    <div className="border-t border-slate-100 pt-4">
-                      <p className="text-sm font-medium text-slate-700 mb-3">{t.detailTitle}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {boxTypes.map(b => {
-                          const count = packingResult.stats.counts[b.id] || 0;
-                          if (count === 0 && b.qty === 0) return null; 
-                          return (
-                            <div key={b.id} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg shadow-sm text-sm">
-                              <span className="flex items-center font-medium text-slate-700"><span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: b.color}}></span>{b.name}</span>
-                              <span className={`font-bold px-2 py-0.5 rounded ${b.qty > 0 && count < b.qty ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-800'}`}>{count} {b.qty > 0 ? `/ ${b.qty}` : ''} {t.boxUnit}</span>
-                            </div>
-                          )
-                        })}
+                    <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1">{t.tPlus}</label>
+                        <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1">{t.tMinus}</label>
+                        <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
+                        <select value={box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
+                          <option value="nominal">{t.mNom}</option>
+                          <option value="max">{t.mMax}</option>
+                          <option value="min">{t.mMin}</option>
+                          <option value="mid">{t.mMid}</option>
+                        </select>
                       </div>
                     </div>
-
-                    {packingResult.stats.warnings?.length > 0 && (
-                      <div className="mt-5 bg-orange-50 border border-orange-200 rounded-xl p-4">
-                        <h4 className="flex items-center text-orange-800 font-bold mb-3"><AlertTriangle className="w-5 h-5 mr-2" /> {t.warningTitle}</h4>
-                        <ul className="space-y-2 mb-4">
-                          {packingResult.stats.warnings.map((w, idx) => (
-                            <li key={idx} className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-orange-100 text-sm">
-                              <span className="flex items-center font-medium"><span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: w.color}}></span>{w.name}</span>
-                              <span className="text-orange-700 font-semibold">{t.shortfall} {w.shortfall} {t.boxUnit} <span className="text-slate-400 text-xs font-normal">({t.req} {w.requested} / {t.packed} {w.packed})</span></span>
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="text-sm text-slate-700 space-y-3">
-                          <div><span className="font-bold text-slate-800">{t.analysisTitle}</span><br/>{t.analysis1}<span className="font-semibold text-orange-700">{t.analysis2}</span>{t.analysis3}</div>
-                          <div><span className="font-bold text-slate-800">{t.suggestionTitle}</span><ul className="list-disc pl-5 mt-1 text-slate-600"><li>{t.sug1}</li><li>{t.sug2}</li><li>{t.sug4}</li></ul></div>
-                        </div>
+                    {box.calcMode!=='nominal'&&(
+                      <div className="mt-2 text-[11px] text-blue-700 bg-blue-50 p-1.5 rounded font-medium">
+                        {t.mLabel} {box.calcMode==='max'?(box.L+box.tolPlus)+' x '+(box.W+box.tolPlus)+' x '+(box.H+box.tolPlus):box.calcMode==='min'?(box.L-box.tolMinus)+' x '+(box.W-box.tolMinus)+' x '+(box.H-box.tolMinus):(box.L+(box.tolPlus-box.tolMinus)/2)+' x '+(box.W+(box.tolPlus-box.tolMinus)/2)+' x '+(box.H+(box.tolPlus-box.tolMinus)/2)}
                       </div>
                     )}
                   </div>
-                )}
+                ))}
+              </div>
+              <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t.stratTitle}</label>
+                <select value={strat} onChange={e=>setStrat(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="auto">{t.stratAuto}</option>
+                  <option value="length">{t.stratL}</option>
+                  <option value="width">{t.stratW}</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button onClick={()=>doCalc(false)} disabled={loading} className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
+                  {loading&&!graspOn?<Ico.Spin c="w-4 h-4 animate-spin mr-1.5"/>:<Ico.Play c="w-4 h-4 mr-1.5"/>}
+                  {loading&&!graspOn?t.calcIng:t.calcBtn}
+                </button>
+                <div className="flex flex-col">
+                  <button onClick={()=>doCalc(true)} disabled={loading} className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
+                    {graspOn?<Ico.Spin c="w-4 h-4 animate-spin mr-1.5"/>:<Ico.Star c="w-4 h-4 mr-1.5"/>}
+                    {graspOn?(t.graspIng+' '+progress+'%'):t.graspBtn}
+                  </button>
+                  {/* 修正4 プログレスバー */}
+                  {graspOn&&(
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5 mx-0.5">
+                      <div className="prog-bar" style={{width:progress+'%'}}></div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
+
+          {/* 右側 3D */}
+          <div className="lg:col-span-7 flex flex-col gap-4">
+            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
+              {/* 凡例 */}
+              <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
+                {boxes.map(b=>(
+                  <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-0.5 rounded border border-slate-200 shadow-sm flex items-center text-[10px]">
+                    <span className="w-2.5 h-2.5 rounded-full mr-1.5 flex-shrink-0" style={{backgroundColor:b.color}}></span>
+                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{b.name}</span>
+                  </div>
+                ))}
+                {result.stats?.rem&&hasPacked&&(
+                  <div className="bg-white/95 backdrop-blur p-2.5 rounded border border-slate-200 shadow-sm mt-1 pointer-events-auto w-max">
+                    <div className="flex items-center text-slate-800 font-bold text-xs mb-1.5"><Ico.Rule c="w-3.5 h-3.5 mr-1 text-blue-600"/>{t.remTitle}</div>
+                    <div className="flex gap-3 text-xs">
+                      {[[t.remD,'d',doorGap,'text-orange-600'],[t.remW,'w',rightGap,'text-blue-600'],[t.remH,'h',topGap,'text-green-600']].map(([lbl,k,gv,cls],idx)=>(
+                        <div key={k} className={'flex flex-col'+(idx>0?' border-l border-slate-200 pl-3':'')}>
+                          <span className="text-slate-400 font-bold mb-1">{lbl}</span>
+                          {result.stats.rem[k].map((g,i)=>(
+                            <div key={i} className="mb-1 last:mb-0">
+                              <span className={'font-bold block '+cls}>{g}mm</span>
+                              <span className="text-[9px] text-slate-400">{t.remInc}: {g+gv}mm</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* 視角ボタン */}
+              <div className="absolute top-3 right-3 z-10 flex gap-1.5">
+                {[['iso',t.vIso],['top',t.vTop],['front',t.vFront],['side',t.vSide]].map(([v,lbl])=>(
+                  <button key={v} onClick={()=>changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2 py-1 rounded border border-slate-200 text-[11px] font-medium shadow-sm">{lbl}</button>
+                ))}
+              </div>
+              {/* キャンバス */}
+              <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none bg-slate-100"></div>
+              {/* 修正5 操作ヒント */}
+              <div className="hint-overlay">
+                <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>
+                <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>
+                <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'縮尺'}</span>
+              </div>
+              {/* 裝載順序バー */}
+              {hasPacked&&(
+                <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-20">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="flex items-center text-blue-700 font-bold text-xs bg-blue-50 px-2 py-1 rounded">
+                      <Ico.Play c="w-3 h-3 mr-1"/>{t.play}{step}/{result.packed.length}
+                    </span>
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs transition-colors">
+                      <input type="checkbox" checked={xray} onChange={e=>setXray(e.target.checked)} className="w-3 h-3 rounded accent-blue-600"/>
+                      <Ico.Eye c="w-3.5 h-3.5 text-slate-500"/>
+                      <span className="text-slate-700">{t.xray}</span>
+                    </label>
+                  </div>
+                  <div className="flex-grow flex items-center gap-2 w-full">
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{t.inner}</span>
+                    <input type="range" min="0" max={result.packed.length} value={step} onChange={e=>setStep(Number(e.target.value))} className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-blue-600 bg-slate-200"/>
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{t.door}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 結果サマリ */}
+            {result.stats&&(
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <h3 className="text-base font-semibold text-slate-800 flex items-center border-b border-slate-100 pb-3">
+                  <Ico.Chk c="w-5 h-5 mr-2 text-green-500"/>{t.sumTitle}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <p className="text-xs text-slate-400 mb-1">{t.totBox}</p>
+                    <p className="text-xl font-bold text-slate-800">{result.stats.total}</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <p className="text-xs text-slate-400 mb-1">{t.util}</p>
+                    <p className="text-xl font-bold text-blue-600">{result.stats.util}%</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-2">
+                    <p className="text-xs text-slate-400 mb-1">{t.effVol}</p>
+                    <p className="text-xl font-bold text-slate-800">{(result.stats.vol/1e9).toFixed(2)} m³ <span className="text-xs font-normal text-slate-400">/ {t.totVol} {((c.w*c.h*c.d)/1e9).toFixed(2)}m³</span></p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-2">{t.detail}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {boxes.map(b=>{
+                      const cnt=result.stats.counts[b.id]||0;
+                      if(cnt===0&&b.qty===0) return null;
+                      return (
+                        <div key={b.id} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg text-sm">
+                          <span className="flex items-center font-medium text-slate-700">
+                            <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{backgroundColor:b.color}}></span>
+                            {b.name}
+                          </span>
+                          <span className={'font-bold px-2 py-0.5 rounded '+(b.qty>0&&cnt<b.qty?'bg-red-100 text-red-700':'bg-slate-100 text-slate-700')}>
+                            {cnt}{b.qty>0?' / '+b.qty:''} {t.boxU}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {result.stats.warns?.length>0&&(
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                    <h4 className="flex items-center text-orange-800 font-bold mb-2 text-sm"><Ico.Warn c="w-4 h-4 mr-2"/>{t.warnTitle}</h4>
+                    <ul className="space-y-1.5 mb-3">
+                      {result.stats.warns.map((w,i)=>(
+                        <li key={i} className="flex items-center justify-between bg-white px-3 py-1.5 rounded border border-orange-100 text-sm">
+                          <span className="flex items-center font-medium">
+                            <span className="w-2.5 h-2.5 rounded-full mr-2" style={{backgroundColor:w.color}}></span>
+                            {w.name}
+                          </span>
+                          <span className="text-orange-700 font-semibold text-xs">{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req}/{t.wPack} {w.pk})</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-slate-600">{t.wAnal}</p>
+                    <p className="text-xs text-slate-600 mt-1">{t.wSug}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      );
-    }
-    const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
-  </script>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
 </body>
 </html>
