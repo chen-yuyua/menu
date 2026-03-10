@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.41</title>
+  <title>貨櫃裝載計算器 v1.42</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -31,10 +31,8 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-// ── EPS 容差常數（修正1：浮點誤差） ──────────────────────────────────────
 const EPS = 0.5;
 
-// ── 常數 ─────────────────────────────────────────────────────────────────
 const CONTAINERS = {
   '20GP': {id:'20GP', w:2330, h:2350, d:5867},
   '40GP': {id:'40GP', w:2330, h:2350, d:11998},
@@ -42,10 +40,9 @@ const CONTAINERS = {
 };
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.41';
-const APP_DATE = '2026/03/06';
+const APP_VER = '1.42';
+const APP_DATE = '2026/03/10';
 
-// ── 多語系 ────────────────────────────────────────────────────────────────
 const T = {
   zh:{
     title:'貨櫃裝載計算器', lang:'日本語切替', shot:'截圖', by:'作成：分室',
@@ -81,6 +78,7 @@ const T = {
     fix3:'修正3：支撐閾值可調 20~80%（預設50%，原固定80%）',
     fix4:'修正4：深層優化流光進度條',
     fix5:'修正5：3D畫布右下角常駐操作提示',
+    fix6:'修正6：高度(Y)標註線改往門口前方延伸，解決文字沉入地面被遮擋問題',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
   },
   ja:{
@@ -117,11 +115,11 @@ const T = {
     fix3:'修正3：支持しきい値を20~80%で調整可能（デフォルト50%、旧80%）',
     fix4:'修正4：深層最適化プログレスバー（流光アニメ）',
     fix5:'修正5：3Dキャンバス右下に常駐操作ヒント',
+    fix6:'修正6：高さ(Y)寸法線をドア前方へ延伸、文字が床面に沈む問題を修正',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
   }
 };
 
-// ── SVG アイコン ─────────────────────────────────────────────────────────
 const Ico = {
   Pkg:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
   Plus: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
@@ -277,7 +275,7 @@ function getGaps(packed, container, axis, limit){
   return gaps.length?gaps.slice(0,3):[0];
 }
 
-// ── Modal 元件 ────────────────────────────────────────────────────────────
+// ── Modal ─────────────────────────────────────────────────────────────────
 function Modal({onClose, title, children, wide}){
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
@@ -297,7 +295,7 @@ function Modal({onClose, title, children, wide}){
   );
 }
 
-// ── 說明視窗（分頁式詳細版） ──────────────────────────────────────────────
+// ── 說明視窗 ──────────────────────────────────────────────────────────────
 function HelpModal({onClose, lang}){
   const [tab, setTab] = useState(0);
   const zh = lang==='zh';
@@ -306,14 +304,12 @@ function HelpModal({onClose, lang}){
     ? ['🚀 快速上手','📦 輸入設定','🔘 按鈕功能','📊 結果說明','❓ 常見問題']
     : ['🚀 クイックスタート','📦 入力設定','🔘 ボタン機能','📊 結果説明','❓ よくある質問'];
 
-  // ── 各分頁內容 ────────────────────────────────────────────────────────
   const Step = ({n, title, children}) => (
     <div className="flex gap-3 mb-4">
       <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span>
       <div><p className="font-semibold text-slate-800 mb-1">{title}</p><div className="text-slate-600 text-xs leading-relaxed">{children}</div></div>
     </div>
   );
-
   const Field = ({name, type, children}) => (
     <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
       <div className="flex items-center gap-2 mb-1">
@@ -323,7 +319,6 @@ function HelpModal({onClose, lang}){
       <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
     </div>
   );
-
   const Btn = ({label, color, children}) => (
     <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
       <div className="flex items-center gap-2 mb-1.5">
@@ -332,20 +327,17 @@ function HelpModal({onClose, lang}){
       <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
     </div>
   );
-
   const Info = ({icon, label, children}) => (
     <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
       <p className="font-semibold text-slate-800 text-sm mb-1">{icon} {label}</p>
       <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
     </div>
   );
-
   const Warn = ({children}) => (
     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
       <p className="text-xs text-amber-800 leading-relaxed">⚠️ {children}</p>
     </div>
   );
-
   const Tip = ({children}) => (
     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3">
       <p className="text-xs text-emerald-800 leading-relaxed">💡 {children}</p>
@@ -353,286 +345,96 @@ function HelpModal({onClose, lang}){
   );
 
   const content_zh = [
-    // Tab 0：快速上手
     <div className="p-5 space-y-2">
       <p className="text-sm text-slate-500 mb-4">按照以下 5 個步驟，即可完成貨櫃裝載試算：</p>
-      <Step n="1" title="選擇貨櫃種類">
-        在左上方的下拉選單中，選擇您要使用的貨櫃規格（20呎、40呎 或 40呎高櫃）。
-        系統會自動帶入該規格的標準最小內部尺寸。
-      </Step>
-      <Step n="2" title="設定預留空間">
-        輸入貨櫃四個方向的預留空間（單位：mm）：
-        最內側（車頭方向）、門口（裝卸方向）、右側、上方。
-        預留空間是指固定架、綑綁帶、緩衝材料等所需的空間。
-      </Step>
-      <Step n="3" title="新增箱體資訊">
-        點擊「＋ 新增箱體」，輸入箱子的外箱長(L)×寬(W)×高(H)尺寸（單位：mm）與數量。
-        數量輸入 0 表示「盡可能塞滿貨櫃」。
-      </Step>
-      <Step n="4" title="選擇計算策略並執行">
-        選擇「裝載方向策略」後，點擊「標準計算」按鈕。
-        幾秒內即可看到右側的 3D 裝載示意圖與結果摘要。
-      </Step>
-      <Step n="5" title="查看結果、必要時深層優化">
-        查看右側的總裝載箱數與空間利用率。
-        若希望進一步提升裝載率，可點擊「深層優化 (GRASP)」進行更精密的搜尋。
-      </Step>
+      <Step n="1" title="選擇貨櫃種類">在左上方的下拉選單中，選擇您要使用的貨櫃規格（20呎、40呎 或 40呎高櫃）。系統會自動帶入該規格的標準最小內部尺寸。</Step>
+      <Step n="2" title="設定預留空間">輸入貨櫃四個方向的預留空間（單位：mm）：最內側（車頭方向）、門口（裝卸方向）、右側、上方。預留空間是指固定架、綑綁帶、緩衝材料等所需的空間。</Step>
+      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，輸入箱子的外箱長(L)×寬(W)×高(H)尺寸（單位：mm）與數量。數量輸入 0 表示「盡可能塞滿貨櫃」。</Step>
+      <Step n="4" title="選擇計算策略並執行">選擇「裝載方向策略」後，點擊「標準計算」按鈕。幾秒內即可看到右側的 3D 裝載示意圖與結果摘要。</Step>
+      <Step n="5" title="查看結果、必要時深層優化">查看右側的總裝載箱數與空間利用率。若希望進一步提升裝載率，可點擊「深層優化 (GRASP)」進行更精密的搜尋。</Step>
       <Tip>第一次使用建議先用「標準計算」確認基本結果，再視情況使用深層優化。</Tip>
     </div>,
-
-    // Tab 1：輸入設定
     <div className="p-5">
       <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">貨櫃設定區</p>
-      <Field name="貨櫃種類" type="下拉選單">
-        <strong>20' GP（20呎標準）</strong>：內部深度約 5867mm，適合中小型出貨。<br/>
-        <strong>40' GP（40呎標準）</strong>：內部深度約 11998mm，最常見的貨運規格。<br/>
-        <strong>40' HQ（40呎高櫃）</strong>：與 40' GP 相同長度，但高度多出約 305mm，適合堆疊較高的貨物。<br/>
-        ※ 尺寸採用 JIS/ISO 規定的最小內部尺寸（實際可能略大）。
-      </Field>
-      <Field name="最內側預留空間" type="數值 mm">
-        貨櫃最深處（車頭側）與第一排箱體之間的間距。<br/>
-        用途：固定支架、防震泡棉、支撐柱等。<br/>
-        <strong>範例：</strong>若設定 20mm，代表箱體不會緊貼車頭壁，保留 20mm 緩衝。
-      </Field>
-      <Field name="門口預留空間" type="數值 mm">
-        貨櫃門口側（裝卸側）與最後一排箱體之間的間距。<br/>
-        用途：門板開關空間、拉條固定、卸貨便利性。<br/>
-        <strong>範例：</strong>設定 248mm 可確保貨物不會因門板變形而受損。
-      </Field>
-      <Field name="右側預留空間" type="數值 mm">
-        貨櫃右側壁與箱體之間的間距。<br/>
-        用途：固定帶穿繞空間、人員通道、壁掛支架等。
-      </Field>
-      <Field name="上方預留空間" type="數值 mm">
-        貨櫃頂板與最高層箱體之間的間距。<br/>
-        用途：隔熱墊、頂部固定帶、防止雨滲漏緩衝等。
-      </Field>
-      <Field name="支撐面積閾值 (%)" type="滑桿 20~80%">
-        決定「一個箱子放在另一個箱子上方，需要多少底面積被支撐才算穩固」的判定標準。<br/>
-        <strong>50%（預設）</strong>：底部至少一半面積有支撐，適合一般紙箱。<br/>
-        <strong>20~30%（寬鬆）</strong>：允許懸空較多，裝載率更高，但實際搬運穩定性較低。<br/>
-        <strong>70~80%（嚴格）</strong>：幾乎全底面需支撐，適合重型設備或精密儀器。
-      </Field>
-
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-5 mb-3">箱體設定區</p>
-      <Field name="箱體名稱" type="文字輸入">
-        自定義箱體的識別名稱，例如「主機箱」、「零件包」等。名稱會顯示在 3D 圖的圖例中。
-      </Field>
-      <Field name="顏色圓圈" type="色彩選擇">
-        點擊左側的色彩圓圈可自定義該箱體在 3D 圖中的顯示顏色，方便區分多種箱型。
-      </Field>
-      <Field name="長(L) / 寬(W) / 高(H)" type="數值 mm">
-        輸入箱體的<strong>外箱實際尺寸</strong>（單位：mm）。<br/>
-        <strong>L（長）</strong>：箱體的最長邊，通常對應貨櫃深度方向擺放。<br/>
-        <strong>W（寬）</strong>：箱體的次長邊，通常對應貨櫃寬度方向。<br/>
-        <strong>H（高）</strong>：箱體的高度，方向固定（設備不可翻轉限制）。<br/>
-        ※ 系統只允許水平旋轉（L↔W互換），不允許上下翻轉，符合設備搬運安全要求。
-      </Field>
-      <Field name="數量" type="數值">
-        需裝入的箱體數量。<br/>
-        <strong>輸入 0</strong>：系統會自動計算最多能裝入幾個，直到貨櫃裝滿為止。<br/>
-        <strong>輸入具體數字（如 50）</strong>：系統會優先嘗試裝入該數量，若裝不下會在結果中顯示短缺警告。
-      </Field>
-      <Field name="正公差(+) / 負公差(-)" type="數值 mm">
-        箱體製造尺寸的允許誤差範圍。<br/>
-        <strong>正公差</strong>：箱子最大可能比標稱尺寸大多少 mm（例如 +2）。<br/>
-        <strong>負公差</strong>：箱子最小可能比標稱尺寸小多少 mm（例如 -1）。<br/>
-        搭配「計算基準」選項使用，可模擬最壞/最好情況。
-      </Field>
-      <Field name="計算基準" type="下拉選單">
-        <strong>標準外寸</strong>：以輸入的標稱尺寸直接計算（預設）。<br/>
-        <strong>最大（正公差）</strong>：假設每個箱子都是最大狀態（L+正公差），用於最保守的空間規劃。<br/>
-        <strong>最小（負公差）</strong>：假設每個箱子都是最小狀態（L-負公差），用於評估最樂觀的裝載量。<br/>
-        <strong>中間值</strong>：取正負公差的中間值計算，適合一般評估。
-      </Field>
-
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-5 mb-3">裝載策略區</p>
-      <Field name="裝載方向策略" type="下拉選單">
-        <strong>自動最佳化</strong>：系統同時評估「L朝深」與「W朝深」兩種方向，取裝載數量較多的結果。<br/>
-        <strong>優先以 L 貼合深度</strong>：強制箱體的長邊對齊貨櫃深度方向擺放。<br/>
-        <strong>優先以 W 貼合深度</strong>：強制箱體的寬邊對齊貨櫃深度方向擺放。<br/>
-        ※ 若您的貨物有方向性要求（如標籤朝外），請手動選擇對應策略。
-      </Field>
+      <Field name="貨櫃種類" type="下拉選單"><strong>20' GP</strong>：內部深度約 5867mm。<strong>40' GP</strong>：內部深度約 11998mm，最常見規格。<strong>40' HQ</strong>：與 40' GP 同長，高度多約 305mm。※尺寸採用 JIS/ISO 最小內部尺寸。</Field>
+      <Field name="各方向預留空間" type="數值 mm">最內側：車頭側緩衝/固定架空間。門口：門板開關/拉條固定空間。右側：固定帶穿繞/通道空間。上方：頂部固定帶/隔熱墊空間。</Field>
+      <Field name="支撐面積閾值 (%)" type="滑桿 20~80%"><strong>50%（預設）</strong>：底部至少一半面積有支撐，適合一般紙箱。<strong>20~30%（寬鬆）</strong>：裝載率更高但穩定性較低。<strong>70~80%（嚴格）</strong>：適合重型設備或精密儀器。</Field>
+      <Field name="長(L) / 寬(W) / 高(H)" type="數值 mm">輸入外箱實際尺寸。H固定為垂直方向（不可翻轉）。L和W可水平旋轉互換。</Field>
+      <Field name="數量" type="數值"><strong>輸入 0</strong>：自動計算最多能裝入幾個。<strong>輸入具體數字</strong>：優先嘗試裝入該數量，若裝不下會顯示短缺警告。</Field>
+      <Field name="正公差(+) / 負公差(-)" type="數值 mm">箱體製造尺寸允許誤差範圍。搭配「計算基準」可模擬最壞/最好情況。</Field>
+      <Field name="計算基準" type="下拉選單"><strong>標準外寸</strong>：以標稱尺寸計算。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設每個箱子都是最小狀態。<strong>中間值</strong>：取正負公差中間值。</Field>
     </div>,
-
-    // Tab 2：按鈕功能
     <div className="p-5">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">計算按鈕</p>
-      <Btn label="標準計算" color="bg-blue-600">
-        執行一次快速的裝載演算，通常在 1 秒內完成。<br/>
-        演算法會根據選擇的「裝載方向策略」，從貨櫃最深處開始，依序找出每個最佳位置放置箱體。<br/>
-        <strong>適合場景：</strong>快速報價、初步驗證尺寸可行性、箱型種類單純的情況。
-      </Btn>
-      <Btn label="深層優化 (GRASP)" color="bg-indigo-600">
-        在標準計算的基礎上，額外執行 100 次「引入隨機擾動的迭代搜尋」（貪婪隨機自適應演算法）。<br/>
-        每次迭代會稍微打亂箱子的放置順序與方向選擇，試圖找到更好的排列方式。<br/>
-        按鈕下方會顯示藍色進度條，完成後自動更新為最佳結果。<br/>
-        <strong>適合場景：</strong>多種箱型混裝、標準計算結果不理想、追求最高裝載率。<br/>
-        <strong>耗時：</strong>約 5~15 秒（依箱型複雜度而定）。
-      </Btn>
-
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-4 mb-3">工具列按鈕</p>
-      <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">
-        將目前的裝載結果輸出為 DXF 格式的 2D 三視圖（正視圖、俯視圖、側視圖），比例 1:40。<br/>
-        DXF 檔案可直接用 AutoCAD、ZWCAD、DraftSight 等 CAD 軟體開啟。<br/>
-        每種箱型會以不同顏色的圖層（Layer）區分，方便在 CAD 中管理。<br/>
-        <strong>注意：</strong>計算完成後按鈕才會亮起（計算前為灰色不可點擊）。
-      </Btn>
-      <Btn label="截圖" color="bg-teal-600">
-        將目前整個頁面（含 3D 圖與所有數據）截取為 JPG 圖片並自動下載。<br/>
-        適合用於製作報告、傳送給客戶確認，或留存記錄用。<br/>
-        截圖解析度較高（2倍像素），可直接用於簡報投影片。
-      </Btn>
-      <Btn label="使用說明" color="bg-blue-500">
-        開啟您正在閱讀的這份說明文件。
-      </Btn>
-
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-4 mb-3">3D 視圖操作</p>
-      <Btn label="等角 / 俯視 / 前視 / 側視" color="bg-slate-500">
-        切換 3D 視圖的觀看角度。<br/>
-        <strong>等角</strong>：斜上方的立體視角，可同時看到頂面、正面、側面，最常用。<br/>
-        <strong>俯視</strong>：從正上方往下看，適合確認每層的箱子排列與寬度利用。<br/>
-        <strong>前視</strong>：從貨櫃門口方向往內看，適合確認箱子高度與寬度的堆疊。<br/>
-        <strong>側視</strong>：從貨櫃側面往內看，適合確認深度方向的裝載層次。
-      </Btn>
-      <Btn label="透視（眼睛圖示）" color="bg-slate-500">
-        勾選後，所有箱體變為半透明，可以看穿外層箱子查看內層的堆疊狀況。<br/>
-        特別適合多種箱型混裝時，確認是否有箱子被完全遮擋的情況。
-      </Btn>
-      <Btn label="裝載順序拉桿" color="bg-slate-500">
-        位於 3D 圖下方的滑桿，拖動可逐步顯示每個箱子被放入的順序。<br/>
-        向左拖動可「回退」到更少箱子的狀態，向右拖動逐步「加入」下一個箱子。<br/>
-        數字顯示「目前顯示箱數 / 總箱數」。
-      </Btn>
-      <Btn label="滑鼠操作（畫布右下角提示）" color="bg-slate-700">
-        <strong>左鍵拖曳</strong>：旋轉 3D 視角，可從各角度觀察裝載狀況。<br/>
-        <strong>右鍵拖曳</strong>：平移視角，將畫面移到想看的位置。<br/>
-        <strong>滾輪滾動</strong>：縮放（放大/縮小）3D 視圖。
-      </Btn>
+      <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
+      <Btn label="深層優化 (GRASP)" color="bg-indigo-600">執行100次隨機迭代搜尋，尋找更好的排列方式（約5~15秒）。適合多種箱型混裝或追求最高裝載率。</Btn>
+      <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">輸出1:40比例的DXF格式三視圖，可用AutoCAD等CAD軟體開啟。計算完成後才可點擊。</Btn>
+      <Btn label="截圖" color="bg-teal-600">將整個頁面截取為高解析度JPG圖片並自動下載，適合製作報告或傳送客戶確認。</Btn>
+      <Btn label="等角/俯視/前視/側視" color="bg-slate-500">切換3D視圖觀看角度。等角：斜上方立體視角。俯視：從上往下看各層排列。前視：從門口往內看。側視：從側面看深度層次。</Btn>
+      <Btn label="透視 + 裝載順序拉桿" color="bg-slate-500">透視：半透明顯示查看內層堆疊。拉桿：逐步顯示每個箱子的放置順序。滑鼠左鍵旋轉、右鍵平移、滾輪縮放。</Btn>
     </div>,
-
-    // Tab 3：結果說明
     <div className="p-5">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">裝載結果摘要</p>
-      <Info icon="📦" label="總裝載箱數">
-        本次計算中，成功排入貨櫃有效空間內的箱子總數量（所有箱型合計）。
-      </Info>
-      <Info icon="📊" label="空間利用率 (%)">
-        計算公式：<strong>（所有箱體總體積 ÷ 貨櫃內部總容積）× 100%</strong><br/>
-        <strong>注意：</strong>此數值包含預留空間在分母中，因此即使箱子排得很滿，數字也可能低於實際感受。<br/>
-        一般而言，70% 以上屬於良好利用率，80% 以上為優秀。
-      </Info>
-      <Info icon="📐" label="有效裝載總體積 / 總容積">
-        <strong>有效裝載體積</strong>：所有成功裝入的箱體體積加總（m³）。<br/>
-        <strong>總容積</strong>：貨櫃的標準內部容積（未扣除預留空間），僅供參考對比。
-      </Info>
-      <Info icon="🎯" label="各類別裝載數量明細">
-        列出每種箱型實際裝入的數量。<br/>
-        若有設定目標數量，會以「實際裝入 / 目標數量」的格式顯示（如：45 / 50 箱）。<br/>
-        若實際數量少於目標，該項目會以<strong>紅色標示</strong>，提示有短缺。
-      </Info>
-      <Info icon="📏" label="整體剩餘間隙（3D 圖左上角）">
-        計算完成後，3D 圖左上角會顯示三個方向的剩餘空間：<br/>
-        <strong>深度(Z)</strong>：從最後一個箱子到門口預留邊界的距離。<br/>
-        <strong>寬度(X)</strong>：最寬的那排箱子到右側預留邊界的距離。<br/>
-        <strong>高度(Y)</strong>：最高的那層箱子到頂部預留邊界的距離。<br/>
-        同時也會顯示「含預留空間」的實際間隙，協助判斷是否可縮減預留值。
-      </Info>
-      <Info icon="📉" label="3D 圖中的紅色虛線框">
-        紅色虛線框代表「有效裝載區域」，即扣除所有預留空間後，箱體實際可放置的範圍。
-        箱子不會超出這個框的範圍。
-      </Info>
-
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-4 mb-3">警告訊息說明</p>
-      <Info icon="⚠️" label="部分箱體未能完全裝入！（橘色警告區）">
-        當您設定了具體數量（非0），但系統無法全部裝入時，會出現此橘色警告區。<br/>
-        顯示內容：箱體名稱、短缺數量、目標數量、實際裝入數量。
-      </Info>
-      <Warn>
-        即使空間利用率還沒到 100%，仍可能出現裝不下的情況。原因是剩餘空間被分割成多塊「畸零空間」——每塊空間的長、寬、高都不足以容納還未裝入的箱子。
-        這就像拼圖的最後幾片，雖然面積看起來夠，但形狀不對就是放不進去。
-      </Warn>
-      <Tip>
-        遇到短缺警告時的解決方法：① 先嘗試「深層優化」→ ② 若仍不足，檢查各方向「剩餘間隙」數值，評估是否可縮減預留空間 → ③ 考慮換用 40' HQ 高櫃增加高度空間。
-      </Tip>
+      <Info icon="📦" label="總裝載箱數">成功排入貨櫃有效空間內的箱子總數量（所有箱型合計）。</Info>
+      <Info icon="📊" label="空間利用率 (%)">（所有箱體總體積 ÷ 貨櫃內部總容積）× 100%。含預留空間在分母中，70%以上為良好，80%以上為優秀。</Info>
+      <Info icon="📏" label="整體剩餘間隙">深度(Z)：最後一個箱子到門口邊界的距離。寬度(X)：最寬排到右側邊界的距離。高度(Y)：最高層到頂部邊界的距離。同時顯示「含預留空間」的實際間隙。</Info>
+      <Info icon="📉" label="3D 圖中的紅色虛線框">代表「有效裝載區域」，即扣除所有預留空間後箱體實際可放置的範圍。</Info>
+      <Info icon="⚠️" label="部分箱體未能完全裝入（橘色警告）">當設定了具體數量但系統無法全部裝入時出現。顯示箱體名稱、短缺數量、目標與實際裝入數量。</Info>
+      <Warn>即使空間利用率未達100%，仍可能出現裝不下的情況。原因是剩餘空間被分割成多塊「畸零空間」，每塊的長寬高都不足以容納還未裝入的箱子。</Warn>
+      <Tip>遇到短缺警告時：① 先嘗試「深層優化」→ ② 檢查剩餘間隙，評估是否可縮減預留空間 → ③ 考慮換用 40' HQ 高櫃增加高度空間。</Tip>
     </div>,
-
-    // Tab 4：常見問題
     <div className="p-5 space-y-4">
       {[
-        ['為什麼選「自動」策略有時和手動選 L 或 W 結果一樣？',
-          '「自動」會同時跑 L優先 和 W優先 兩個方向，取其中裝載量較多的結果。如果兩個方向結果相同，就會看起來一樣。'],
-        ['深層優化跑完後，結果沒有比標準計算好，正常嗎？',
-          '正常。深層優化的 100 次迭代帶有隨機性，不保證每次都能找到更好的解。如果箱型結構比較單純（例如只有一種箱型），標準計算通常已經接近最優解。'],
-        ['箱子的 L/W/H 到底哪個方向是哪個？',
-          '系統預設 L（長）為對應貨櫃「深度」方向，W（寬）為對應「左右寬度」方向，H（高）固定為垂直方向。但水平擺放時 L 和 W 可以互換（這就是裝載方向策略在控制的事）。'],
-        ['設備不能翻轉，系統有考慮這個嗎？',
-          '有。系統只允許箱體繞垂直軸（Y軸）旋轉，也就是 L 和 W 可以互換，但 H（高度）永遠是垂直方向，不會讓設備側放或倒置。'],
-        ['公差功能什麼時候需要用到？',
-          '當您的箱子是由工廠外包製作，實際尺寸可能與圖面有出入時使用。例如：標稱 600mm，但允許 ±2mm 誤差，則填正公差 2、負公差 2，再選「最大」計算模式，確保最大的箱子也裝得進去。'],
-        ['空間利用率怎麼提高？',
-          '① 縮小各方向預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（如改為 30~40%）→ ④ 若有多種箱型，考慮混裝（數量都設為 0，讓系統自動填滿）。'],
-        ['DXF 檔案輸出後在 CAD 裡看不到圖形？',
-          'DXF 比例為 1:40，實際圖形可能很小。請在 CAD 中使用「全部縮放」（ZOOM → ALL）或「範圍縮放」（ZOOM → EXTENT）指令讓所有圖形顯示在視窗內。'],
+        ['為什麼選「自動」策略有時和手動選 L 或 W 結果一樣？','「自動」會同時跑 L優先 和 W優先 兩個方向，取其中裝載量較多的結果。如果兩個方向結果相同，就會看起來一樣。'],
+        ['深層優化跑完後，結果沒有比標準計算好，正常嗎？','正常。深層優化的 100 次迭代帶有隨機性，不保證每次都能找到更好的解。如果箱型結構比較單純（例如只有一種箱型），標準計算通常已經接近最優解。'],
+        ['箱子的 L/W/H 到底哪個方向是哪個？','系統預設 L（長）為對應貨櫃「深度」方向，W（寬）為對應「左右寬度」方向，H（高）固定為垂直方向。水平擺放時 L 和 W 可以互換（這就是裝載方向策略在控制的事）。'],
+        ['設備不能翻轉，系統有考慮這個嗎？','有。系統只允許箱體繞垂直軸（Y軸）旋轉，也就是 L 和 W 可以互換，但 H（高度）永遠是垂直方向，不會讓設備側放或倒置。'],
+        ['公差功能什麼時候需要用到？','當您的箱子是由工廠外包製作，實際尺寸可能與圖面有出入時使用。例如：標稱 600mm，但允許 ±2mm 誤差，則填正公差 2、負公差 2，再選「最大」計算模式，確保最大的箱子也裝得進去。'],
+        ['空間利用率怎麼提高？','① 縮小各方向預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（如改為 30~40%）→ ④ 若有多種箱型，考慮混裝（數量都設為 0，讓系統自動填滿）。'],
+        ['DXF 檔案輸出後在 CAD 裡看不到圖形？','DXF 比例為 1:40，實際圖形可能很小。請在 CAD 中使用「全部縮放」（ZOOM → ALL）或「範圍縮放」（ZOOM → EXTENT）指令讓所有圖形顯示在視窗內。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2">
-            <span className="text-blue-500 flex-shrink-0">Q.</span>{q}
-          </div>
-          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2">
-            <span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}
-          </div>
+          <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
+          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
         </div>
       ))}
     </div>
   ];
 
   const content_ja = [
-    // Tab 0 JA
     <div className="p-5 space-y-2">
       <p className="text-sm text-slate-500 mb-4">以下の 5 ステップで積載試算を完了できます：</p>
-      <Step n="1" title="コンテナ種類を選択">左上のドロップダウンから使用するコンテナ規格（20フィート・40フィート・40HQ）を選択してください。</Step>
-      <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します：最奥部・ドア側・右側・上部。固定金具やバンド・緩衝材のスペースを考慮してください。</Step>
+      <Step n="1" title="コンテナ種類を選択">左上のドロップダウンから使用するコンテナ規格を選択してください。</Step>
+      <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します。固定金具やバンド・緩衝材のスペースを考慮してください。</Step>
       <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、外寸 L×W×H（mm）と数量を入力します。数量 0 は「できる限り詰める」を意味します。</Step>
       <Step n="4" title="戦略を選択して計算">積載方向戦略を選んでから「標準計算」をクリック。数秒で 3D 積載図と結果概要が表示されます。</Step>
       <Step n="5" title="結果確認・深層最適化">総積載数と空間利用率を確認します。さらに利用率を上げたい場合は「深層最適化 (GRASP)」を使用してください。</Step>
       <Tip>初めての方はまず「標準計算」で基本結果を確認し、必要に応じて深層最適化を使用することをお勧めします。</Tip>
     </div>,
-    // Tab 1 JA
     <div className="p-5">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">コンテナ設定</p>
-      <Field name="コンテナ種類" type="ドロップダウン">20' GP：奥行約5867mm。40' GP：奥行約11998mm（最一般的）。40' HQ：40' GPより高さが約305mm増加。※JIS/ISO最小内部寸法を使用。</Field>
-      <Field name="最奥部・ドア側・右側・上部余白" type="数値 mm">各方向の余白はそれぞれ固定金具・ドア開閉・バンド通し・頂部断熱材のスペースです。</Field>
-      <Field name="支持面積しきい値 (%)" type="スライダー 20~80%">50%（デフォルト）：底面の半分以上が支持されていれば配置可能。20~30%：緩やか設定で積載率向上。70~80%：厳格設定で精密機器向け。</Field>
+      <Field name="コンテナ種類" type="ドロップダウン">20' GP：奥行約5867mm。40' GP：奥行約11998mm（最一般的）。40' HQ：40' GPより高さが約305mm増加。</Field>
+      <Field name="各方向余白" type="数値 mm">最奥部・ドア側・右側・上部それぞれの余白を設定。固定金具・ドア開閉・バンド通し・頂部断熱材のスペースです。</Field>
+      <Field name="支持面積しきい値 (%)" type="スライダー 20~80%">50%（デフォルト）：底面の半分以上が支持されれば配置可能。20~30%：緩やか設定で積載率向上。70~80%：精密機器向け厳格設定。</Field>
       <Field name="長(L) / 幅(W) / 高さ(H)" type="数値 mm">外箱の実寸を入力。H は垂直固定（上下反転不可）。L と W は水平回転で入れ替え可能。</Field>
-      <Field name="数量" type="数値">0 入力で自動最大充填。具体的な数字を入力すると、不足時に警告が表示されます。</Field>
-      <Field name="正/負公差・計算基準" type="数値 + ドロップダウン">製造誤差範囲を設定し「最大/最小/中間」で最悪・最良・平均ケースをシミュレーション。</Field>
+      <Field name="数量・公差・計算基準" type="数値 + ドロップダウン">数量 0 で自動最大充填。公差と計算基準の組み合わせで最悪・最良・平均ケースをシミュレーション。</Field>
     </div>,
-    // Tab 2 JA
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。単純な箱構成や初回確認に最適。</Btn>
-      <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復で最良解を探索。進捗バーで状況を確認可能。複雑な混載に効果的。約5~15秒。</Btn>
-      <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">積載結果を1:40スケールのDXF形式（正面・平面・側面図）で出力。CADソフトで開くことができます。計算後にのみ有効。</Btn>
-      <Btn label="撮影" color="bg-teal-600">現在の画面全体を高解像度JPGとして保存。報告書や顧客確認用に使用できます。</Btn>
-      <Btn label="等角/平面/正面/側面" color="bg-slate-500">3D視点の切替。等角：斜め上から全体確認。平面：真上から各層確認。正面：ドア側から確認。側面：横から奥行き確認。</Btn>
-      <Btn label="透過・積載順序スライダー" color="bg-slate-500">透過：半透明表示で内部確認。スライダー：箱の積載順序をステップ表示。マウス左：回転、右：移動、ホイール：縮尺。</Btn>
+      <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復で最良解を探索（約5~15秒）。複雑な混載に効果的。</Btn>
+      <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">積載結果を1:40スケールのDXF形式で出力。計算後のみ有効。</Btn>
+      <Btn label="撮影・等角/平面/正面/側面" color="bg-teal-600">撮影：高解像度JPG保存。視点ボタン：3D視点の切替。</Btn>
+      <Btn label="透過・積載順序スライダー" color="bg-slate-500">透過：半透明で内部確認。スライダー：積載順序をステップ表示。マウス左：回転、右：移動、ホイール：縮尺。</Btn>
     </div>,
-    // Tab 3 JA
     <div className="p-5">
-      <Info icon="📦" label="総積載箱数">計算で有効スペースに収まった全箱種の合計数。</Info>
-      <Info icon="📊" label="空間利用率 (%)">（全箱体積合計 ÷ コンテナ内部総容積）× 100%。余白含む分母のため実感より低めに出ることがあります。70%以上が良好、80%以上が優秀。</Info>
-      <Info icon="📐" label="有効積載体積 / 総容積">積載箱体積の合計（m³）と、コンテナの標準内部容積の対比。</Info>
-      <Info icon="📏" label="残りスペース（3D図左上）">Z（奥行）・X（幅）・Y（高さ）それぞれの方向で、最後の箱から有効端までの距離。「余白含」表示は余白を加えた実際の隙間です。</Info>
+      <Info icon="📦" label="総積載箱数">有効スペースに収まった全箱種の合計数。</Info>
+      <Info icon="📊" label="空間利用率 (%)">（全箱体積合計 ÷ コンテナ内部総容積）× 100%。70%以上が良好、80%以上が優秀。</Info>
+      <Info icon="📏" label="残りスペース">Z（奥行）・X（幅）・Y（高さ）それぞれの方向で最後の箱から有効端までの距離。「余白含」表示は余白を加えた実際の隙間です。</Info>
       <Warn>空間利用率が100%未満でも「積載不足」警告が出ることがあります。残りスペースが細切れになり、箱がどの向きでも入らない「デッドスペース」が生じるためです。</Warn>
-      <Tip>不足が発生した場合：① 深層最適化を試す → ② 残りスペースの数値を確認して余白を縮小 → ③ 40' HQ に変更して高さを増やす。</Tip>
+      <Tip>不足が発生した場合：① 深層最適化を試す → ② 余白を縮小 → ③ 40' HQ に変更して高さを増やす。</Tip>
     </div>,
-    // Tab 4 JA
     <div className="p-5 space-y-4">
       {[
         ['「自動」戦略と手動選択の結果が同じになるのはなぜですか？','「自動」はL優先とW優先の両方を実行し、積載数の多い方を採用します。両方同じ結果の場合は同一表示になります。'],
         ['深層最適化が標準計算より良くならないことはありますか？','あります。ランダム性があるため、箱種が単純な場合は標準計算がすでに最適解に近いことがほとんどです。'],
-        ['L/W/Hはどの方向ですか？','Lがコンテナ奥行方向、Wが左右幅方向、Hが垂直方向（固定）がデフォルトです。水平回転でLとWが入れ替わります。'],
-        ['公差機能はいつ使いますか？','外注製造の箱で実寸に誤差がある場合に使用。例えば標称600mm±2mmなら、正公差2・負公差2・計算基準「最大」で最悪ケースを検証できます。'],
+        ['公差機能はいつ使いますか？','外注製造の箱で実寸に誤差がある場合に使用。標称600mm±2mmなら、正公差2・負公差2・計算基準「最大」で最悪ケースを検証できます。'],
         ['DXFファイルをCADで開いても図形が見えません。','縮尺1:40のため図形が非常に小さく表示される場合があります。CADで「ZOOM → ALL」または「ZOOM → EXTENT」を実行してください。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
@@ -648,7 +450,6 @@ function HelpModal({onClose, lang}){
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
       <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
-        {/* ヘッダー */}
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Ico.Book c="w-5 h-5 text-blue-600"/>
@@ -658,7 +459,6 @@ function HelpModal({onClose, lang}){
             <Ico.X c="w-5 h-5"/>
           </button>
         </div>
-        {/* タブ */}
         <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
           {tabs.map((tb,i)=>(
             <button key={i} onClick={()=>setTab(i)}
@@ -667,11 +467,7 @@ function HelpModal({onClose, lang}){
             </button>
           ))}
         </div>
-        {/* コンテンツ */}
-        <div className="flex-1 overflow-y-auto scr">
-          {contents[tab]}
-        </div>
-        {/* フッター */}
+        <div className="flex-1 overflow-y-auto scr">{contents[tab]}</div>
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
           <div className="flex gap-2">
             <button onClick={()=>setTab(t=>Math.max(0,t-1))} disabled={tab===0} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">
@@ -723,7 +519,6 @@ function App(){
   const camRef      = useRef(null);
   const ctrlRef     = useRef(null);
 
-  // ── スクリーンショット ────────────────────────────────────────────────
   const doShot = () => {
     const el=document.getElementById('app-root');
     if(window.htmlToImage){
@@ -732,7 +527,6 @@ function App(){
     }
   };
 
-  // ── 計算実行 ──────────────────────────────────────────────────────────
   const doCalc = (deep) => {
     setLoading(true);
     if(deep){setGraspOn(true);setProgress(0);}
@@ -802,52 +596,146 @@ function App(){
     const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(10000,20000,10000); scene.add(dl);
 
     const c=CONTAINERS[ctnType];
-    scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),new THREE.LineBasicMaterial({color:0x334155,linewidth:2})));
+    scene.add(new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),
+      new THREE.LineBasicMaterial({color:0x334155,linewidth:2})
+    ));
 
-    const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
-    const corners=[new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)];
+    const eX0=-c.w/2, eX1=eX0+(c.w-rightGap);
+    const eY0=-c.h/2, eY1=eY0+(c.h-topGap);
+    const eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
+
+    // 紅色虛線有效裝載區域框
+    const corners=[
+      new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),
+      new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),
+      new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),
+      new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)
+    ];
     const edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
     const dpts=[];
-    edges.forEach(([i,j])=>{const p1=corners[i],p2=corners[j],dist=p1.distanceTo(p2),dir=new THREE.Vector3().subVectors(p2,p1).normalize();let cc=0;while(cc<dist){let n=Math.min(cc+150,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=190;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;}});
-    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})));
+    edges.forEach(([i,j])=>{
+      const p1=corners[i],p2=corners[j],dist=p1.distanceTo(p2),dir=new THREE.Vector3().subVectors(p2,p1).normalize();
+      let cc=0;
+      while(cc<dist){
+        let n=Math.min(cc+150,dist);
+        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
+        cc+=190;if(cc>=dist)break;
+        n=Math.min(cc+15,dist);
+        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
+        cc+=55;if(cc>=dist)break;
+        n=Math.min(cc+15,dist);
+        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
+        cc+=55;
+      }
+    });
+    scene.add(new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(dpts),
+      new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})
+    ));
 
+    // 箱體 mesh
     const grp=new THREE.Group();
     result.packed.forEach(p=>{
-      const mesh=new THREE.Mesh(new THREE.BoxGeometry(p.w,p.h,p.d),new THREE.MeshLambertMaterial({color:p.color}));
+      const mesh=new THREE.Mesh(
+        new THREE.BoxGeometry(p.w,p.h,p.d),
+        new THREE.MeshLambertMaterial({color:p.color})
+      );
       mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
-      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})));
+      mesh.add(new THREE.LineSegments(
+        new THREE.EdgesGeometry(mesh.geometry),
+        new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})
+      ));
       meshesRef.current.push(mesh); grp.add(mesh);
     });
     scene.add(grp);
 
+    // ── 剩餘間隙標註 (修正6：高度Y改往Z方向延伸) ──────────────────────
     const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
     if(result.stats?.rem&&result.packed.length>0){
       const {w:gW,h:gH,d:gD}=result.stats.rem;
-      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})));
+
+      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([p1,p2]),
+        new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})
+      ));
+
       const addD=(p1,p2,txt,col,sx,sy,sz)=>{
-        dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,linewidth:2})));
+        dimGrp.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([p1,p2]),
+          new THREE.LineBasicMaterial({color:col,linewidth:2})
+        ));
         const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
         const cv=document.createElement('canvas'); cv.width=1536; cv.height=150;
-        const ctx=cv.getContext('2d'); ctx.fillStyle=col; ctx.font='bold 55px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.strokeStyle='white'; ctx.lineWidth=8; ctx.strokeText(txt,768,75); ctx.fillText(txt,768,75);
-        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true})); sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
+        const ctx=cv.getContext('2d');
+        ctx.fillStyle=col; ctx.font='bold 55px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.strokeStyle='white'; ctx.lineWidth=8;
+        ctx.strokeText(txt,768,75); ctx.fillText(txt,768,75);
+        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
+        sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
       };
+
       const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0, x0=eX0;
-      gW.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX-g,y0,lZ+off),p2=new THREE.Vector3(lX,y0,lZ+off);addL(new THREE.Vector3(lX-g,y0,lZ),p1,'#2563eb');addL(new THREE.Vector3(lX,y0,lZ),p2,'#2563eb');addD(p1,p2,t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)','#2563eb',0,0,150);}});
-      gH.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX+off,lY-g,lZ),p2=new THREE.Vector3(lX+off,lY,lZ);addL(new THREE.Vector3(lX,lY-g,lZ),p1,'#16a34a');addL(new THREE.Vector3(lX,lY,lZ),p2,'#16a34a');addD(p1,p2,t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)','#16a34a',200,0,0);}});
-      gD.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX,y0-off,lZ-g),p2=new THREE.Vector3(lX,y0-off,lZ);addL(new THREE.Vector3(lX,y0,lZ-g),p1,'#ea580c');addL(new THREE.Vector3(lX,y0,lZ),p2,'#ea580c');addD(p1,p2,t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)','#ea580c',0,-200,0);}});
+
+      // 寬度(X) 藍色 — 往門口前方(Z+)延伸
+      gW.forEach((g,i)=>{
+        if(g>0){
+          const off=400+i*300;
+          const p1=new THREE.Vector3(lX-g, y0, lZ+off);
+          const p2=new THREE.Vector3(lX,   y0, lZ+off);
+          addL(new THREE.Vector3(lX-g, y0, lZ), p1, '#2563eb');
+          addL(new THREE.Vector3(lX,   y0, lZ), p2, '#2563eb');
+          addD(p1,p2, t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)', '#2563eb', 0, 0, 150);
+        }
+      });
+
+      // ★ 高度(Y) 綠色 — 修正6：改往門口前方(Z+)延伸，避免文字沉入地面
+      gH.forEach((g,i)=>{
+        if(g>0){
+          const off=600+i*400;   // 比寬度標註更往前，避免重疊
+          const p1=new THREE.Vector3(lX, lY-g, lZ+off);
+          const p2=new THREE.Vector3(lX, lY,   lZ+off);
+          addL(new THREE.Vector3(lX, lY-g, lZ), p1, '#16a34a');
+          addL(new THREE.Vector3(lX, lY,   lZ), p2, '#16a34a');
+          // sprite偏移：往右(X+)200 + 往前(Z+)300，確保文字浮在貨櫃右前上方
+          addD(p1,p2, t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)', '#16a34a', 200, 0, 300);
+        }
+      });
+
+      // 深度(Z) 橘色 — 往下(Y-)延伸
+      gD.forEach((g,i)=>{
+        if(g>0){
+          const off=400+i*300;
+          const p1=new THREE.Vector3(lX, y0-off, lZ-g);
+          const p2=new THREE.Vector3(lX, y0-off, lZ);
+          addL(new THREE.Vector3(lX, y0, lZ-g), p1, '#ea580c');
+          addL(new THREE.Vector3(lX, y0, lZ),   p2, '#ea580c');
+          addD(p1,p2, t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)', '#ea580c', 0, -300, 0);
+        }
+      });
     }
     scene.add(dimGrp);
 
-    camera.position.set(c.w*1.5,c.h*1.5,c.d*1.2); controls.update();
+    camera.position.set(c.w*1.8,c.h*1.8,c.d*1.5); controls.update();
     const animate=()=>{requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
     animate();
-    const onResize=()=>{if(!canvasRef.current)return;camera.aspect=canvasRef.current.clientWidth/canvasRef.current.clientHeight;camera.updateProjectionMatrix();renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);};
+    const onResize=()=>{
+      if(!canvasRef.current)return;
+      camera.aspect=canvasRef.current.clientWidth/canvasRef.current.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);
+    };
     window.addEventListener('resize',onResize);
     return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
   },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang]);
 
   useEffect(()=>{
-    meshesRef.current.forEach((m,i)=>{m.visible=i<step;m.material.transparent=xray;m.material.opacity=xray?.3:1;m.material.depthWrite=!xray;});
+    meshesRef.current.forEach((m,i)=>{
+      m.visible=i<step;
+      m.material.transparent=xray;
+      m.material.opacity=xray?.3:1;
+      m.material.depthWrite=!xray;
+    });
     if(dimRef.current) dimRef.current.visible=(step===result.packed.length&&result.packed.length>0);
   },[step,xray,result]);
 
@@ -855,10 +743,10 @@ function App(){
     const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
     if(!cam||!ctrl) return;
     ctrl.target.set(0,0,0);
-    if(v==='iso')   cam.position.set(c.w*1.5,c.h*1.5,c.d*1.2);
-    if(v==='top')   cam.position.set(0,Math.max(c.w,c.d)*1.2,.1);
-    if(v==='front') cam.position.set(0,0,c.d*1.5);
-    if(v==='side')  cam.position.set(c.d*1.5,0,0);
+    if(v==='iso')   cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
+    if(v==='top')   cam.position.set(0,Math.max(c.w,c.d)*1.5,.1);
+    if(v==='front') cam.position.set(0,0,c.d*1.8);
+    if(v==='side')  cam.position.set(c.d*1.8,0,0);
     ctrl.update();
   };
 
@@ -875,14 +763,34 @@ function App(){
     rect(0,cH+gap,cW,cD,'CONTAINER',7);
     rect(cW+gap,0,cD,cH,'CONTAINER',7);
     const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
-    const pview=(faces,dx,dy)=>{for(let i=0;i<faces.length;i++){const F=faces[i];let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];for(let j=0;j<faces.length;j++){if(i===j)continue;const O=faces[j];if(O.depth>F.depth+eps){if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);}}tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});rS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+F.w+dx,s.s+dy,F.x+F.w+dx,s.e+dy,F.lay,F.col);});}};
+    const pview=(faces,dx,dy)=>{
+      for(let i=0;i<faces.length;i++){
+        const F=faces[i];
+        let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];
+        for(let j=0;j<faces.length;j++){
+          if(i===j)continue;
+          const O=faces[j];
+          if(O.depth>F.depth+eps){
+            if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);
+            if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);
+            if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);
+            if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);
+          }
+        }
+        tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});
+        bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});
+        lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});
+        rS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+F.w+dx,s.s+dy,F.x+F.w+dx,s.e+dy,F.lay,F.col);});
+      }
+    };
     pview(result.packed.map(p=>({x:p.x*sc,y:p.y*sc,w:p.w*sc,h:p.h*sc,depth:(p.z+p.d)*sc,col:aci(p.typeId),lay:'FRONT'})),0,0);
     pview(result.packed.map(p=>({x:p.x*sc,y:cD-(p.z+p.d)*sc,w:p.w*sc,h:p.d*sc,depth:(p.y+p.h)*sc,col:aci(p.typeId),lay:'TOP'})),0,cH+gap);
     pview(result.packed.map(p=>({x:cD-(p.z+p.d)*sc,y:p.y*sc,w:p.d*sc,h:p.h*sc,depth:(p.x+p.w)*sc,col:aci(p.typeId),lay:'SIDE'})),cW+gap,0);
     dxf+='0\nENDSEC\n0\nEOF\n';
     const blob=new Blob([dxf],{type:'application/dxf'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download='3view_'+ctnType+'.dxf';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    const a=document.createElement('a');a.href=url;a.download='3view_'+ctnType+'.dxf';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   };
 
   const c=CONTAINERS[ctnType];
@@ -895,8 +803,8 @@ function App(){
 
       {fixOpen && (
         <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
-          <div className="space-y-3">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5].map((f,i)=>(
+          <div className="p-4 space-y-3">
+            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6].map((f,i)=>(
               <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
                 <span className="text-sm text-slate-700">{f}</span>
@@ -955,7 +863,7 @@ function App(){
                   </div>
                 ))}
               </div>
-              {/* 修正3 支撐閾値 */}
+              {/* 支撐閾值 */}
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-medium text-amber-800 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1"/>{t.gSupport}</label>
@@ -1044,7 +952,6 @@ function App(){
                     {graspOn?<Ico.Spin c="w-4 h-4 animate-spin mr-1.5"/>:<Ico.Star c="w-4 h-4 mr-1.5"/>}
                     {graspOn?(t.graspIng+' '+progress+'%'):t.graspBtn}
                   </button>
-                  {/* 修正4 プログレスバー */}
                   {graspOn&&(
                     <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5 mx-0.5">
                       <div className="prog-bar" style={{width:progress+'%'}}></div>
@@ -1057,7 +964,7 @@ function App(){
 
           {/* 右側 3D */}
           <div className="lg:col-span-7 flex flex-col gap-4">
-            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative flex-grow min-h-[450px]">
+            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative" style={{height:'620px'}}>
               {/* 凡例 */}
               <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
                 {boxes.map(b=>(
@@ -1092,8 +999,8 @@ function App(){
                 ))}
               </div>
               {/* キャンバス */}
-              <div ref={canvasRef} className="w-full h-full rounded-lg overflow-hidden cursor-move touch-none bg-slate-100"></div>
-              {/* 修正5 操作ヒント */}
+              <div ref={canvasRef} className="rounded-lg cursor-move touch-none bg-slate-100" style={{position:'absolute',top:'8px',left:'8px',right:'8px',bottom:'8px'}}></div>
+              {/* 操作ヒント */}
               <div className="hint-overlay">
                 <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>
                 <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>
