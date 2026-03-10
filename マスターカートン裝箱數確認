@@ -27,7 +27,7 @@
     .ista-gauge-bg{stroke:#e2e8f0;fill:none}
     .ista-gauge-fg{fill:none;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .5s}
     /* fold badge */
-    .fold-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;border:1.5px solid}
+    .fold-badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;border:1.5px solid;line-height:1.4;white-space:nowrap;vertical-align:middle;box-sizing:border-box}
     .fold-ok{background:#f0fdf4;color:#15803d;border-color:#86efac}
     .fold-warn{background:#fffbeb;color:#92400e;border-color:#fcd34d}
     .fold-err{background:#fef2f2;color:#991b1b;border-color:#fca5a5}
@@ -38,8 +38,6 @@
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 <div id="root"></div>
-const { useState, useEffect, useRef, useTransition, useCallback, useMemo } = React;
-
 <script>
 const {
   useState,
@@ -110,10 +108,10 @@ const SheetCountBadge = ({
   const w = text.length * 5.5 + 8;
   return /*#__PURE__*/React.createElement("g", {
     style: {
-      animation: `sheetBadgePop 7s ${delay} ease-out infinite`,
+      animation: `sheetBadgePop 10s ${delay} ease-out infinite`,
       transformOrigin: `${x}px ${y}px`
     }
-  }, /*#__PURE__*/React.createElement("style", null, `@keyframes sheetBadgePop{0%,82%{transform:scale(0);opacity:0}90%,100%{transform:scale(1);opacity:1}}`), /*#__PURE__*/React.createElement("rect", {
+  }, /*#__PURE__*/React.createElement("style", null, `@keyframes sheetBadgePop{0%,57.4%{transform:scale(0);opacity:0}63%,70%,100%{transform:scale(1);opacity:1}}`), /*#__PURE__*/React.createElement("rect", {
     x: x - w / 2,
     y: y - 8,
     width: w,
@@ -156,7 +154,7 @@ const CrossWrapIcon = ({
   stroke: "currentColor",
   strokeWidth: "0.5",
   opacity: "0.3"
-}))), /*#__PURE__*/React.createElement("style", null, `@keyframes sac1{0%,5%{transform:translateY(-30px);opacity:0}15%,70%{transform:translateY(0);opacity:1}75%,100%{transform:translateY(0);opacity:0.7}}@keyframes sac2{0%,25%{transform:translateY(-30px);opacity:0}35%,70%{transform:translateY(0);opacity:1}75%,100%{transform:translateY(0);opacity:0.7}}@keyframes sabox{0%,55%{transform:translateY(-40px);opacity:0}65%,100%{transform:translateY(0);opacity:1}}@keyframes satop{0%,75%{transform:translateY(-20px);opacity:0}85%,100%{transform:translateY(0);opacity:1}}.sac1{animation:sac1 7s ease-out infinite}.sac2{animation:sac2 7s ease-out infinite}.sabox{animation:sabox 7s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.satop{animation:satop 7s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
+}))), /*#__PURE__*/React.createElement("style", null, `@keyframes sac1{0%,3.5%{transform:translateY(-30px);opacity:0}10.5%,70%,100%{transform:translateY(0);opacity:1}}@keyframes sac2{0%,17.5%{transform:translateY(-30px);opacity:0}24.5%,70%,100%{transform:translateY(0);opacity:1}}@keyframes sabox{0%,38.5%{transform:translateY(-40px);opacity:0}45.5%,70%,100%{transform:translateY(0);opacity:1}}@keyframes satop{0%,52.5%{transform:translateY(-20px);opacity:0}59.5%,70%,100%{transform:translateY(0);opacity:1}}.sac1{animation:sac1 10s ease-out infinite}.sac2{animation:sac2 10s ease-out infinite}.sabox{animation:sabox 10s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.satop{animation:satop 10s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
   stroke: "currentColor",
   strokeWidth: "1",
   opacity: "0.2",
@@ -363,7 +361,7 @@ const VoidFillIcon = ({
     delay: '1.05s'
   }];
   const shown = positions.slice(0, Math.min(total, 8));
-  const kfStyles = shown.map(p => `@keyframes ${p.cls}{0%,35%{transform:scale(0);opacity:0}45%,100%{transform:scale(1);opacity:1}}.${p.cls}{animation:${p.cls} 7s ${p.delay} cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:${p.cx}px ${p.cy}px}`).join('');
+  const kfStyles = shown.map(p => `@keyframes ${p.cls}{0%,24.5%{transform:scale(0);opacity:0}31.5%,70%,100%{transform:scale(1);opacity:1}}.${p.cls}{animation:${p.cls} 10s ${p.delay} cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:${p.cx}px ${p.cy}px}`).join('');
   return /*#__PURE__*/React.createElement("svg", {
     viewBox: "0 0 120 120",
     fill: "none",
@@ -382,7 +380,7 @@ const VoidFillIcon = ({
     stroke: "currentColor",
     strokeWidth: "0.5",
     opacity: "0.4"
-  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes sbvib{0%,10%{transform:translate(0,0)}15%{transform:translate(3px,-2px)}20%{transform:translate(-3px,1.5px)}25%{transform:translate(2px,0)}30%,100%{transform:translate(0,0)}}.sbvib{animation:sbvib 7s ease-in-out infinite;fill:currentColor}${kfStyles}`), /*#__PURE__*/React.createElement("g", {
+  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes sbvib{0%,7%{transform:translate(0,0)}10.5%{transform:translate(3px,-2px)}14%{transform:translate(-3px,1.5px)}17.5%{transform:translate(2px,0)}21%,100%{transform:translate(0,0)}}.sbvib{animation:sbvib 10s ease-in-out infinite;fill:currentColor}${kfStyles}`), /*#__PURE__*/React.createElement("g", {
     stroke: "currentColor",
     strokeWidth: "1",
     opacity: "0.2",
@@ -482,7 +480,7 @@ const LayeredUWrapIcon = ({
     stroke: "currentColor",
     strokeWidth: "0.5",
     opacity: "0.3"
-  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes scu1{0%,5%{transform:translateY(-30px);opacity:0}15%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scu2{0%,22%{transform:translateY(-30px);opacity:0}32%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scu3{0%,40%{transform:translateY(-30px);opacity:0}50%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scbox{0%,58%{transform:translateY(-40px);opacity:0}68%,100%{transform:translateY(0);opacity:1}}@keyframes sctop{0%,78%{transform:translateY(-20px);opacity:0}88%,100%{transform:translateY(0);opacity:1}}.scu1{animation:scu1 7s ease-out infinite}.scu2{animation:scu2 7s ease-out infinite}.scu3{animation:scu3 7s ease-out infinite}.scbox{animation:scbox 7s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.sctop{animation:sctop 7s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
+  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes scu1{0%,3.5%{transform:translateY(-30px);opacity:0}10.5%,70%,100%{transform:translateY(0);opacity:1}}@keyframes scu2{0%,15.4%{transform:translateY(-30px);opacity:0}22.4%,70%,100%{transform:translateY(0);opacity:1}}@keyframes scu3{0%,28%{transform:translateY(-30px);opacity:0}35%,70%,100%{transform:translateY(0);opacity:1}}@keyframes scbox{0%,40.6%{transform:translateY(-40px);opacity:0}47.6%,70%,100%{transform:translateY(0);opacity:1}}@keyframes sctop{0%,54.6%{transform:translateY(-20px);opacity:0}61.6%,70%,100%{transform:translateY(0);opacity:1}}.scu1{animation:scu1 10s ease-out infinite}.scu2{animation:scu2 10s ease-out infinite}.scu3{animation:scu3 10s ease-out infinite}.scbox{animation:scbox 10s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.sctop{animation:sctop 10s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
     stroke: "currentColor",
     strokeWidth: "1",
     opacity: "0.2",
@@ -729,47 +727,82 @@ function calcFold({
     thickWarning: folds >= 3
   };
 }
+
+// descKey format: 'fold0'|'fold1L'|'fold1S'|'fold2L'|'fold2E'|'fold2S'|'fold3'
+// Actual UI label is resolved at render time using getFoldDesc(descKey, lang, dims)
 function getFoldedSizes(sheetL, sheetW, folds) {
-  // desc = CJK label for UI;  pdfDesc = ASCII for PDF output
   if (folds === 0) return [{
     l: sheetL,
     w: sheetW,
-    desc: `${sheetL}×${sheetW}（原尺寸）`,
+    descKey: 'fold0',
+    dims: [sheetL, sheetW],
     pdfDesc: `No fold  ${sheetL}x${sheetW}mm`
   }];
   if (folds === 1) return [{
     l: sheetL / 2,
     w: sheetW,
-    desc: `長邊對折 → ${sheetL / 2}×${sheetW}`,
+    descKey: 'fold1L',
+    dims: [sheetL / 2, sheetW],
     pdfDesc: `Long-side fold -> ${sheetL / 2}x${sheetW}mm`
   }, {
     l: sheetL,
     w: sheetW / 2,
-    desc: `短邊對折 → ${sheetL}×${sheetW / 2}`,
+    descKey: 'fold1S',
+    dims: [sheetL, sheetW / 2],
     pdfDesc: `Short-side fold -> ${sheetL}x${sheetW / 2}mm`
   }];
   if (folds === 2) return [{
     l: sheetL / 4,
     w: sheetW,
-    desc: `長邊對折2次 → ${sheetL / 4}×${sheetW}`,
+    descKey: 'fold2L',
+    dims: [sheetL / 4, sheetW],
     pdfDesc: `Long-side x2 -> ${sheetL / 4}x${sheetW}mm`
   }, {
     l: sheetL / 2,
     w: sheetW / 2,
-    desc: `各邊對折1次 → ${sheetL / 2}×${sheetW / 2}`,
+    descKey: 'fold2E',
+    dims: [sheetL / 2, sheetW / 2],
     pdfDesc: `Each side x1 -> ${sheetL / 2}x${sheetW / 2}mm`
   }, {
     l: sheetL,
     w: sheetW / 4,
-    desc: `短邊對折2次 → ${sheetL}×${sheetW / 4}`,
+    descKey: 'fold2S',
+    dims: [sheetL, sheetW / 4],
     pdfDesc: `Short-side x2 -> ${sheetL}x${sheetW / 4}mm`
   }];
   return [{
     l: sheetL / 4,
     w: sheetW / 2,
-    desc: `對折3次 → ${sheetL / 4}×${sheetW / 2}（⚠ 超出建議）`,
+    descKey: 'fold3',
+    dims: [sheetL / 4, sheetW / 2],
     pdfDesc: `Fold x3 -> ${sheetL / 4}x${sheetW / 2}mm (!EXCEEDS LIMIT)`
   }];
+}
+function getFoldDesc(descKey, lang, dims) {
+  const [a, b] = dims || [0, 0];
+  if (lang === 'ja') {
+    const map = {
+      fold0: `${a}×${b}（原寸）`,
+      fold1L: `長辺対折 → ${a}×${b}`,
+      fold1S: `短辺対折 → ${a}×${b}`,
+      fold2L: `長辺対折2回 → ${a}×${b}`,
+      fold2E: `各辺対折1回 → ${a}×${b}`,
+      fold2S: `短辺対折2回 → ${a}×${b}`,
+      fold3: `対折3回 → ${a}×${b}（⚠ 超過推奨）`
+    };
+    return map[descKey] || descKey;
+  } else {
+    const map = {
+      fold0: `${a}×${b}（原尺寸）`,
+      fold1L: `長邊對折 → ${a}×${b}`,
+      fold1S: `短邊對折 → ${a}×${b}`,
+      fold2L: `長邊對折2次 → ${a}×${b}`,
+      fold2E: `各邊對折1次 → ${a}×${b}`,
+      fold2S: `短邊對折2次 → ${a}×${b}`,
+      fold3: `對折3次 → ${a}×${b}（⚠ 超出建議）`
+    };
+    return map[descKey] || descKey;
+  }
 }
 
 /* ============================================================
@@ -788,15 +821,33 @@ function FoldDetail({
   const statusText = fd.thickWarning ? t.lang === 'ja' ? '⚠ 厚み不足' : '⚠ 厚度不足' : fd.best?.ok ? t.lang === 'ja' ? '✓ 適合' : '✓ 適合' : t.lang === 'ja' ? '△ 補張要' : '△ 需補張';
   return /*#__PURE__*/React.createElement("div", {
     className: "border border-slate-200 rounded-lg overflow-hidden text-xs mb-1"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "button",
+    tabIndex: 0,
     onClick: () => setOpen(o => !o),
-    className: `w-full flex items-center justify-between px-3 py-2 ${color} hover:brightness-95 transition-all`
+    onKeyDown: e => (e.key === 'Enter' || e.key === ' ') && setOpen(o => !o),
+    className: `w-full flex items-center justify-between px-3 py-2 cursor-pointer select-none ${color} hover:brightness-95 transition-all`,
+    style: {
+      boxSizing: 'border-box',
+      lineHeight: 'normal'
+    }
   }, /*#__PURE__*/React.createElement("span", {
-    className: "font-semibold text-slate-700"
+    className: "font-semibold text-slate-700",
+    style: {
+      flex: '1 1 auto'
+    }
   }, label), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
+    className: "flex items-center gap-2",
+    style: {
+      flexShrink: 0
+    }
   }, /*#__PURE__*/React.createElement("span", {
-    className: `fold-badge ${statusClass}`
+    className: `fold-badge ${statusClass}`,
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      whiteSpace: 'nowrap'
+    }
   }, statusText), open ? /*#__PURE__*/React.createElement(ChevronUp, {
     className: "w-3.5 h-3.5 text-slate-400"
   }) : /*#__PURE__*/React.createElement(ChevronDown, {
@@ -821,7 +872,7 @@ function FoldDetail({
     className: "text-slate-500"
   }, t.lang === 'ja' ? '推奨折り方' : '建議折法'), /*#__PURE__*/React.createElement("span", {
     className: "font-bold text-indigo-700"
-  }, fd.best.desc)), /*#__PURE__*/React.createElement("div", {
+  }, getFoldDesc(fd.best.descKey, t.lang, fd.best.dims))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-slate-500"
@@ -843,7 +894,7 @@ function FoldDetail({
     className: "text-slate-500"
   }, t.lang === 'ja' ? '追加折り方' : '追加折法'), /*#__PURE__*/React.createElement("span", {
     className: "font-bold text-sky-700"
-  }, fd.residualFold.best.desc))), fd.thickWarning && /*#__PURE__*/React.createElement("div", {
+  }, getFoldDesc(fd.residualFold.best.descKey, t.lang, fd.residualFold.best.dims)))), fd.thickWarning && /*#__PURE__*/React.createElement("div", {
     className: "bg-red-50 border border-red-200 rounded p-1.5 text-red-700 font-bold"
   }, "\u26A0 ", t.lang === 'ja' ? '間隙が気泡材の4倍厚みを超えています。より厚い気泡材か多層重ねを検討してください。' : '間隙超過氣泡紙4倍厚度，建議換用更厚氣泡紙或多層疊放。')));
 }
@@ -903,10 +954,10 @@ function IstaGauge({
 const translations = {
   zh: {
     lang: 'zh',
-    appTitle: "裝箱設計確認間隙計算程式",
+    appTitle: "ACC-裝箱設計間隙確認",
     langToggle: "日本語切替",
     step1Title: "外箱內寸設定 (mm)",
-    step2Title: "製品盒子與緩衝材設定",
+    step2Title: "製品紙盒外寸與緩衝材設定",
     step3Title: "排列與計算",
     outerL: "長 (L)",
     outerW: "寬 (W)",
@@ -943,7 +994,7 @@ const translations = {
     gapL: "長度間隙",
     gapW: "寬度間隙",
     gapH: "高度間隙",
-    packAdviceTitle: "📦 智能包裝策略判定引擎",
+    packAdviceTitle: "📦 氣泡紙包裝張數預估",
     methodA: "方案 A：整體十字包覆 (標準)",
     methodADesc: "氣泡紙呈十字交叉平鋪於空箱。適合三方向間隙均小於20mm。",
     methodB: "方案 B：局部間隙填充 (塞墊)",
@@ -989,8 +1040,8 @@ const translations = {
     xrayLabel: "透視模式",
     closeBtn: "關閉",
     helpModalTitle: "📘 完整使用說明",
-    helpIntro: "本程式用於模擬並驗證外箱裝箱設計。輸入外箱與製品尺寸後，自動計算三方向剩餘間隙、最大裝載數量、估算氣泡紙張數與對折方式，並以3D視圖呈現裝載配置。結果可匯出為AutoCAD三視圖DXF或整頁截圖。",
-    helpSec1Title: "🔢 STEP 1：外箱尺寸輸入",
+    helpIntro: "ACC-裝箱設計間隙確認 用於模擬並驗證外箱裝箱設計。輸入外箱與製品紙盒尺寸後，自動計算三方向剩餘間隙、裝載數量、氣泡紙估算張數與對折方式，並以3D視圖呈現裝載配置。可依照包裝方案（A/B/C）確認氣泡紙數量，結果可匯出為AutoCAD三視圖DXF或截圖（JPG）。",
+    helpSec1Title: "🔢 STEP 1：外箱內寸設定",
     helpSec1Content: [{
       label: "外箱 L / W / H",
       type: "input",
@@ -998,17 +1049,17 @@ const translations = {
     }, {
       label: "正公差 / 負公差",
       type: "input",
-      desc: "外箱的製造誤差容許範圍（mm）。配合「計算尺寸狀態」使用，建議外箱選「最小狀態（-公差）」來確認最不利的干涉情況。"
+      desc: "外箱的製造誤差容許範圍（mm）。配合「計算尺寸狀態」使用，建議外箱選「最小狀態（-公差）」來確認最不利的裝入情況。"
     }, {
       label: "計算尺寸狀態",
       type: "input",
-      desc: "選擇此步驟計算時所使用的尺寸基準：「基本」＝標稱值；「最大」＝標稱值＋正公差；「最小」＝標稱值－負公差。外箱與製品各自獨立設定。"
+      desc: "選擇計算時使用的尺寸基準：「基本」＝標稱值；「最大」＝標稱值＋正公差；「最小」＝標稱值－負公差。外箱與製品各自獨立設定。"
     }],
-    helpSec2Title: "📦 STEP 2：製品及緩衝材設定",
+    helpSec2Title: "📦 STEP 2：製品紙盒外寸與緩衝材設定",
     helpSec2Content: [{
       label: "製品 l / w / h",
       type: "input",
-      desc: "製品盒子的外形尺寸（mm）。自動最佳化模式下，系統嘗試6種方向組合，自動選出裝載數量最多的擺放方式。"
+      desc: "製品紙盒的外形尺寸（mm）。自動最佳化模式下，系統嘗試6種方向組合，自動選出裝載數量最多的擺放方式。"
     }, {
       label: "正公差 / 負公差（製品）",
       type: "input",
@@ -1020,13 +1071,13 @@ const translations = {
     }, {
       label: "箱間緩衝間隙",
       type: "input",
-      desc: "相鄰製品之間預留的最小緩衝空間（mm）。此數值模擬實際鋪設氣泡紙後，製品排列時的間距，會計入裝載數量的計算。"
+      desc: "相鄰製品之間預留的最小緩衝空間（mm）。模擬實際鋪設氣泡紙後製品間距，直接影響裝載數量計算。"
     }, {
       label: "氣泡紙規格（長 × 寬 × 厚度）",
       type: "input",
-      desc: "您實際使用的氣泡紙尺寸。長×寬用於計算所需張數及對折後覆蓋率；厚度用於計算U型鋪底對折後的緩衝厚度是否足夠填滿間隙。"
+      desc: "您實際使用的氣泡紙尺寸。長×寬用於計算所需張數及對折後覆蓋率；厚度用於判斷U型鋪底對折後的緩衝厚度是否足以填滿間隙。"
     }],
-    helpSec3Title: "⚙️ STEP 3：排列設定與計算",
+    helpSec3Title: "⚙️ STEP 3：排列與計算設定",
     helpSec3Content: [{
       label: "顯示空間填充預覽",
       type: "input",
@@ -1034,57 +1085,57 @@ const translations = {
     }, {
       label: "排列方向策略",
       type: "input",
-      desc: "「自動最佳化」：系統嘗試製品所有可能的擺放方向，自動選出裝載數最多的配置。「強制對齊」：製品有特定擺放限制時使用（如標示面朝上），可指定製品的某一面方向固定對齊外箱長度方向。"
+      desc: "「自動最佳化（允許6種翻轉）」：系統嘗試製品所有可能的擺放方向，自動選出裝載數最多的配置。「強制：製品X對齊外箱長」：製品有特定擺放限制時使用（如標示面朝上），可指定製品的長/寬/高某面固定對齊外箱長度方向。"
     }, {
       label: "裝載數量模式",
       type: "input",
-      desc: "「自動（最大可裝）」：系統依外箱與製品尺寸計算物理上能裝入的最大數量。「手動指定數量」：輸入外箱規格或合約規定的固定裝載數（如：每箱固定6個），計算時以此數為上限，氣泡紙張數也依此數量對應計算。手動指定值超過物理上限時，系統自動改用上限值。"
+      desc: "「自動（最大可裝）」：依外箱與製品尺寸計算物理上限數量。「手動指定數量」：輸入外箱規格或合約規定的固定裝載數（如每箱固定6個），氣泡紙張數也依此數量計算。指定值超過物理上限時，系統自動改用上限值。"
     }, {
       label: "開始計算間隙",
       type: "btn",
-      desc: "按下後重新計算所有間隙、裝載數、包裝方案張數與對折建議，並同步更新3D視圖。"
+      desc: "按下後重新計算所有間隙、裝載數量、包裝方案氣泡紙張數與對折建議，並同步更新3D視圖。"
     }],
     helpSec4Title: "📊 計算結果說明",
     helpSec4Content: [{
-      label: "裝載數",
+      label: "已裝載（裝載數量）",
       type: "output",
-      desc: "在目前設定下可裝入外箱的製品數量。自動模式顯示物理最大值（灰色標籤）；手動模式顯示目標數與達成狀態（綠色＝達成、紅色＝不足）。"
+      desc: "目前設定下可裝入外箱的製品數量。自動模式顯示物理最大值（灰色「自動最大」標籤）；手動模式顯示目標數與達成狀態（綠色✓達成 / 紅色⚠不足）。"
     }, {
       label: "三方向間隙（L / W / H）",
       type: "output",
-      desc: "外箱有效內尺寸減去製品佔用空間的剩餘量（mm）。負值（紅色）＝干涉，製品放不下，需調整尺寸。建議範圍為5～20mm。"
+      desc: "外箱有效內尺寸減去製品佔用空間後的剩餘量（mm）。負值（紅色）代表干涉，製品放不進去，需調整尺寸。建議範圍5～20mm。"
     }, {
       label: "空間利用率",
       type: "output",
-      desc: "所有製品體積總和 ÷ 外箱容積 × 100%。綠色≥80%（良好）；橙色60～79%（可接受）；紅色＜60%（建議重新評估）。"
+      desc: "所有製品體積總和 ÷ 外箱容積 × 100%。綠色≥80%（良好）；橙色60～79%（可接受）；紅色＜60%（建議重新評估配置）。"
     }, {
       label: "對折建議詳情（方案A / C）",
       type: "output",
-      desc: "點擊方案A或C內各鋪底項目的標題列，可展開查看：需求緩衝厚度、對折次數、最佳折疊方向（長邊或短邊）、單張覆蓋率，以及覆蓋率不足80%時的補張建議數量。"
+      desc: "點擊方案A或C內各鋪底項目的標題列可展開查看：需求緩衝厚度、對折次數、最佳折疊方向（長邊/短邊）、單張覆蓋率，及覆蓋率不足80%時的補張建議數。"
     }],
     helpSec5Title: "📋 三種包裝方案說明",
     helpSec5Content: [{
       label: "方案A：整體十字包覆",
       type: "output",
-      desc: "三方向間隙均小於20mm時最適合。氣泡紙分長向與寬向各做一組U型鋪底，再加一層封頂，形成十字交叉六面保護。"
+      desc: "三方向間隙均小於20mm時最適合。氣泡紙分長向（L方向）與寬向（W方向）各做一組U型鋪底，再加一層封頂，形成十字交叉六面保護。SVG動畫中的標籤數字為實際建議張數。"
     }, {
       label: "方案B：局部間隙填充",
       type: "output",
-      desc: "任一方向間隙超過25mm時適用。將氣泡紙揉捏後塞入空隙，防止製品在箱內搖晃（鐘擺效應）。張數計算已含1.2倍空氣蓬鬆係數。"
+      desc: "任一方向間隙超過25mm時適用。將氣泡紙揉捏後塞入空隙，防止製品在箱內搖晃（鐘擺效應）。張數計算已含1.2倍空氣蓬鬆係數。動畫中顯示的揉捏氣泡球數量對應建議總張數（上限8顆顯示）。"
     }, {
       label: "方案C：層疊U型鋪底",
       type: "output",
-      desc: "製品高度方向為多層堆疊（≥2層）時最適合。每層各做一組U型鋪底，最後加封頂蓋。對折建議依各層間隙計算。"
+      desc: "製品在高度方向為多層堆疊（≥2層）時最適合。每層各做一組U型鋪底，最後加封頂蓋。對折建議依各層間隙計算，動畫中顯示實際層數。"
     }, {
       label: "自動推薦邏輯（★標示）",
       type: "output",
-      desc: "系統依三個因子綜合評分：最大間隙絕對值（>25mm→傾向B）、最大間隙佔外箱比例（>8%→傾向B）、高度堆疊層數（>1層→傾向C），自動在最適方案標示★。"
+      desc: "系統依三個因子綜合評分後自動標示最適方案★：最大間隙絕對值（>25mm→傾向B）、最大間隙佔外箱比例（>8%→傾向B）、高度堆疊層數（>1層→傾向C）。"
     }],
-    helpSec6Title: "🖥️ 3D視圖操作 / 工具列按鈕",
+    helpSec6Title: "🖥️ 3D視圖操作 / 工具列說明",
     helpSec6Content: [{
       label: "旋轉",
       type: "3d",
-      desc: "按住滑鼠左鍵拖曳可旋轉視角。"
+      desc: "按住滑鼠左鍵拖曳可旋轉3D視角。"
     }, {
       label: "平移",
       type: "3d",
@@ -1100,32 +1151,36 @@ const translations = {
     }, {
       label: "步驟播放條",
       type: "3d",
-      desc: "拖動下方滑桿可逐一顯示每個製品的放置位置，方便逐件核對。"
+      desc: "拖動3D視圖下方滑桿可逐一顯示每個製品的放置位置，方便確認各製品的裝載順序。"
     }, {
       label: "藍色半透明方塊",
       type: "3d",
-      desc: "三方向剩餘空間的視覺化，需勾選「顯示空間填充預覽」才會顯示。"
+      desc: "三方向剩餘空間的視覺化。需先勾選「顯示空間填充預覽」才會顯示。"
     }, {
       label: "製品變紅色",
       type: "3d",
-      desc: "表示該製品超出外箱邊界，發生干涉，需縮小製品或改用更大外箱。"
+      desc: "表示該製品超出外箱邊界，發生干涉。需縮小製品尺寸或改用更大外箱。"
+    }, {
+      label: "操作說明",
+      type: "btn",
+      desc: "開啟本說明視窗。"
     }, {
       label: "導出DXF",
       type: "btn",
-      desc: "將目前裝載配置輸出為AutoCAD可讀的DXF格式三視圖（正視圖/俯視圖/側視圖），供設計確認或存檔。"
+      desc: "將目前裝載配置輸出為AutoCAD可讀的DXF格式三視圖（俯視圖/正視圖/側視圖），供設計確認或存檔。"
     }, {
       label: "截圖",
       type: "btn",
-      desc: "對整個畫面截圖並下載為PNG檔，適合製作報告或與同仁分享確認。"
+      desc: "對整個畫面截圖並下載為JPG檔。適合製作報告或與同仁分享確認用。"
     }, {
       label: "語言切換",
       type: "btn",
-      desc: "切換介面語言（繁體中文 ⇔ 日文）。切換後所有欄位名稱與說明文字即時同步更新。"
+      desc: "切換介面語言（繁體中文 ⇔ 日文）。切換後所有欄位名稱、說明文字與包裝方案名稱即時同步更新。"
     }]
   },
   ja: {
     lang: 'ja',
-    appTitle: "梱包隙間確認計算ツール",
+    appTitle: "ACCマスターカートン隙間確認計算ツール",
     langToggle: "中文切替",
     step1Title: "外箱内寸設定 (mm)",
     step2Title: "製品箱と緩衝材の設定",
@@ -1165,7 +1220,7 @@ const translations = {
     gapL: "長さの隙間",
     gapW: "幅の隙間",
     gapH: "高さの隙間",
-    packAdviceTitle: "📦 スマート梱包戦略判定エンジン",
+    packAdviceTitle: "📦 プチプチ包装枚数予測",
     methodA: "プラン A：標準十字敷き詰め",
     methodADesc: "緩衝材を十字に交差させて空箱に敷き、6面を均一に保護します。",
     methodB: "プラン B：部分的な隙間充填",
@@ -1208,42 +1263,42 @@ const translations = {
     xrayLabel: "透過モード",
     closeBtn: "閉じる",
     helpModalTitle: "📘 完全操作マニュアル",
-    helpIntro: "このツールは外箱の梱包設計を検証するためのプログラムです。外箱・製品の寸法を入力することで、3方向の残り隙間・最大積載数・気泡緩衝材の必要枚数と対折方法を自動計算し、3Dビューで積載状態を確認できます。結果はDXF三面図または画面スクリーンショットとして保存可能です。",
-    helpSec1Title: "🔢 STEP 1：外箱内寸の入力",
+    helpIntro: "ACC-装箱設計隙間確認ツール は外箱の梱包設計を検証するプログラムです。外箱・製品紙箱の寸法を入力すると、3方向の残り隙間・積載数・気泡緩衝材の必要枚数と対折方法を自動計算し、3Dビューで積載状態を確認できます。梱包プラン（A/B/C）ごとに必要枚数をSVGアニメーションで確認でき、結果はDXF三面図またはJPGスクリーンショットとして保存可能です。",
+    helpSec1Title: "🔢 STEP 1：外箱内寸の設定",
     helpSec1Content: [{
       label: "外箱 L / W / H",
       type: "input",
-      desc: "外箱の内寸（mm）を入力します。組み立て後に実際に測定した内部空間の寸法を入力してください（段ボール展開寸法ではありません）。"
+      desc: "外箱の内寸（mm）を入力します。組み立て後に実測した内部空間の寸法を入力してください（段ボール展開寸法ではありません）。"
     }, {
       label: "プラス公差 / マイナス公差",
       type: "input",
-      desc: "外箱の製造公差許容値（mm）です。「計算用寸法状態」と組み合わせて使用します。最も厳しい干渉条件を確認するため、外箱は「最小状態（－公差）」を推奨します。"
+      desc: "外箱の製造公差許容値（mm）です。「計算用寸法状態」と組み合わせて使用します。最も厳しい条件を確認するため、外箱は「最小状態（－公差）」の使用を推奨します。"
     }, {
       label: "計算用寸法状態",
       type: "input",
-      desc: "計算に使用する寸法の基準を選択します。「基本」＝公称値のまま；「最大」＝公称値＋プラス公差；「最小」＝公称値－マイナス公差。外箱と製品はそれぞれ独立して設定できます。"
+      desc: "計算に使用する寸法の基準を選択します。「基本」＝公称値；「最大」＝公称値＋プラス公差；「最小」＝公称値－マイナス公差。外箱と製品はそれぞれ独立して設定できます。"
     }],
-    helpSec2Title: "📦 STEP 2：製品と緩衝材の設定",
+    helpSec2Title: "📦 STEP 2：製品紙箱外寸と緩衝材の設定",
     helpSec2Content: [{
       label: "製品 l / w / h",
       type: "input",
-      desc: "製品の外形寸法（mm）を入力します。自動最適化モードでは6通りの向きをすべて試算し、最大積載数となる配置を自動選択します。"
+      desc: "製品紙箱の外形寸法（mm）を入力します。自動最適化モードでは6通りの向きをすべて試算し、最大積載数となる配置を自動選択します。"
     }, {
       label: "プラス公差 / マイナス公差（製品）",
       type: "input",
-      desc: "製品の製造公差許容値（mm）です。外箱を最小状態・製品を最大状態に設定することで、最も厳しい「製品が収まるか」の条件を検証できます。"
+      desc: "製品の製造公差許容値（mm）です。外箱を最小状態・製品を最大状態に設定することで、最も厳しい収納条件を検証できます。"
     }, {
       label: "計算用寸法状態（製品）",
       type: "input",
-      desc: "製品の計算基準寸法を選択します。外箱の設定と独立しています。"
+      desc: "製品の計算基準寸法を選択します。外箱の設定と独立して設定できます。"
     }, {
       label: "箱間緩衝材厚み",
       type: "input",
-      desc: "隣接する製品間に確保する最小緩衝スペース（mm）です。実際に気泡緩衝材を敷いた状態での製品間隔をシミュレートし、積載数の計算に反映されます。"
+      desc: "隣接する製品間に確保する最小緩衝スペース（mm）です。実際に気泡緩衝材を敷いた状態の製品間隔をシミュレートし、積載数の計算に直接反映されます。"
     }, {
       label: "気泡緩衝材規格（長さ × 幅 × 厚み）",
       type: "input",
-      desc: "実際に使用する気泡緩衝材のサイズを入力します。長さ×幅は必要枚数とU型対折後のカバー率計算に使用します。厚みはU型鋪底の対折後緩衝厚みが隙間を満たすかの判定に使用します。"
+      desc: "実際に使用する気泡緩衝材のサイズを入力します。長さ×幅は必要枚数とU型対折後のカバー率計算に使用します。厚みはU型敷きの対折後緩衝厚みが隙間を満たすかの判定に使用します。"
     }],
     helpSec3Title: "⚙️ STEP 3：配置設定と計算実行",
     helpSec3Content: [{
@@ -1253,11 +1308,11 @@ const translations = {
     }, {
       label: "配置方向の戦略",
       type: "input",
-      desc: "「自動最適化（6方向回転）」：製品の全向きを試算して最大積載数を自動選択。「強制：製品〇〇を合わせる」：表示面上向き固定など特定の向き制約がある場合に使用します。製品の指定面を外箱の長さ（L）方向に固定します。"
+      desc: "「自動最適化（6方向回転）」：製品の全方向を試算して最大積載数を自動選択します。「強制：製品〇〇を合わせる」：表示面上向き固定など向き制約がある場合に使用し、製品の指定面を外箱の長さ（L）方向に固定します。"
     }, {
       label: "積載数量モード",
       type: "input",
-      desc: "「自動（最大積載数）」：外箱と製品の寸法から物理的に収納できる最大数を計算します。「手動指定数量」：外箱規格や契約で定められた固定積載数（例：1箱6個固定）を入力すると、その数を上限として計算し、梱包材枚数もその数量に応じて算出されます。指定数が物理上限を超える場合は自動的に上限値を採用します。"
+      desc: "「自動（最大積載数）」：外箱と製品の寸法から物理的に収納できる最大数を計算します。「手動指定数量」：外箱規格や契約で定められた固定積載数（例：1箱6個固定）を入力すると、その数を上限として計算し、梱包材枚数もその数量に応じて算出されます。指定数が物理上限を超えた場合は自動的に上限値を採用します。"
     }, {
       label: "隙間計算を開始",
       type: "btn",
@@ -1265,9 +1320,9 @@ const translations = {
     }],
     helpSec4Title: "📊 計算結果の見方",
     helpSec4Content: [{
-      label: "積載数",
+      label: "積載済（積載数量）",
       type: "output",
-      desc: "現在の設定で収納できる製品の数量です。自動モードでは物理的最大値をグレーのラベルで表示。手動モードでは目標数と達成状況をカラーラベルで表示します（緑＝達成、赤＝不足）。"
+      desc: "現在の設定で収納できる製品の数量です。自動モードでは物理的最大値をグレーの「自動最大」ラベルで表示。手動モードでは目標数と達成状況をカラーラベルで表示します（緑✓達成 / 赤⚠不足）。"
     }, {
       label: "3方向隙間（L / W / H）",
       type: "output",
@@ -1279,31 +1334,31 @@ const translations = {
     }, {
       label: "対折推奨の詳細（プランA / C）",
       type: "output",
-      desc: "プランA・Cの各敷き工程の項目行をクリックすると詳細が展開されます。表示内容：必要緩衝厚み・推奨対折回数・最適折り方向（長辺または短辺）・1枚あたりのカバー率・カバー率が80%未満の場合の補足枚数。"
+      desc: "プランA・Cの各敷き工程の項目行をクリックすると詳細が展開されます。内容：必要緩衝厚み・推奨対折回数・最適折り方向（長辺または短辺）・1枚当たりのカバー率・カバー率80%未満の場合の補足枚数。"
     }],
     helpSec5Title: "📋 3つの梱包プランの説明",
     helpSec5Content: [{
       label: "プランA：標準十字敷き",
       type: "output",
-      desc: "3方向の隙間がすべて20mm未満の場合に最適です。長さ方向と幅方向それぞれにU型敷きを行い、最後に天面を封止する十字交差6面保護の工法です。"
+      desc: "3方向の隙間がすべて20mm未満の場合に最適です。長さ方向（L）と幅方向（W）それぞれにU型敷きを行い、最後に天面を封止する十字交差6面保護の工法です。SVGアニメーションのラベル数字が実際の推奨枚数です。"
     }, {
       label: "プランB：局部隙間充填",
       type: "output",
-      desc: "いずれかの方向の隙間が25mmを超える場合に適用します。気泡緩衝材を丸めて空間に詰め込み、輸送中の製品の振り子運動（前後左右への動き）を防止します。枚数計算には1.2倍の空気膨張係数を含みます。"
+      desc: "いずれかの方向の隙間が25mmを超える場合に適用します。気泡緩衝材を丸めて空間に詰め込み、輸送中の振り子運動を防止します。枚数計算には1.2倍の空気膨張係数を含みます。アニメーション中の丸めた球の個数が推奨総枚数（上限8個表示）に対応しています。"
     }, {
       label: "プランC：積層U型敷き",
       type: "output",
-      desc: "高さ方向に製品を2段以上積む場合に最適です。各段ごとにU型敷きを行い、最後に天面を封止します。対折推奨は各段の隙間に基づいて計算されます。"
+      desc: "高さ方向に製品を2段以上積む場合に最適です。各段ごとにU型敷きを行い、最後に天面を封止します。対折推奨は各段の隙間に基づいて計算され、アニメーションに実際の段数が反映されます。"
     }, {
       label: "自動推奨ロジック（★表示）",
       type: "output",
       desc: "3つの要素を総合評価して最適プランを★で自動表示します：最大隙間の絶対値（>25mm→B判定）、最大隙間の比率（>8%→B傾向）、積載段数（2段以上→C傾向）。"
     }],
-    helpSec6Title: "🖥️ 3Dビュー操作 / ツールバー",
+    helpSec6Title: "🖥️ 3Dビュー操作 / ツールバー説明",
     helpSec6Content: [{
       label: "回転",
       type: "3d",
-      desc: "マウス左ボタンを押しながらドラッグすると視点が回転します。"
+      desc: "マウス左ボタンを押しながらドラッグすると3D視点が回転します。"
     }, {
       label: "平行移動",
       type: "3d",
@@ -1315,7 +1370,7 @@ const translations = {
     }, {
       label: "透過モード",
       type: "3d",
-      desc: "右上の「透過モード」をチェックONにすると製品が半透明になり、内側の製品の位置や積み重なりを確認できます。"
+      desc: "「透過モード」をチェックONにすると製品が半透明になり、内側の製品の位置や重なりを確認できます。"
     }, {
       label: "ステップスライダー",
       type: "3d",
@@ -1327,19 +1382,23 @@ const translations = {
     }, {
       label: "製品が赤くなる",
       type: "3d",
-      desc: "外箱の境界をはみ出した干渉が発生しています。製品サイズを小さくするか、より大きな外箱への変更が必要です。"
+      desc: "外箱の境界をはみ出した干渉が発生しています。製品サイズを縮小するか、より大きな外箱への変更が必要です。"
+    }, {
+      label: "操作説明",
+      type: "btn",
+      desc: "このマニュアルウィンドウを開きます。"
     }, {
       label: "DXF出力",
       type: "btn",
-      desc: "現在の積載配置をAutoCAD対応のDXF形式三面図（正面図・平面図・側面図）として出力します。設計確認や記録保管に活用できます。"
+      desc: "現在の積載配置をAutoCAD対応のDXF形式三面図（平面図・正面図・側面図）として出力します。設計確認や記録保管に活用できます。"
     }, {
       label: "スクショ",
       type: "btn",
-      desc: "現在の画面全体をPNG形式でダウンロードします。報告書への添付や社内共有に使用できます。"
+      desc: "現在の画面全体をJPG形式でダウンロードします。報告書への添付や社内共有に使用できます。"
     }, {
-      label: "言語切替ボタン",
+      label: "言語切替",
       type: "btn",
-      desc: "「中文切替」ボタンを押すと表示言語が繁体字中国語に切り替わります。すべての項目名・説明・梱包プラン名が即座に更新されます。"
+      desc: "「中文切替」ボタンを押すと繁体字中国語に切り替わります。すべての項目名・説明・梱包プラン名が即座に更新されます。"
     }]
   }
 };
@@ -1941,18 +2000,109 @@ function App() {
   const handleScreenshot = async () => {
     setIsScreenshotting(true);
     try {
-      const c = await window.html2canvas(document.body, {
+      window.scrollTo(0, 0);
+      await new Promise(r => setTimeout(r, 150));
+      const target = document.getElementById('app-main') || document.body;
+
+      // ── 截圖前：將所有 input / select / textarea 置換為外觀相同的 div ──
+      const replacements = [];
+      target.querySelectorAll('input,select,textarea,button').forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const cs = window.getComputedStyle(el);
+        const div = document.createElement('div');
+        // 複製視覺樣式
+        div.style.cssText = `
+          position:absolute;
+          left:${rect.left - targetRect.left + target.scrollLeft}px;
+          top:${rect.top - targetRect.top + target.scrollTop}px;
+          width:${rect.width}px;
+          height:${rect.height}px;
+          background:${cs.backgroundColor || '#fff'};
+          border:${cs.border};
+          border-radius:${cs.borderRadius};
+          color:${cs.color};
+          font-size:${cs.fontSize};
+          font-weight:${cs.fontWeight};
+          font-family:${cs.fontFamily};
+          line-height:${rect.height}px;
+          padding:0 ${cs.paddingLeft};
+          box-sizing:border-box;
+          overflow:hidden;
+          white-space:nowrap;
+          z-index:9999;
+          pointer-events:none;
+        `;
+        // 取得顯示文字
+        let text = '';
+        if (el.tagName === 'SELECT') {
+          text = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+        } else if (el.tagName === 'BUTTON') {
+          text = el.innerText || el.textContent || '';
+          div.style.textAlign = 'center';
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          div.style.lineHeight = 'normal';
+        } else if (el.type === 'checkbox') {
+          div.style.lineHeight = 'normal';
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          text = el.checked ? '✓' : '';
+        } else {
+          text = el.value || '';
+        }
+        div.textContent = text;
+        // 將 position:relative 加到 target，確保 absolute 定位正確
+        const prevPos = target.style.position;
+        if (!prevPos || prevPos === 'static') target.style.position = 'relative';
+        target.appendChild(div);
+        replacements.push({
+          div,
+          el,
+          prevPos
+        });
+        el.style.opacity = '0';
+      });
+      await new Promise(r => setTimeout(r, 60));
+      const canvas = await window.html2canvas(target, {
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#f8fafc'
+        backgroundColor: '#f8fafc',
+        scale: 2,
+        logging: false,
+        imageTimeout: 0,
+        onclone: doc => {
+          const style = doc.createElement('style');
+          style.textContent = `
+            *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+            [class*="backdrop-blur"],[class*="backdrop"]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+            [class*="fixed"]{display:none!important;}
+            input,select,textarea{opacity:0!important;}
+          `;
+          doc.head.appendChild(style);
+        }
       });
-      const u = c.toDataURL('image/png');
+
+      // ── 截圖後：還原所有元素 ──
+      replacements.forEach(({
+        div,
+        el,
+        prevPos
+      }) => {
+        el.style.opacity = '';
+        div.remove();
+        if (prevPos !== undefined) target.style.position = prevPos;
+      });
+      const u = canvas.toDataURL('image/jpeg', 0.93);
       const a = document.createElement('a');
       a.href = u;
-      a.download = `GapCalc_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`;
+      a.download = `ACC_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.jpg`;
       a.click();
     } catch (e) {
       console.error(e);
+      // 確保出錯時也還原（由 finally 執行 setIsScreenshotting）
     } finally {
       setIsScreenshotting(false);
     }
@@ -2083,6 +2233,7 @@ function App() {
   /* ---------- RENDER ---------- */
   const s = packingResult.stats;
   return /*#__PURE__*/React.createElement("div", {
+    id: "app-main",
     className: "min-h-screen p-4 md:p-6 bg-slate-50 font-sans"
   }, /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto space-y-5"
