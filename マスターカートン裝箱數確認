@@ -38,6 +38,8 @@
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 <div id="root"></div>
+const { useState, useEffect, useRef, useTransition, useCallback, useMemo } = React;
+
 <script>
 const {
   useState,
@@ -91,127 +93,51 @@ const AlertTriangle = Ic('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 
 const CheckCircle = Ic('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>');
 
 /* ============================================================
-   SVG ANIMATIONS (same as v1.15)
+   SVG ANIMATIONS - dynamic sheet count display (v1.17)
    ============================================================ */
-const LayeredUWrapIcon = ({
-  className
-}) => /*#__PURE__*/React.createElement("svg", {
-  viewBox: "0 0 120 120",
-  fill: "none",
-  xmlns: "http://www.w3.org/2000/svg",
-  className: className
-}, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("pattern", {
-  id: "bubC",
-  width: "6",
-  height: "6",
-  patternUnits: "userSpaceOnUse"
-}, /*#__PURE__*/React.createElement("circle", {
-  cx: "3",
-  cy: "3",
-  r: "2",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: "0.5",
-  opacity: "0.3"
-}))), /*#__PURE__*/React.createElement("style", null, `@keyframes scu1{0%,5%{transform:translateY(-30px);opacity:0}15%,100%{transform:translateY(0);opacity:1}}@keyframes scu2{0%,20%{transform:translateY(-30px);opacity:0}30%,100%{transform:translateY(0);opacity:1}}@keyframes scu3{0%,35%{transform:translateY(-30px);opacity:0}45%,100%{transform:translateY(0);opacity:1}}@keyframes scbox{0%,55%{transform:translateY(-40px);opacity:0}65%,100%{transform:translateY(0);opacity:1}}@keyframes sctop{0%,75%{transform:translateY(-20px);opacity:0}85%,100%{transform:translateY(0);opacity:1}}.scu1{animation:scu1 6s ease-out infinite}.scu2{animation:scu2 6s ease-out infinite}.scu3{animation:scu3 6s ease-out infinite}.scbox{animation:scbox 6s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.sctop{animation:sctop 6s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
-  stroke: "currentColor",
-  strokeWidth: "1",
-  opacity: "0.25",
-  strokeDasharray: "3 3"
-}, /*#__PURE__*/React.createElement("path", {
-  d: "M60,95 L20,75 L60,55 L100,75 Z"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M60,55 L20,35 L60,15 L100,35 Z"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M20,75 L20,35 M60,95 L60,55 M100,75 L100,35"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "scu1",
-  stroke: "currentColor",
-  strokeWidth: "1"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 58,56 58,18 22,36",
-  fill: "url(#bubC)"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 58,56 58,18 22,36",
-  fill: "currentColor",
-  opacity: "0.1"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 60,93 98,74 58,56",
-  fill: "url(#bubC)"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 60,93 98,74 58,56",
-  fill: "currentColor",
-  opacity: "0.2"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "60,93 98,74 98,36 60,55",
-  fill: "url(#bubC)"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "60,93 98,74 98,36 60,55",
-  fill: "currentColor",
-  opacity: "0.1"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "scu2",
-  transform: "translate(0,-3)",
-  stroke: "currentColor",
-  strokeWidth: "0.5",
-  opacity: "0.8"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 58,56 58,18 22,36",
-  fill: "currentColor",
-  opacity: "0.15"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 60,93 98,74 58,56",
-  fill: "currentColor",
-  opacity: "0.25"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "60,93 98,74 98,36 60,55",
-  fill: "currentColor",
-  opacity: "0.15"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "scu3",
-  transform: "translate(0,-6)",
-  stroke: "currentColor",
-  strokeWidth: "0.5",
-  opacity: "0.6"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 58,56 58,18 22,36",
-  fill: "currentColor",
-  opacity: "0.15"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "22,74 60,93 98,74 58,56",
-  fill: "currentColor",
-  opacity: "0.25"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "60,93 98,74 98,36 60,55",
-  fill: "currentColor",
-  opacity: "0.15"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "scbox",
-  stroke: "white",
-  strokeWidth: "1"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "40,78 60,88 80,78 60,68",
-  fillOpacity: "0.8"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "40,78 60,88 60,78 40,68",
-  fillOpacity: "0.9"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "80,78 60,88 60,78 80,68",
-  fillOpacity: "0.7"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "sctop",
-  stroke: "currentColor",
-  strokeWidth: "1"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "25,55 60,72.5 95,55 60,37.5",
-  fill: "url(#bubC)"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "25,55 60,72.5 95,55 60,37.5",
-  fill: "currentColor",
-  opacity: "0.3"
-})));
+
+// SheetCountBadge: animated pill that shows "N 張/枚" inside SVG
+const SheetCountBadge = ({
+  count,
+  x,
+  y,
+  color,
+  delay = '0s',
+  unit = '張',
+  label = ''
+}) => {
+  const text = label ? `${label}:${count}${unit}` : `×${count}${unit}`;
+  const w = text.length * 5.5 + 8;
+  return /*#__PURE__*/React.createElement("g", {
+    style: {
+      animation: `sheetBadgePop 7s ${delay} ease-out infinite`,
+      transformOrigin: `${x}px ${y}px`
+    }
+  }, /*#__PURE__*/React.createElement("style", null, `@keyframes sheetBadgePop{0%,82%{transform:scale(0);opacity:0}90%,100%{transform:scale(1);opacity:1}}`), /*#__PURE__*/React.createElement("rect", {
+    x: x - w / 2,
+    y: y - 8,
+    width: w,
+    height: "16",
+    rx: "8",
+    fill: color,
+    opacity: "0.93"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: x,
+    y: y + 4.5,
+    textAnchor: "middle",
+    fontSize: "8.5",
+    fontWeight: "bold",
+    fill: "white",
+    fontFamily: "system-ui,sans-serif"
+  }, text));
+};
+
+// Plan A: CrossWrap - nL, nW, nTop props
 const CrossWrapIcon = ({
-  className
+  className,
+  nL = 1,
+  nW = 1,
+  nTop = 1
 }) => /*#__PURE__*/React.createElement("svg", {
   viewBox: "0 0 120 120",
   fill: "none",
@@ -230,10 +156,10 @@ const CrossWrapIcon = ({
   stroke: "currentColor",
   strokeWidth: "0.5",
   opacity: "0.3"
-}))), /*#__PURE__*/React.createElement("style", null, `@keyframes sac1{0%,5%{transform:translateY(-30px);opacity:0}15%,100%{transform:translateY(0);opacity:1}}@keyframes sac2{0%,25%{transform:translateY(-30px);opacity:0}35%,100%{transform:translateY(0);opacity:1}}@keyframes sabox{0%,55%{transform:translateY(-40px);opacity:0}65%,100%{transform:translateY(0);opacity:1}}@keyframes satop{0%,80%{transform:translateY(-20px);opacity:0}90%,100%{transform:translateY(0);opacity:1}}.sac1{animation:sac1 6s ease-out infinite}.sac2{animation:sac2 6s ease-out infinite}.sabox{animation:sabox 6s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.satop{animation:satop 6s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
+}))), /*#__PURE__*/React.createElement("style", null, `@keyframes sac1{0%,5%{transform:translateY(-30px);opacity:0}15%,70%{transform:translateY(0);opacity:1}75%,100%{transform:translateY(0);opacity:0.7}}@keyframes sac2{0%,25%{transform:translateY(-30px);opacity:0}35%,70%{transform:translateY(0);opacity:1}75%,100%{transform:translateY(0);opacity:0.7}}@keyframes sabox{0%,55%{transform:translateY(-40px);opacity:0}65%,100%{transform:translateY(0);opacity:1}}@keyframes satop{0%,75%{transform:translateY(-20px);opacity:0}85%,100%{transform:translateY(0);opacity:1}}.sac1{animation:sac1 7s ease-out infinite}.sac2{animation:sac2 7s ease-out infinite}.sabox{animation:sabox 7s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.satop{animation:satop 7s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
   stroke: "currentColor",
   strokeWidth: "1",
-  opacity: "0.25",
+  opacity: "0.2",
   strokeDasharray: "3 3"
 }, /*#__PURE__*/React.createElement("path", {
   d: "M60,95 L20,75 L60,55 L100,75 Z"
@@ -241,159 +167,440 @@ const CrossWrapIcon = ({
   d: "M60,55 L20,35 L60,15 L100,35 Z"
 }), /*#__PURE__*/React.createElement("path", {
   d: "M20,75 L20,35 M60,95 L60,55 M100,75 L100,35"
-})), /*#__PURE__*/React.createElement("g", {
+})), Array.from({
+  length: Math.min(nL, 4)
+}).map((_, i) => /*#__PURE__*/React.createElement("g", {
+  key: 'al' + i,
   className: "sac1",
+  style: {
+    animationDelay: `${i * 0.08}s`
+  },
   stroke: "currentColor",
-  strokeWidth: "1"
+  strokeWidth: "1",
+  transform: `translate(0,${-i * 2})`
 }, /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 60,93 60,55 22,36",
-  fill: "url(#bubA)"
+  fill: "url(#bubA)",
+  opacity: 1 - i * 0.15
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 60,93 60,55 22,36",
   fill: "currentColor",
-  opacity: "0.1"
+  opacity: 0.1 - i * 0.02
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 60,93 98,74 58,56",
-  fill: "url(#bubA)"
+  fill: "url(#bubA)",
+  opacity: 1 - i * 0.15
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 60,93 98,74 58,56",
   fill: "currentColor",
-  opacity: "0.2"
+  opacity: 0.18 - i * 0.03
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "98,74 58,56 58,18 98,36",
-  fill: "url(#bubA)"
+  fill: "url(#bubA)",
+  opacity: 1 - i * 0.15
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "98,74 58,56 58,18 98,36",
   fill: "currentColor",
-  opacity: "0.1"
-})), /*#__PURE__*/React.createElement("g", {
+  opacity: 0.1 - i * 0.02
+}))), Array.from({
+  length: Math.min(nW, 4)
+}).map((_, i) => /*#__PURE__*/React.createElement("g", {
+  key: 'aw' + i,
   className: "sac2",
+  style: {
+    animationDelay: `${i * 0.08}s`
+  },
   stroke: "currentColor",
-  strokeWidth: "1"
+  strokeWidth: "1",
+  transform: `translate(0,${-i * 2})`
 }, /*#__PURE__*/React.createElement("polygon", {
   points: "60,93 98,74 98,36 60,55",
-  fill: "url(#bubA)"
+  fill: "url(#bubA)",
+  opacity: 0.85 - i * 0.12
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "60,93 98,74 98,36 60,55",
   fill: "currentColor",
-  opacity: "0.15"
+  opacity: 0.12
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 60,93 98,74 58,56",
   fill: "currentColor",
-  opacity: "0.25"
+  opacity: 0.2
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 58,56 58,18 22,36",
-  fill: "url(#bubA)"
+  fill: "url(#bubA)",
+  opacity: 0.85 - i * 0.12
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "22,74 58,56 58,18 22,36",
   fill: "currentColor",
-  opacity: "0.15"
-})), /*#__PURE__*/React.createElement("g", {
+  opacity: 0.12
+}))), /*#__PURE__*/React.createElement("g", {
   className: "sabox",
   stroke: "white",
   strokeWidth: "1"
 }, /*#__PURE__*/React.createElement("polygon", {
   points: "40,78 60,88 80,78 60,68",
-  fillOpacity: "0.8"
+  fillOpacity: "0.85"
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "40,78 60,88 60,78 40,68",
   fillOpacity: "0.9"
 }), /*#__PURE__*/React.createElement("polygon", {
   points: "80,78 60,88 60,78 80,68",
   fillOpacity: "0.7"
-})), /*#__PURE__*/React.createElement("g", {
+})), Array.from({
+  length: Math.min(nTop, 3)
+}).map((_, i) => /*#__PURE__*/React.createElement("g", {
+  key: 'at' + i,
   className: "satop",
-  stroke: "currentColor",
-  strokeWidth: "1"
-}, /*#__PURE__*/React.createElement("polygon", {
-  points: "25,55 60,72.5 95,55 60,37.5",
-  fill: "url(#bubA)"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "25,55 60,72.5 95,55 60,37.5",
-  fill: "currentColor",
-  opacity: "0.3"
-})));
-const VoidFillIcon = ({
-  className
-}) => /*#__PURE__*/React.createElement("svg", {
-  viewBox: "0 0 120 120",
-  fill: "none",
-  xmlns: "http://www.w3.org/2000/svg",
-  className: className
-}, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("pattern", {
-  id: "bubB",
-  width: "6",
-  height: "6",
-  patternUnits: "userSpaceOnUse"
-}, /*#__PURE__*/React.createElement("circle", {
-  cx: "3",
-  cy: "3",
-  r: "2",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: "0.5",
-  opacity: "0.4"
-}))), /*#__PURE__*/React.createElement("style", null, `@keyframes sbvib{0%,15%{transform:translate(0,0)}20%{transform:translate(3px,-1.5px)}25%{transform:translate(-3px,1.5px)}30%{transform:translate(1.5px,0)}35%,100%{transform:translate(0,0)}}@keyframes sbp1{0%,40%{transform:scale(0);opacity:0}50%,100%{transform:scale(1);opacity:1}}@keyframes sbp2{0%,45%{transform:scale(0);opacity:0}55%,100%{transform:scale(1);opacity:1}}@keyframes sbpt{0%,60%{transform:scale(0);opacity:0}70%,100%{transform:scale(1);opacity:1}}.sbvib{animation:sbvib 6s ease-in-out infinite;fill:currentColor}.sbp1{animation:sbp1 6s cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:80px 80px}.sbp2{animation:sbp2 6s cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:30px 70px}.sbpt{animation:sbpt 6s cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:60px 45px}`), /*#__PURE__*/React.createElement("g", {
+  style: {
+    animationDelay: `${i * 0.1}s`
+  },
   stroke: "currentColor",
   strokeWidth: "1",
-  opacity: "0.25",
-  strokeDasharray: "3 3"
-}, /*#__PURE__*/React.createElement("path", {
-  d: "M60,95 L20,75 L60,55 L100,75 Z"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M60,55 L20,35 L60,15 L100,35 Z"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M20,75 L20,35 M60,95 L60,55 M100,75 L100,35"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "sbvib",
-  stroke: "white",
-  strokeWidth: "1"
+  transform: `translate(0,${-i * 2})`
 }, /*#__PURE__*/React.createElement("polygon", {
-  points: "35,80 55,90 75,80 55,70",
-  fillOpacity: "0.3"
+  points: "25,55 60,72.5 95,55 60,37.5",
+  fill: "url(#bubA)",
+  opacity: 1 - i * 0.2
 }), /*#__PURE__*/React.createElement("polygon", {
-  points: "35,80 55,90 55,70 35,60",
-  fillOpacity: "0.4"
-}), /*#__PURE__*/React.createElement("polygon", {
-  points: "75,80 55,90 55,70 75,60",
-  fillOpacity: "0.2"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "sbp1",
-  stroke: "currentColor",
-  strokeWidth: "1.5",
-  strokeLinejoin: "round"
-}, /*#__PURE__*/React.createElement("path", {
-  d: "M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z",
+  points: "25,55 60,72.5 95,55 60,37.5",
   fill: "currentColor",
-  opacity: "0.3"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M 70,80 Q 80,72 90,82 T 85,93 T 68,88 Z",
-  fill: "url(#bubB)"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "sbp2",
-  stroke: "currentColor",
-  strokeWidth: "1.5",
-  strokeLinejoin: "round"
-}, /*#__PURE__*/React.createElement("path", {
-  d: "M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z",
-  fill: "currentColor",
-  opacity: "0.3"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M 25,68 Q 35,55 45,65 T 32,80 T 22,75 Z",
-  fill: "url(#bubB)"
-})), /*#__PURE__*/React.createElement("g", {
-  className: "sbpt",
-  stroke: "currentColor",
-  strokeWidth: "1.5",
-  strokeLinejoin: "round"
-}, /*#__PURE__*/React.createElement("path", {
-  d: "M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z",
-  fill: "currentColor",
-  opacity: "0.3"
-}), /*#__PURE__*/React.createElement("path", {
-  d: "M 45,50 Q 55,40 70,48 T 75,60 T 55,58 Z",
-  fill: "url(#bubB)"
-})));
+  opacity: 0.28 - i * 0.05
+}))), /*#__PURE__*/React.createElement(SheetCountBadge, {
+  count: nL,
+  x: 26,
+  y: 62,
+  color: "#059669",
+  delay: "0.5s",
+  label: "L"
+}), /*#__PURE__*/React.createElement(SheetCountBadge, {
+  count: nW,
+  x: 94,
+  y: 62,
+  color: "#059669",
+  delay: "0.65s",
+  label: "W"
+}), /*#__PURE__*/React.createElement(SheetCountBadge, {
+  count: nTop,
+  x: 60,
+  y: 32,
+  color: "#047857",
+  delay: "0.8s",
+  label: "\u84CB"
+}));
+
+// Plan B: VoidFill - total crumpled sheets, shown as individual blobs animating in
+const VoidFillIcon = ({
+  className,
+  total = 3,
+  sheetsL = 1,
+  sheetsW = 1,
+  sheetsH = 1
+}) => {
+  // Generate crumple positions spread around box interior
+  const positions = [{
+    cx: 80,
+    cy: 82,
+    rx: 11,
+    ry: 8,
+    rot: -15,
+    cls: 'sbp1',
+    delay: '0s'
+  }, {
+    cx: 28,
+    cy: 70,
+    rx: 10,
+    ry: 9,
+    rot: 20,
+    cls: 'sbp2',
+    delay: '0.15s'
+  }, {
+    cx: 60,
+    cy: 46,
+    rx: 12,
+    ry: 7,
+    rot: 5,
+    cls: 'sbp3',
+    delay: '0.3s'
+  }, {
+    cx: 45,
+    cy: 80,
+    rx: 9,
+    ry: 8,
+    rot: -10,
+    cls: 'sbp4',
+    delay: '0.45s'
+  }, {
+    cx: 75,
+    cy: 60,
+    rx: 10,
+    ry: 7,
+    rot: 25,
+    cls: 'sbp5',
+    delay: '0.6s'
+  }, {
+    cx: 35,
+    cy: 50,
+    rx: 8,
+    ry: 9,
+    rot: -20,
+    cls: 'sbp6',
+    delay: '0.75s'
+  }, {
+    cx: 90,
+    cy: 70,
+    rx: 9,
+    ry: 8,
+    rot: 10,
+    cls: 'sbp7',
+    delay: '0.9s'
+  }, {
+    cx: 55,
+    cy: 72,
+    rx: 8,
+    ry: 7,
+    rot: -5,
+    cls: 'sbp8',
+    delay: '1.05s'
+  }];
+  const shown = positions.slice(0, Math.min(total, 8));
+  const kfStyles = shown.map(p => `@keyframes ${p.cls}{0%,35%{transform:scale(0);opacity:0}45%,100%{transform:scale(1);opacity:1}}.${p.cls}{animation:${p.cls} 7s ${p.delay} cubic-bezier(.175,.885,.32,1.275) infinite;transform-origin:${p.cx}px ${p.cy}px}`).join('');
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 120 120",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    className: className
+  }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("pattern", {
+    id: "bubB",
+    width: "6",
+    height: "6",
+    patternUnits: "userSpaceOnUse"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "3",
+    cy: "3",
+    r: "2",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "0.5",
+    opacity: "0.4"
+  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes sbvib{0%,10%{transform:translate(0,0)}15%{transform:translate(3px,-2px)}20%{transform:translate(-3px,1.5px)}25%{transform:translate(2px,0)}30%,100%{transform:translate(0,0)}}.sbvib{animation:sbvib 7s ease-in-out infinite;fill:currentColor}${kfStyles}`), /*#__PURE__*/React.createElement("g", {
+    stroke: "currentColor",
+    strokeWidth: "1",
+    opacity: "0.2",
+    strokeDasharray: "3 3"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M60,95 L20,75 L60,55 L100,75 Z"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M60,55 L20,35 L60,15 L100,35 Z"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M20,75 L20,35 M60,95 L60,55 M100,75 L100,35"
+  })), /*#__PURE__*/React.createElement("g", {
+    className: "sbvib",
+    stroke: "white",
+    strokeWidth: "1"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "38,78 56,88 74,78 56,70",
+    fillOpacity: "0.3"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "38,78 56,88 56,70 38,62",
+    fillOpacity: "0.4"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "74,78 56,88 56,70 74,62",
+    fillOpacity: "0.2"
+  })), shown.map(p => /*#__PURE__*/React.createElement("g", {
+    key: p.cls,
+    className: p.cls
+  }, /*#__PURE__*/React.createElement("ellipse", {
+    cx: p.cx,
+    cy: p.cy,
+    rx: p.rx,
+    ry: p.ry,
+    transform: `rotate(${p.rot},${p.cx},${p.cy})`,
+    fill: "currentColor",
+    opacity: "0.25"
+  }), /*#__PURE__*/React.createElement("ellipse", {
+    cx: p.cx,
+    cy: p.cy,
+    rx: p.rx,
+    ry: p.ry,
+    transform: `rotate(${p.rot},${p.cx},${p.cy})`,
+    fill: "url(#bubB)"
+  }), /*#__PURE__*/React.createElement("ellipse", {
+    cx: p.cx,
+    cy: p.cy,
+    rx: p.rx * 0.55,
+    ry: p.ry * 0.55,
+    transform: `rotate(${p.rot + 30},${p.cx},${p.cy})`,
+    fill: "currentColor",
+    opacity: "0.15"
+  }))), /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: sheetsL,
+    x: 22,
+    y: 38,
+    color: "#0284c7",
+    delay: "1.1s",
+    label: "L"
+  }), /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: sheetsW,
+    x: 98,
+    y: 38,
+    color: "#0284c7",
+    delay: "1.25s",
+    label: "W"
+  }), /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: sheetsH,
+    x: 60,
+    y: 16,
+    color: "#0369a1",
+    delay: "1.4s",
+    label: "H"
+  }));
+};
+
+// Plan C: LayeredUWrap - nBottom, nTop, layers props
+const LayeredUWrapIcon = ({
+  className,
+  nBottom = 1,
+  nTop = 1,
+  layers = 1
+}) => {
+  const sheetsPerLayer = layers > 0 ? Math.ceil(nBottom / layers) : nBottom;
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 120 120",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    className: className
+  }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("pattern", {
+    id: "bubC",
+    width: "6",
+    height: "6",
+    patternUnits: "userSpaceOnUse"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "3",
+    cy: "3",
+    r: "2",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "0.5",
+    opacity: "0.3"
+  }))), /*#__PURE__*/React.createElement("style", null, `@keyframes scu1{0%,5%{transform:translateY(-30px);opacity:0}15%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scu2{0%,22%{transform:translateY(-30px);opacity:0}32%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scu3{0%,40%{transform:translateY(-30px);opacity:0}50%,80%{transform:translateY(0);opacity:1}85%,100%{opacity:0.6}}@keyframes scbox{0%,58%{transform:translateY(-40px);opacity:0}68%,100%{transform:translateY(0);opacity:1}}@keyframes sctop{0%,78%{transform:translateY(-20px);opacity:0}88%,100%{transform:translateY(0);opacity:1}}.scu1{animation:scu1 7s ease-out infinite}.scu2{animation:scu2 7s ease-out infinite}.scu3{animation:scu3 7s ease-out infinite}.scbox{animation:scbox 7s cubic-bezier(.175,.885,.32,1.275) infinite;fill:currentColor}.sctop{animation:sctop 7s ease-out infinite}`), /*#__PURE__*/React.createElement("g", {
+    stroke: "currentColor",
+    strokeWidth: "1",
+    opacity: "0.2",
+    strokeDasharray: "3 3"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M60,95 L20,75 L60,55 L100,75 Z"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M60,55 L20,35 L60,15 L100,35 Z"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M20,75 L20,35 M60,95 L60,55 M100,75 L100,35"
+  })), /*#__PURE__*/React.createElement("g", {
+    className: "scu1",
+    stroke: "currentColor",
+    strokeWidth: "1"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 58,56 58,18 22,36",
+    fill: "url(#bubC)"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 58,56 58,18 22,36",
+    fill: "currentColor",
+    opacity: "0.1"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 60,93 98,74 58,56",
+    fill: "url(#bubC)"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 60,93 98,74 58,56",
+    fill: "currentColor",
+    opacity: "0.2"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "60,93 98,74 98,36 60,55",
+    fill: "url(#bubC)"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "60,93 98,74 98,36 60,55",
+    fill: "currentColor",
+    opacity: "0.1"
+  })), layers >= 2 && /*#__PURE__*/React.createElement("g", {
+    className: "scu2",
+    transform: "translate(0,-4)",
+    stroke: "currentColor",
+    strokeWidth: "0.8",
+    opacity: "0.75"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 58,56 58,18 22,36",
+    fill: "currentColor",
+    opacity: "0.18"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 60,93 98,74 58,56",
+    fill: "currentColor",
+    opacity: "0.25"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "60,93 98,74 98,36 60,55",
+    fill: "currentColor",
+    opacity: "0.18"
+  })), layers >= 3 && /*#__PURE__*/React.createElement("g", {
+    className: "scu3",
+    transform: "translate(0,-8)",
+    stroke: "currentColor",
+    strokeWidth: "0.6",
+    opacity: "0.55"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 58,56 58,18 22,36",
+    fill: "currentColor",
+    opacity: "0.15"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22,74 60,93 98,74 58,56",
+    fill: "currentColor",
+    opacity: "0.2"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "60,93 98,74 98,36 60,55",
+    fill: "currentColor",
+    opacity: "0.15"
+  })), /*#__PURE__*/React.createElement("g", {
+    className: "scbox",
+    stroke: "white",
+    strokeWidth: "1"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "40,78 60,88 80,78 60,68",
+    fillOpacity: "0.85"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "40,78 60,88 60,78 40,68",
+    fillOpacity: "0.9"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "80,78 60,88 60,78 80,68",
+    fillOpacity: "0.7"
+  })), /*#__PURE__*/React.createElement("g", {
+    className: "sctop",
+    stroke: "currentColor",
+    strokeWidth: "1"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: "25,55 60,72.5 95,55 60,37.5",
+    fill: "url(#bubC)"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "25,55 60,72.5 95,55 60,37.5",
+    fill: "currentColor",
+    opacity: "0.3"
+  })), /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: sheetsPerLayer,
+    x: 26,
+    y: 62,
+    color: "#4f46e5",
+    delay: "0.5s",
+    label: "\u5E95"
+  }), layers >= 2 && /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: sheetsPerLayer,
+    x: 94,
+    y: 57,
+    color: "#4338ca",
+    delay: "0.65s",
+    label: "\u5E95"
+  }), /*#__PURE__*/React.createElement(SheetCountBadge, {
+    count: nTop,
+    x: 60,
+    y: 32,
+    color: "#3730a3",
+    delay: "0.8s",
+    label: "\u84CB"
+  }));
+};
 
 /* ============================================================
    ISTA-1A DROP HEIGHT TABLE (kg → cm)  ISTA 2014 standard
@@ -727,7 +934,12 @@ const translations = {
     resultTitle: "裝載結果",
     packedCount: "已裝載",
     targetLabel: "目標",
-    maxAuto: "最大",
+    maxAuto: "（自動最大）",
+    qtyModeLabel: "裝載數量模式",
+    qtyModeAuto: "自動（最大可裝）",
+    qtyModeManual: "手動指定數量",
+    qtyManualLabel: "指定裝載數（個）",
+    qtyManualHint: "超出物理上限時以上限為準",
     gapL: "長度間隙",
     gapW: "寬度間隙",
     gapH: "高度間隙",
@@ -824,6 +1036,10 @@ const translations = {
       type: "input",
       desc: "「自動最佳化」：系統嘗試製品所有可能的擺放方向，自動選出裝載數最多的配置。「強制對齊」：製品有特定擺放限制時使用（如標示面朝上），可指定製品的某一面方向固定對齊外箱長度方向。"
     }, {
+      label: "裝載數量模式",
+      type: "input",
+      desc: "「自動（最大可裝）」：系統依外箱與製品尺寸計算物理上能裝入的最大數量。「手動指定數量」：輸入外箱規格或合約規定的固定裝載數（如：每箱固定6個），計算時以此數為上限，氣泡紙張數也依此數量對應計算。手動指定值超過物理上限時，系統自動改用上限值。"
+    }, {
       label: "開始計算間隙",
       type: "btn",
       desc: "按下後重新計算所有間隙、裝載數、包裝方案張數與對折建議，並同步更新3D視圖。"
@@ -832,7 +1048,7 @@ const translations = {
     helpSec4Content: [{
       label: "裝載數",
       type: "output",
-      desc: "在目前排列策略下，可裝入外箱的製品總數。若輸入了目標數量，超出部分顯示紅色警告。"
+      desc: "在目前設定下可裝入外箱的製品數量。自動模式顯示物理最大值（灰色標籤）；手動模式顯示目標數與達成狀態（綠色＝達成、紅色＝不足）。"
     }, {
       label: "三方向間隙（L / W / H）",
       type: "output",
@@ -940,7 +1156,12 @@ const translations = {
     resultTitle: "積載結果",
     packedCount: "積載済",
     targetLabel: "目標",
-    maxAuto: "最大",
+    maxAuto: "（自動最大）",
+    qtyModeLabel: "積載数量モード",
+    qtyModeAuto: "自動（最大積載数）",
+    qtyModeManual: "手動指定数量",
+    qtyManualLabel: "指定積載数（個）",
+    qtyManualHint: "物理上限を超えた場合は上限値を採用",
     gapL: "長さの隙間",
     gapW: "幅の隙間",
     gapH: "高さの隙間",
@@ -1034,6 +1255,10 @@ const translations = {
       type: "input",
       desc: "「自動最適化（6方向回転）」：製品の全向きを試算して最大積載数を自動選択。「強制：製品〇〇を合わせる」：表示面上向き固定など特定の向き制約がある場合に使用します。製品の指定面を外箱の長さ（L）方向に固定します。"
     }, {
+      label: "積載数量モード",
+      type: "input",
+      desc: "「自動（最大積載数）」：外箱と製品の寸法から物理的に収納できる最大数を計算します。「手動指定数量」：外箱規格や契約で定められた固定積載数（例：1箱6個固定）を入力すると、その数を上限として計算し、梱包材枚数もその数量に応じて算出されます。指定数が物理上限を超える場合は自動的に上限値を採用します。"
+    }, {
       label: "隙間計算を開始",
       type: "btn",
       desc: "このボタンを押すと全方向の隙間・積載数・梱包材枚数・対折推奨をすべて再計算し、3Dビューも同時に更新します。"
@@ -1042,7 +1267,7 @@ const translations = {
     helpSec4Content: [{
       label: "積載数",
       type: "output",
-      desc: "現在の配置戦略で外箱に収納できる製品の総数です。目標数量を入力している場合、不足時は赤色で警告表示されます。"
+      desc: "現在の設定で収納できる製品の数量です。自動モードでは物理的最大値をグレーのラベルで表示。手動モードでは目標数と達成状況をカラーラベルで表示します（緑＝達成、赤＝不足）。"
     }, {
       label: "3方向隙間（L / W / H）",
       type: "output",
@@ -1118,8 +1343,8 @@ const translations = {
     }]
   }
 };
-const APP_VERSION = "1.17";
-const APP_UPDATED_DATE = "2026/03/07";
+const APP_VERSION = "1.0";
+const APP_UPDATED_DATE = "2026/03/10";
 
 /* ============================================================
    HELP MODAL
@@ -1283,6 +1508,8 @@ function App() {
     sheetW: 600,
     sheetH: 4
   });
+  const [qtyMode, setQtyMode] = useState('auto'); // 'auto' | 'manual'
+  const [qtyManual, setQtyManual] = useState(1);
   const [strategy, setStrategy] = useState('auto');
   const [showFilling, setShowFilling] = useState(true);
 
@@ -1374,7 +1601,7 @@ function App() {
         const nX = innerBox.qtyW > 0 ? innerBox.qtyW : Math.floor((effO.W + bg) / (perm.dx + bg));
         const nY = innerBox.qtyH > 0 ? innerBox.qtyH : Math.floor((effO.H + bg) / (perm.dy + bg));
         const cap = nZ * nX * nY,
-          aq = innerBox.qty === 0 ? cap : Math.min(innerBox.qty, cap);
+          aq = qtyMode === 'manual' && qtyManual > 0 ? Math.min(qtyManual, cap) : cap;
         let packed = [],
           cnt = 0,
           mX = 0,
@@ -1521,7 +1748,8 @@ function App() {
         gaps,
         stats: {
           totalPacked: best.count,
-          targetQty: innerBox.qty,
+          targetQty: qtyMode === 'manual' ? qtyManual : 0,
+          qtyMode,
           planA,
           planB,
           planC,
@@ -2101,7 +2329,29 @@ function App() {
     value: "alignW"
   }, t.strategyAlignW), /*#__PURE__*/React.createElement("option", {
     value: "alignH"
-  }, t.strategyAlignH))), /*#__PURE__*/React.createElement("button", {
+  }, t.strategyAlignH)), /*#__PURE__*/React.createElement("div", {
+    className: "bg-amber-50 border border-amber-200 rounded-lg p-2.5"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "block text-[10px] text-amber-800 font-bold mb-1.5"
+  }, t.qtyModeLabel), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 mb-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setQtyMode('auto'),
+    className: `flex-1 text-[10px] font-bold py-1.5 rounded-md border transition-all ${qtyMode === 'auto' ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'}`
+  }, t.qtyModeAuto), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setQtyMode('manual'),
+    className: `flex-1 text-[10px] font-bold py-1.5 rounded-md border transition-all ${qtyMode === 'manual' ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'}`
+  }, t.qtyModeManual)), qtyMode === 'manual' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-[10px] text-amber-700 mb-1"
+  }, t.qtyManualLabel), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "1",
+    value: qtyManual,
+    onChange: e => setQtyManual(Math.max(1, +e.target.value)),
+    className: "w-full p-1.5 text-sm font-bold text-center border-2 border-amber-400 bg-white rounded-lg outline-none focus:ring-2 focus:ring-amber-400 text-amber-900"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-[9px] text-amber-600 mt-1 leading-tight"
+  }, t.qtyManualHint)))), /*#__PURE__*/React.createElement("button", {
     onClick: runPacking,
     disabled: isPending,
     className: "w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center shadow-md text-sm"
@@ -2117,11 +2367,19 @@ function App() {
     className: "flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-slate-100 pb-4"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 font-bold mb-1"
-  }, t.resultTitle), /*#__PURE__*/React.createElement("p", {
+  }, t.resultTitle), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("p", {
     className: "text-lg font-bold text-slate-800"
-  }, t.packedCount, ": ", /*#__PURE__*/React.createElement("span", {
+  }, t.packedCount, ":\xA0", /*#__PURE__*/React.createElement("span", {
     className: s.totalPacked < s.targetQty && s.targetQty > 0 ? 'text-red-500' : 'text-green-600'
-  }, s.totalPacked), " / ", t.targetLabel, ": ", s.targetQty === 0 ? t.maxAuto : s.targetQty)), /*#__PURE__*/React.createElement("div", {
+  }, s.totalPacked), /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-slate-400 ml-1"
+  }, lang === 'zh' ? '個' : '個')), s.qtyMode === 'manual' ? /*#__PURE__*/React.createElement("span", {
+    className: `text-xs font-bold px-2 py-0.5 rounded-full ${s.totalPacked < s.targetQty ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`
+  }, t.targetLabel, " ", s.targetQty, lang === 'zh' ? '個' : '個', " ", s.totalPacked < s.targetQty ? '⚠ 不足' : '✓ 達成') : /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"
+  }, t.maxAuto))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-5 flex-wrap"
   }, ['L', 'W', 'H'].map(d => /*#__PURE__*/React.createElement("div", {
     key: d,
@@ -2153,7 +2411,10 @@ function App() {
   }), t.recommendBadge)), /*#__PURE__*/React.createElement("div", {
     className: "w-full h-24 mb-2 bg-white/70 rounded-lg border border-emerald-100/60 flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement(CrossWrapIcon, {
-    className: "h-full w-full max-w-[75%] text-emerald-500"
+    className: "h-full w-full max-w-[75%] text-emerald-500",
+    nL: s.planA.nL,
+    nW: s.planA.nW,
+    nTop: s.planA.nTop
   })), /*#__PURE__*/React.createElement("p", {
     className: "text-[10px] text-emerald-700/90 leading-relaxed mb-2"
   }, t.methodADesc), /*#__PURE__*/React.createElement("div", {
@@ -2209,7 +2470,11 @@ function App() {
   }), t.recommendBadge)), /*#__PURE__*/React.createElement("div", {
     className: "w-full h-24 mb-2 bg-white/70 rounded-lg border border-sky-100/60 flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement(VoidFillIcon, {
-    className: "h-full w-full max-w-[75%] text-sky-500"
+    className: "h-full w-full max-w-[75%] text-sky-500",
+    total: s.planB.total,
+    sheetsL: s.planB.sheetsL,
+    sheetsW: s.planB.sheetsW,
+    sheetsH: s.planB.sheetsH
   })), /*#__PURE__*/React.createElement("p", {
     className: "text-[10px] text-sky-700/90 leading-relaxed mb-2"
   }, t.methodBDesc)), /*#__PURE__*/React.createElement("div", {
@@ -2253,7 +2518,10 @@ function App() {
   }), t.recommendBadge)), /*#__PURE__*/React.createElement("div", {
     className: "w-full h-24 mb-2 bg-white/70 rounded-lg border border-indigo-100/60 flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement(LayeredUWrapIcon, {
-    className: "h-full w-full max-w-[75%] text-indigo-500"
+    className: "h-full w-full max-w-[75%] text-indigo-500",
+    nBottom: s.planC.nBottom,
+    nTop: s.planC.nTop,
+    layers: s.layersY
   })), /*#__PURE__*/React.createElement("p", {
     className: "text-[10px] text-indigo-700/90 leading-relaxed mb-2"
   }, t.methodCDesc), /*#__PURE__*/React.createElement(FoldDetail, {
