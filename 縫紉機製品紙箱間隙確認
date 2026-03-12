@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ミシン製品包裝設計 v1.9</title>
+<title>ミシン製品包裝設計 v2.2</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -18,6 +18,11 @@
   --text:#2c2820;--text2:#6a5f52;--text3:#a89e92;
   --shadow:rgba(80,60,40,.10);
   --tok:#e8f5ed;--twarn:#fdf3e3;--terr:#fce8e8;--tinfo:#e8f0fb;
+  /* Dial theme: slate-glass */
+  --dial-bg:rgba(22,28,36,.88);
+  --dial-border:rgba(255,255,255,.14);
+  --dial-center-bg:rgba(248,250,253,.97);
+  --dial-shadow:0 10px 40px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh}
@@ -53,12 +58,146 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .placed-chip{display:flex;align-items:center;gap:5px;padding:6px 9px;background:var(--panel2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
 .placed-chip:hover{border-color:var(--accent)}
 .placed-chip.sel{border-color:var(--accent);background:var(--tinfo)}
+/* [改善4] 左側紙箱欄位自適應：填滿剩餘高度 */
 .box-item{border:1px solid var(--border);border-radius:10px;padding:10px 11px;background:var(--panel);cursor:default;user-select:none;box-shadow:0 1px 3px var(--shadow)}
 .box-item:hover{border-color:var(--accent);box-shadow:0 2px 8px var(--shadow)}
 .divider{border:none;border-top:1px solid var(--border);margin:10px 0}
 .header-accent{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 @keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-@keyframes pulseHint{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.75;transform:scale(.97)}}
+@keyframes dialIn{from{opacity:0;transform:scale(.72) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes bounceUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+/* ══ [改善1] Radial Dial — 重新配色：slate-glass 主題 ══ */
+/* Dial 現在嵌在 3D 視窗右上角 overlay */
+.dial-overlay{
+  position:absolute;
+  top:10px;right:10px;
+  z-index:30;
+  pointer-events:all;
+}
+.rdial-wrap{
+  position:relative;
+  pointer-events:all;
+  animation:dialIn .2s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+/* 外圈背景：深石板色，半透明玻璃感 */
+.rdial-bg{
+  position:absolute;
+  border-radius:50%;
+  background:var(--dial-bg);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border:1.5px solid var(--dial-border);
+  box-shadow:var(--dial-shadow);
+  transform-origin:center;
+}
+/* 中心圓：白色卡片感 */
+.rdial-center{
+  position:absolute;
+  border-radius:50%;
+  background:var(--dial-center-bg);
+  border:1.5px solid rgba(61,122,186,.25);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  box-shadow:0 2px 12px rgba(0,0,0,.18);
+  cursor:default;
+}
+/* 切換標籤：accent 主題 */
+.rdial-tab{
+  display:flex;border-radius:6px;overflow:hidden;
+  margin-bottom:2px;
+  border:1px solid rgba(61,122,186,.22);
+  background:rgba(61,122,186,.07);
+}
+.rdial-tab-btn{
+  border:none;padding:3px 9px;font-size:10px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all .13s;
+  color:var(--text2);background:transparent;
+}
+.rdial-tab-btn.active{
+  background:var(--accent);color:#fff;
+  box-shadow:0 1px 4px rgba(61,122,186,.35);
+}
+/* 關閉鈕 */
+.rdial-close{
+  position:absolute;
+  width:22px;height:22px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.1);
+  color:rgba(255,255,255,.75);
+  font-size:12px;font-weight:900;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  top:3px;right:3px;
+  transition:all .12s;
+  z-index:2;
+}
+.rdial-close:hover{background:rgba(176,48,48,.8);color:#fff;}
+/* 方向鈕：統一使用深色基底 + accent 色相環 */
+.rdial-btn{
+  position:absolute;width:38px;height:38px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.22);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:900;
+  box-shadow:0 2px 8px rgba(0,0,0,.32);
+  user-select:none;pointer-events:all;
+  transition:transform .12s,box-shadow .12s,filter .12s;
+}
+.rdial-btn:hover{transform:scale(1.28)!important;box-shadow:0 5px 18px rgba(0,0,0,.45)!important;filter:brightness(1.18);}
+.rdial-btn:active{transform:scale(.88)!important;}
+/* 移動模式：深色 + 亮色文字，色相對應軸向 */
+.mv-pz{background:#1a6e54;color:#7fffd4;}   /* 前+Z  teal */
+.mv-nz{background:#1a4878;color:#90caf9;}   /* 後-Z  blue */
+.mv-px{background:#7a4510;color:#ffcc80;}   /* 右+X  amber */
+.mv-nx{background:#5a2878;color:#ce93d8;}   /* 左-X  purple */
+.mv-py{background:#7a1a1a;color:#ef9a9a;}   /* 上+Y  red */
+.mv-ny{background:#0d5448;color:#80cbc4;}   /* 下-Y  teal-dark */
+/* 旋轉模式：同色相但更飽和 */
+.rv-zp{background:#1a5c44;color:#a7ffeb;}
+.rv-zn{background:#153d6a;color:#bbdefb;}
+.rv-yp{background:#6a1a1a;color:#ffcdd2;}
+.rv-yn{background:#4a1060;color:#e1bee7;}
+.rv-xp{background:#14527a;color:#b3e5fc;}
+.rv-xn{background:#0d3d5e;color:#81d4fa;}
+
+/* ── 版面 ── */
+.app-root{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
+.app-body{display:flex;flex:1;overflow:hidden;min-height:0;min-width:0;}
+/* [改善4] 左側 app-left：完全填滿高度，內部滾動 */
+.app-left{
+  flex-shrink:0;
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  background:var(--panel);
+  overflow:hidden;
+}
+.app-left-inner{
+  padding:12px 10px;
+  overflow-y:auto;
+  flex:1;           /* 填滿剩餘高度 */
+  display:flex;flex-direction:column;gap:10px;
+  /* 讓紙箱列表可以延伸到頁面底部 */
+  min-height:0;
+}
+/* 紙箱列表本身也使用 flex 自動撐高 */
+.box-list-wrap{
+  display:flex;flex-direction:column;gap:8px;
+  flex:1;
+  overflow-y:auto;
+  min-height:0;
+}
+.app-mid{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.app-right{flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--panel);overflow:hidden;}
+.app-right-inner{padding:12px 10px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;}
+@media(max-width:1100px){
+  .app-left{width:clamp(190px,20vw,240px)!important;}
+  .app-right{width:clamp(185px,19vw,230px)!important;}
+}
+@media(max-width:820px){
+  .app-body{flex-direction:column;overflow-y:auto;}
+  .app-left{width:100%!important;max-height:42vh;border-right:none;border-bottom:1px solid var(--border);}
+  .app-mid{min-height:45vh;}
+  .app-right{width:100%!important;border-left:none;border-top:1px solid var(--border);max-height:45vh;}
+}
 .fade-in{animation:fadeIn .2s ease forwards}
 .qty-inp{width:52px;text-align:center;background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px;font-size:13px;font-family:'IBM Plex Mono',monospace;outline:none}
 .name-inp{background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text);font-size:12px;font-weight:700;width:100%;outline:none;padding:0 2px;font-family:inherit}
@@ -70,20 +209,54 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .tol-btn.act-max{background:var(--ok);color:#fff;border-color:var(--ok)}
 .tol-btn.act-min{background:var(--err);color:#fff;border-color:var(--err)}
 .drop-active{box-shadow:inset 0 0 0 3px var(--accent2)!important}
-/* gap dim labels */
-.gap-lbl{position:absolute;pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;background:rgba(253,252,249,.95);border:2px solid;border-radius:8px;padding:4px 10px;white-space:nowrap;box-shadow:0 2px 6px var(--shadow);transform:translate(-50%,-50%)}
-/* mechanical dim label in 3D */
-.dim-lbl{position:absolute;pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;background:rgba(255,240,240,.97);border:2px solid #dd1111;border-radius:6px;padding:3px 9px;white-space:nowrap;box-shadow:0 1px 6px rgba(200,20,20,.2);transform:translate(-50%,-50%);color:#cc1111;}
-
+/* [改善3] 吸附/自由 模式切換區：移至 3D 視窗左上角 */
+.move-mode-overlay{
+  position:absolute;
+  top:10px;left:10px;
+  z-index:28;
+  background:rgba(253,252,249,.97);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:7px 9px;
+  box-shadow:0 2px 10px var(--shadow);
+  display:flex;flex-direction:column;gap:5px;
+  min-width:120px;
+}
+.move-mode-overlay .mmo-title{
+  font-size:9px;font-weight:700;color:var(--text3);
+  letter-spacing:.06em;text-align:center;margin-bottom:1px;
+}
+.move-mode-seg{
+  display:flex;border-radius:6px;overflow:hidden;
+  border:1px solid var(--border);
+}
+.move-mode-seg button{
+  flex:1;padding:4px 6px;font-size:11px;font-weight:700;
+  border:none;cursor:pointer;font-family:inherit;
+  transition:all .14s;
+}
+.move-mode-step{
+  display:flex;align-items:center;gap:5px;
+}
+.move-mode-step span{font-size:11px;color:var(--text2);white-space:nowrap;}
+.move-mode-step input{
+  width:46px;text-align:center;
+  background:#fff;border:1px solid var(--border);
+  color:var(--text);border-radius:4px;padding:2px 4px;
+  font-size:11px;font-family:'IBM Plex Mono',monospace;outline:none;
+}
+/* 視圖切換欄 */
 .sel-badge{position:absolute;top:44px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;border-radius:20px;padding:5px 16px;font-size:13px;font-weight:700;z-index:20;pointer-events:none;box-shadow:0 2px 8px rgba(61,122,186,.35);white-space:nowrap;}
 .view-bar{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:4px 6px;box-shadow:0 2px 8px var(--shadow);}
 .vbtn{border:none;border-radius:6px;background:transparent;color:var(--text2);font-size:12px;font-weight:700;padding:3px 8px;cursor:pointer;font-family:inherit;transition:all .12s;white-space:nowrap;}
 .vbtn:hover{background:var(--tinfo);color:var(--accent)}
-.side-left-panel{position:absolute;left:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 7px;box-shadow:0 2px 8px var(--shadow);min-width:62px;}
-.side-right-panel{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:5px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 8px;box-shadow:0 2px 8px var(--shadow);min-width:80px;}
+/* VIEW + 間隙顯示 合併左下角 panel */
+.side-bottom-left{position:absolute;left:8px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 9px;box-shadow:0 2px 8px var(--shadow);min-width:90px;}
 .side-panel-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-align:center;margin-bottom:3px;}
 .side-opt{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;line-height:1.7;}
 .side-opt input{accent-color:var(--accent);cursor:pointer;}
+/* 間隙設定 right-bottom panel */
+.side-bottom-right{position:absolute;right:8px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 8px;box-shadow:0 2px 8px var(--shadow);min-width:88px;}
 .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(44,40,32,.45);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px}
 .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(80,60,40,.22);width:100%;max-width:680px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
 .modal-header{padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--panel);z-index:2}
@@ -93,39 +266,6 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .help-row{display:flex;gap:8px;margin-bottom:7px;font-size:13px;line-height:1.6}
 .help-key{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;color:var(--text);flex-shrink:0;align-self:flex-start;margin-top:2px}
 .help-desc{color:var(--text2)}
-/* ── v1.7: Unified tool ring ── */
-/* Tab switcher above the ring */
-.tool-tab-bar{position:absolute;display:flex;gap:0;background:rgba(253,252,249,.97);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:22;pointer-events:all;}
-.tool-tab{border:none;padding:6px 15px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap;user-select:none;}
-.tool-tab.active{background:var(--accent);color:#fff;}
-.tool-tab:not(.active){background:transparent;color:var(--text2);}
-.tool-tab:not(.active):hover{background:var(--panel2);}
-
-/* Move arrows: colour-coded by axis */
-.mv-btn{position:absolute;width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.25);user-select:none;pointer-events:all;transition:transform .12s,box-shadow .12s;}
-.mv-btn:hover{transform:scale(1.22);box-shadow:0 4px 14px rgba(0,0,0,.32);}
-.mv-btn:active{transform:scale(.92);}
-.mv-btn .mv-tip{position:absolute;background:rgba(44,40,32,.85);color:#fff;border-radius:5px;padding:3px 8px;font-size:12px;font-family:'Noto Sans TC',sans-serif;font-weight:700;white-space:nowrap;pointer-events:none;z-index:25;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);}
-.mv-pz{background:#2a9d7c;color:#fff;}
-.mv-nz{background:#3d7aba;color:#fff;}
-.mv-px{background:#c07830;color:#fff;}
-.mv-nx{background:#9b59b6;color:#fff;}
-.mv-py{background:#c0392b;color:#fff;}
-.mv-ny{background:#16a085;color:#fff;}
-
-/* Rotate buttons: warm/cool pairs */
-.rv-btn{position:absolute;width:36px;height:36px;border-radius:50%;border:2.5px solid rgba(255,255,255,.55);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.28);user-select:none;pointer-events:all;transition:transform .12s,box-shadow .12s;}
-.rv-btn:hover{transform:scale(1.22);box-shadow:0 4px 14px rgba(0,0,0,.32);}
-.rv-btn:active{transform:scale(.92);}
-.rv-btn .rv-tip{position:absolute;background:rgba(44,40,32,.85);color:#fff;border-radius:5px;padding:3px 8px;font-size:12px;font-family:'Noto Sans TC',sans-serif;font-weight:700;white-space:nowrap;pointer-events:none;z-index:25;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);}
-.rv-yp{background:#e05050;color:#fff;}
-.rv-yn{background:#b03030;color:#fff;}
-.rv-zp{background:#e08020;color:#fff;}
-.rv-zn{background:#a05010;color:#fff;}
-.rv-xp{background:#2a7aba;color:#fff;}
-.rv-xn{background:#1a5a9a;color:#fff;}
-
-/* dim label canvas overlay */
 #dim-labels-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
 .dim-lbl{position:absolute;pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:#cc1111;white-space:nowrap;transform:translate(-50%,-50%);background:rgba(253,252,249,.88);padding:3px 9px;border-radius:6px;border:2px solid #dd3333;}
 </style>
@@ -135,16 +275,18 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 <script>
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
-/* ─── i18n ─── */
 const I={
 zh:{
-  title:'ミシン製品包裝設計',ver:'v1.9 · Drag & Drop',
+  title:'ミシン製品包裝設計',ver:'v2.2 · Drag & Drop',
   jpBtn:'🇯🇵 日本語',helpBtn:'❓ 使用說明',autoBtn:'⚡ 全部自動排列',clearBtn:'🗑 清空',
   outerLbl:'🗃 外箱內寸 (mm)',dimL:'L 長',dimW:'W 寬',dimH:'H 高',
-  boxLbl:'📦 製品紙箱(外寸)',addBox:'+ 新增箱型',
-  qty:'預定數量',unit:'個',placeBtn:'↗ 排入',dragHint:'☰ 拖曳至3D視窗',
+  boxLbl:'📦 製品紙箱(內寸)',addBox:'+ 新增箱型',
+  qty:'預定數量',unit:'個',placeBtn:'↗ 排入',
   tolTitle:'± 公差設定',tolPlus:'+ 正公差(mm)',tolMinus:'- 負公差(mm)',
   tolState:'計算狀態',tolNom:'中間',tolMax:'最大',tolMin:'最小',
+  fluteLabel:'紙板種類',fluteNone:'— 直接輸入外寸 —',
+  fluteAB:'AB段',fluteA:'A段',fluteB:'B段',fluteEB:'EB段',fluteE:'E段',
+  outerCalcTitle:'換算外寸',innerDimTitle:'內寸輸入',
   tolOpen:'▼ 展開',tolClose:'▲ 收起',effLbl:'有效:',
   rotLbl:'方向',rotOf:'/6',
   ori:['L×W×H (原始)','L×H×W','W×L×H','W×H×L','H×L×W','H×W×L'],
@@ -155,26 +297,29 @@ zh:{
   specTitle:'🗃 外箱規格',lenL:'長度',lenW:'寬度',lenH:'高度',volL:'容積',
   placedTitle:(n)=>`📋 已放置 ${n} 個`,placedHint:'點擊選取',
   deselect:'取消選取',removeBtn:'🗑 移除此箱',
-  snapHint:'🧲 貼合：點箭頭吸附至最近箱或壁',
-  freeHint:'✥ 自由：點箭頭移動指定步進(mm)',
+  snapHint:'🧲 吸附至最近箱或牆壁',
+  freeHint:'✥ 自由移動（每步 mm）',
   snapDir:['前(+Z)','後(−Z)','右(+X)','左(−X)','上(+Y)','下(−Y)'],
-  modeSnap:'🧲 貼合',modeFree:'✥ 自由',stepLabel:'步進(mm)',
+  modeSnap:'🧲 吸附',modeFree:'✥ 自由',stepLabel:'步進',
   viewFront:'前視',viewBack:'後視',viewLeft:'左視',viewRight:'右視',viewTop:'俯視',viewIso:'等角',
   orthoLabel:'正投影',
   gapOptTitle:'間隙顯示',gapOptTotal:'整體最小間隙',gapOptEach:'各箱對外箱',gapOptLines:'顯示尺寸線',
-  rotBoxTitle:'旋轉紙箱',rotH:'水平旋轉',rotV:'垂直旋轉',
-  tabMove:'移動',tabRotate:'旋轉',rotAxisY:'Y軸(水平)',rotAxisX:'X軸(垂直)',rotAxisZ:'Z軸(垂直)',
+  rotAxisY:'Y軸(水平)',rotAxisX:'X軸(垂直)',rotAxisZ:'Z軸',
   helpTitle:'📖 操作說明',helpClose:'✕ 關閉',helpOk:'✓ 了解，開始使用',
+  moveModeTitle:'移動模式',
 },
 ja:{
-  title:'ミシン梱包設計確認ツール',ver:'v1.9 · Drag & Drop',
+  title:'ミシン梱包設計確認ツール',ver:'v2.2 · Drag & Drop',
   jpBtn:'🇨🇳 中文',helpBtn:'❓ 使用説明',autoBtn:'⚡ 全自動配置',clearBtn:'🗑 クリア',
   outerLbl:'🗃 外箱内寸 (mm)',dimL:'L 長',dimW:'W 幅',dimH:'H 高',
-  boxLbl:'📦 製品箱(外寸)',addBox:'+ 箱型追加',
-  qty:'予定数量',unit:'個',placeBtn:'↗ 配置',dragHint:'☰ 3Dへドラッグ',
+  boxLbl:'📦 製品箱(内寸)',addBox:'+ 箱型追加',
+  qty:'予定数量',unit:'個',placeBtn:'↗ 配置',
   tolTitle:'± 公差設定',tolPlus:'+ 上限公差(mm)',tolMinus:'- 下限公差(mm)',
   tolState:'計算状態',tolNom:'中間',tolMax:'最大',tolMin:'最小',
-  tolOpen:'▼ 展開',tolClose:'▲ 閉じる',effLbl:'有効:',
+  fluteLabel:'フルート種類',fluteNone:'— 外寸を直接入力 —',
+  fluteAB:'AB段',fluteA:'A段',fluteB:'B段',fluteEB:'EB段',fluteE:'E段',
+  outerCalcTitle:'換算外寸',innerDimTitle:'内寸入力',
+  tolOpen:'▼ 展開する',tolClose:'▲ 閉じる',effLbl:'有効:',
   rotLbl:'方向',rotOf:'/6',
   ori:['L×W×H (元)','L×H×W','W×L×H','W×H×L','H×L×W','H×W×L'],
   gapTitle:'📐 残余隙間',gapL:'L 長さ',gapW:'W 幅',gapH:'H 高さ',
@@ -184,42 +329,41 @@ ja:{
   specTitle:'🗃 外箱仕様',lenL:'長さ',lenW:'幅',lenH:'高さ',volL:'容積',
   placedTitle:(n)=>`📋 配置済 ${n} 個`,placedHint:'クリックで選択',
   deselect:'選択解除',removeBtn:'🗑 この箱を削除',
-  snapHint:'🧲 吸着：矢印で最近の箱か壁に吸着',
-  freeHint:'✥ 自由：矢印で指定ステップ移動(mm)',
-  snapDir:['前(+Z)','後(−Z)','右(+X)','左(−X)','上(+Y)','下(−Y)'],
-  modeSnap:'🧲 吸着',modeFree:'✥ 自由',stepLabel:'ステップ(mm)',
+  snapHint:'🧲 最近の箱か壁に吸着',
+  freeHint:'✥ 自由移動（ステップ mm）',
+  snapDir:['前方(+Z)','後方(−Z)','右(+X)','左(−X)','上(+Y)','下(−Y)'],
+  modeSnap:'🧲 吸着',modeFree:'✥ 自由',stepLabel:'ステップ',
   viewFront:'正面',viewBack:'背面',viewLeft:'左面',viewRight:'右面',viewTop:'平面',viewIso:'等角',
-  orthoLabel:'正投影',
+  orthoLabel:'平行投影',
   gapOptTitle:'隙間表示',gapOptTotal:'全体の最小隙間',gapOptEach:'各箱と外箱',gapOptLines:'寸法線を表示',
-  rotBoxTitle:'箱を回転',rotH:'水平回転',rotV:'垂直回転',
-  tabMove:'移動',tabRotate:'回転',rotAxisY:'Y軸(水平)',rotAxisX:'X軸(垂直)',rotAxisZ:'Z軸(垂直)',
+  rotAxisY:'Y軸（水平）',rotAxisX:'X軸（垂直）',rotAxisZ:'Z軸',
   helpTitle:'📖 操作説明',helpClose:'✕ 閉じる',helpOk:'✓ 了解しました',
+  moveModeTitle:'移動モード',
 }
 };
 
-/* ─── helpers ─── */
 const COLORS=['#3d7aba','#2a9d7c','#c07830','#9b59b6','#c0392b','#1abc9c','#e67e22','#2980b9','#8e44ad','#27ae60','#d35400','#16a085'];
 let _uid=1; const uid=()=>`b${_uid++}`;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const effD=(nom,tp,tm,s)=>s==='max'?Math.max(.1,nom+(tp||0)):s==='min'?Math.max(.1,nom-(tm||0)):nom;
 const ORI=[(L,W,H)=>[L,W,H],(L,W,H)=>[L,H,W],(L,W,H)=>[W,L,H],(L,W,H)=>[W,H,L],(L,W,H)=>[H,L,W],(L,W,H)=>[H,W,L]];
 
-/* FIX#1: rotate a placed box 90deg around axis, clamp to outer dims */
-function rotatePlaced(pb, axis, sign, oL, oW, oH){
-  // swap dims depending on axis of rotation
-  let nw=pb.w, nh=pb.h, nd=pb.d;
-  if(axis==='y'){ // horizontal: swap w and d
-    nw=pb.d; nd=pb.w;
-  } else if(axis==='x'){ // vertical around X: swap h and d
-    nh=pb.d; nd=pb.h;
-  } else if(axis==='z'){ // vertical around Z: swap w and h
-    nw=pb.h; nh=pb.w;
-  }
-  // clamp position so box stays inside outer
-  const nx=clamp(pb.x,0,Math.max(0,oW-nw));
-  const ny=clamp(pb.y,0,Math.max(0,oH-nh));
-  const nz=clamp(pb.z,0,Math.max(0,oL-nd));
-  return {...pb, w:nw, h:nh, d:nd, x:nx, y:ny, z:nz};
+const FLUTE_ADD={AB:{L:15,W:15,H:30},A:{L:10,W:10,H:20},B:{L:6,W:6,H:12},EB:{L:9,W:9,H:18},E:{L:3,W:3,H:6}};
+const innerToOuter=(L,W,H,flute)=>{
+  if(!flute||!FLUTE_ADD[flute])return{oL:L,oW:W,oH:H};
+  const a=FLUTE_ADD[flute];return{oL:L+a.L,oW:W+a.W,oH:H+a.H};
+};
+const btEffOuter=(bt)=>{
+  const{oL,oW,oH}=innerToOuter(bt.L,bt.W,bt.H,bt.flute||'');
+  return{L:effD(oL,bt.tP,bt.tM,bt.tS||'nominal'),W:effD(oW,bt.tP,bt.tM,bt.tS||'nominal'),H:effD(oH,bt.tP,bt.tM,bt.tS||'nominal')};
+};
+
+function rotatePlaced(pb,axis,sign,oL,oW,oH){
+  let nw=pb.w,nh=pb.h,nd=pb.d;
+  if(axis==='y'){nw=pb.d;nd=pb.w;}
+  else if(axis==='x'){nh=pb.d;nd=pb.h;}
+  else if(axis==='z'){nw=pb.h;nh=pb.w;}
+  return{...pb,w:nw,h:nh,d:nd,x:clamp(pb.x,0,Math.max(0,oW-nw)),y:clamp(pb.y,0,Math.max(0,oH-nh)),z:clamp(pb.z,0,Math.max(0,oL-nd))};
 }
 
 function snapNearest(pb,others,oL,oW,oH,dir){
@@ -286,19 +430,78 @@ function MiniBoxView({L,W,H,oriIdx=0,color}){
   return React.createElement('div',{ref,style:{width:'100%',height:68},className:'mini-canvas-wrap'});
 }
 
+/* ─── [改善1] RadialDial — 嵌入3D視窗右上角，新配色 ─── */
+function RadialDial({selBox,lang,moveMode,freeStep,onSnap,onRotateBox,onClose}){
+  const[mode,setMode]=useState('move');
+  const T2=I[lang];
+  if(!selBox)return null;
+  const SZ=182;
+  const CSZ=70;
+  const R=(SZ-44)/2;
+  /* 移動模式：6方向，配色對應軸向 */
+  const moveBtns=[
+    {dir:0,icon:'↑',cls:'mv-pz',angle:270},
+    {dir:1,icon:'↓',cls:'mv-nz',angle:90},
+    {dir:2,icon:'→',cls:'mv-px',angle:0},
+    {dir:3,icon:'←',cls:'mv-nx',angle:180},
+    {dir:4,icon:'↑',cls:'mv-py',angle:315},
+    {dir:5,icon:'↓',cls:'mv-ny',angle:135},
+  ];
+  /* 旋轉模式：同位置，不同色系 */
+  const rotBtns=[
+    {axis:'z',sign:1,icon:'↻',cls:'rv-zp',angle:270},
+    {axis:'z',sign:-1,icon:'↺',cls:'rv-zn',angle:90},
+    {axis:'y',sign:1,icon:'↻',cls:'rv-yp',angle:0},
+    {axis:'y',sign:-1,icon:'↺',cls:'rv-yn',angle:180},
+    {axis:'x',sign:1,icon:'↻',cls:'rv-xp',angle:315},
+    {axis:'x',sign:-1,icon:'↺',cls:'rv-xn',angle:135},
+  ];
+  const btns=mode==='move'?moveBtns:rotBtns;
+  const cx=SZ/2,cy=SZ/2;
+  const getPos=deg=>{const rad=deg*Math.PI/180;return{x:cx+R*Math.cos(rad),y:cy+R*Math.sin(rad)};};
+  const dirLabels=T2.snapDir||['前','後','右','左','上','下'];
+  return React.createElement('div',{className:'rdial-wrap',style:{width:SZ,height:SZ}},
+    React.createElement('div',{className:'rdial-bg',style:{width:SZ,height:SZ,left:0,top:0}}),
+    React.createElement('button',{className:'rdial-close',onClick:onClose,title:lang==='zh'?'關閉':'閉じる'},'✕'),
+    /* center */
+    React.createElement('div',{className:'rdial-center',style:{width:CSZ,height:CSZ,left:cx-CSZ/2,top:cy-CSZ/2,position:'absolute'}},
+      React.createElement('div',{className:'rdial-tab'},
+        React.createElement('button',{className:`rdial-tab-btn${mode==='move'?' active':''}`,onClick:()=>setMode('move')},lang==='zh'?'移動':'移動'),
+        React.createElement('button',{className:`rdial-tab-btn${mode==='rotate'?' active':''}`,onClick:()=>setMode('rotate')},lang==='zh'?'旋轉':'回転')
+      ),
+      React.createElement('div',{style:{fontSize:9,color:'var(--text3)',textAlign:'center',maxWidth:58,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}},selBox.name)
+    ),
+    /* 6 radial buttons */
+    btns.map((b,i)=>{
+      const{x,y}=getPos(b.angle);
+      if(mode==='move'){
+        const tip=moveMode==='free'?`${dirLabels[b.dir]} ${freeStep}mm`:dirLabels[b.dir];
+        return React.createElement('button',{
+          key:i,className:`rdial-btn ${b.cls}`,title:tip,
+          style:{left:x-19,top:y-19,position:'absolute'},
+          onClick:e=>{e.stopPropagation();onSnap(selBox.id,b.dir);}
+        },b.icon);
+      } else {
+        const axMap={x:T2.rotAxisX,y:T2.rotAxisY,z:T2.rotAxisZ};
+        return React.createElement('button',{
+          key:i,className:`rdial-btn ${b.cls}`,title:`${axMap[b.axis]} ${b.sign>0?'+':'-'}90°`,
+          style:{left:x-19,top:y-19,position:'absolute'},
+          onClick:e=>{e.stopPropagation();onRotateBox(selBox.id,b.axis,b.sign);}
+        },b.icon);
+      }
+    })
+  );
+}
+
 /* ─── Scene3D ─── */
-function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onSnap,onRotateBox,moveMode,freeStep,gapMode,showLines,ortho,onOrthoChange,onGapModeChange,onShowLinesChange}){
+function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,onRotateBox,moveMode,freeStep,gapMode,showLines,ortho,onOrthoChange,onGapModeChange,onShowLinesChange,dialOpen,onDialClose,selBox,onModeChange,onFreeStepChange}){
   const mountRef=useRef(null);
   const stRef=useRef(null);
   const camInited=useRef(false);
-  const [viewStep,setViewStep]=useState(100);
-  const [xray,setXray]=useState(false);
-  const [toolMode,setToolMode]=useState('move'); /* v1.7: move | rotate */
-  const [btnPos,setBtnPos]=useState([]);  /* unified 6-button ring */
-  const [dimLabels,setDimLabels]=useState([]);  /* FIX#2#3: projected dim labels */
+  const[dimLabels,setDimLabels]=useState([]);
   const T2=I[lang];
 
-  /* ── init Three.js ── */
+  /* init Three.js */
   useEffect(()=>{
     const el=mountRef.current;if(!el||!window.THREE)return;
     const T=window.THREE,w=el.clientWidth||600,h=el.clientHeight||400;
@@ -314,17 +517,13 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
     const dl2=new T.DirectionalLight(0xd0e8ff,.2);dl2.position.set(-500,-500,-500);scene.add(dl2);
     const controls=new THREE.OrbitControls(camP,renderer.domElement);
     controls.enableDamping=true;controls.dampingFactor=.08;
+    controls.enableZoom=true;controls.zoomSpeed=1.2;controls.enablePan=true;
     const grid=new T.GridHelper(2000,20,0xd8d2c8,0xe8e2d8);scene.add(grid);
     const boxGrp=new T.Group();scene.add(boxGrp);
     const itmGrp=new T.Group();scene.add(itmGrp);
     const dimGrp=new T.Group();scene.add(dimGrp);
-    /* dim label anchor points (invisible) stored as userData on dimGrp */
-    const selOutline=new T.LineSegments(
-      new T.EdgesGeometry(new T.BoxGeometry(1,1,1)),
-      new T.LineBasicMaterial({color:0xffffff,linewidth:2})
-    );
+    const selOutline=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1,1,1)),new T.LineBasicMaterial({color:0xffffff,linewidth:2}));
     selOutline.visible=false;scene.add(selOutline);
-
     let animId;
     const loop=()=>{
       animId=requestAnimationFrame(loop);
@@ -334,50 +533,10 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
       if(s.useOrtho){s.camO.position.copy(s.camP.position);s.camO.quaternion.copy(s.camP.quaternion);s.camO.updateProjectionMatrix();}
       renderer.render(scene,cam);
       const cv=renderer.domElement;
-      const W=cv.width/devicePixelRatio, H=cv.height/devicePixelRatio;
+      const W=cv.width/devicePixelRatio,H=cv.height/devicePixelRatio;
       const proj=(v3)=>{const v=v3.clone().project(s.camP);return{x:(v.x*.5+.5)*W,y:(-v.y*.5+.5)*H};};
-
-      /* v1.7: unified 6-button ring (move OR rotate) around selected box */
-      if(selOutline.visible){
-        const p=selOutline.position.clone(),sc2=selOutline.scale.clone();
-        const T3=window.THREE;
-        const R=sc2.clone().multiplyScalar(.5);
-        const OFF=20;
-        // 6 directional offsets (same for both modes, orbit around box face centres)
-        const offs=[
-          new T3.Vector3(0,0,R.z+OFF),    // 0: +Z front
-          new T3.Vector3(0,0,-R.z-OFF),   // 1: -Z back
-          new T3.Vector3(R.x+OFF,0,0),    // 2: +X right
-          new T3.Vector3(-R.x-OFF,0,0),   // 3: -X left
-          new T3.Vector3(0,R.y+OFF,0),    // 4: +Y up
-          new T3.Vector3(0,-R.y-OFF,0),   // 5: -Y down
-        ];
-        const mode=stRef.current.toolMode||'move';
-        if(mode==='move'){
-          const dirs=[0,1,2,3,4,5];
-          const icons=['↑','↓','→','←','↑','↓'];
-          const cls=['mv-pz','mv-nz','mv-px','mv-nx','mv-py','mv-ny'];
-          setBtnPos(offs.map((off,i)=>{
-            const r2d=proj(p.clone().add(off));
-            return{i,x:r2d.x,y:r2d.y,mode:'move',dir:dirs[i],icon:icons[i],cls:cls[i]};
-          }));
-        } else {
-          // rotate mode: same 6 positions but different meaning
-          const axes=[{a:'z',s:1},{a:'z',s:-1},{a:'y',s:1},{a:'y',s:-1},{a:'x',s:1},{a:'x',s:-1}];
-          const icons=['↻','↺','↻','↺','↻','↺'];
-          const cls=['rv-zp','rv-zn','rv-yp','rv-yn','rv-xp','rv-xn'];
-          setBtnPos(offs.map((off,i)=>{
-            const r2d=proj(p.clone().add(off));
-            return{i,x:r2d.x,y:r2d.y,mode:'rotate',axis:axes[i].a,sign:axes[i].s,icon:icons[i],cls:cls[i]};
-          }));
-        }
-      } else {setBtnPos([]);}
-
-      /* FIX#2#3: project dimension label anchor points */
       if(s.dimAnchors&&s.dimAnchors.length>0){
-        setDimLabels(s.dimAnchors.map(a=>{
-          const r=proj(a.pos);return{x:r.x,y:r.y,text:a.text,color:a.color||'#cc1111'};
-        }));
+        setDimLabels(s.dimAnchors.map(a=>{const r=proj(a.pos);return{x:r.x,y:r.y,text:a.text,color:a.color||'#cc1111'};}));
       } else setDimLabels([]);
     };
     loop();
@@ -393,48 +552,38 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
   },[]);
 
   useEffect(()=>{if(stRef.current)stRef.current.useOrtho=ortho;},[ortho]);
-  useEffect(()=>{if(stRef.current)stRef.current.toolMode=toolMode;},[toolMode]);
 
-  /* ── rebuild scene ── */
+  /* rebuild scene */
   useEffect(()=>{
     const s=stRef.current;if(!s||!window.THREE)return;
-    const T=window.THREE,{renderer,scene,camP,camO,controls,boxGrp,itmGrp,dimGrp,grid,selOutline}=s;
+    const T=window.THREE,{boxGrp,itmGrp,dimGrp,grid,selOutline}=s;
     [boxGrp,itmGrp,dimGrp].forEach(g=>{while(g.children.length){const c=g.children[0];c.geometry?.dispose();c.material?.dispose?.();g.remove(c);}});
     s.dimAnchors=[];
-
     const oL=outer.L||400,oW=outer.W||300,oH=outer.H||200;
     grid.position.y=-oH/2;
     const bGeo=new T.BoxGeometry(oW,oH,oL);
     boxGrp.add(new T.LineSegments(new T.EdgesGeometry(bGeo),new T.LineBasicMaterial({color:0x7090b8})));
     boxGrp.add(new T.Mesh(bGeo,new T.MeshLambertMaterial({color:0xd8e8f8,transparent:true,opacity:.07,side:T.BackSide})));
-
     if(!camInited.current){
       const md=Math.max(oL,oW,oH);
-      camP.position.set(md*1.3,md*.9,md*1.3);controls.target.set(0,0,0);controls.update();
+      s.camP.position.set(md*1.3,md*.9,md*1.3);s.controls.target.set(0,0,0);s.controls.update();
       camInited.current=true;
     }
-
-    const vis=Math.round(placed.length*clamp(viewStep,0,100)/100);
-    const visSlice=placed.slice(0,vis);
-    // Detect overlaps: set of box ids that overlap with any other
+    const vis=placed.length; // 移除滑條後全部顯示
     const overlapSet=new Set();
-    for(let i=0;i<visSlice.length;i++){
-      for(let j=i+1;j<visSlice.length;j++){
-        const a=visSlice[i],b=visSlice[j];
-        if(a.x<b.x+b.w-.5&&a.x+a.w>b.x+.5&&a.y<b.y+b.h-.5&&a.y+a.h>b.y+.5&&a.z<b.z+b.d-.5&&a.z+a.d>b.z+.5){
-          overlapSet.add(a.id);overlapSet.add(b.id);
-        }
-      }
+    for(let i=0;i<vis;i++)for(let j=i+1;j<vis;j++){
+      const a=placed[i],b=placed[j];
+      if(a.x<b.x+b.w-.5&&a.x+a.w>b.x+.5&&a.y<b.y+b.h-.5&&a.y+a.h>b.y+.5&&a.z<b.z+b.d-.5&&a.z+a.d>b.z+.5){overlapSet.add(a.id);overlapSet.add(b.id);}
     }
     const meshMap={};
-    visSlice.forEach(pb=>{
+    placed.forEach(pb=>{
       const isHL=pb.id===hlId||pb.id===selId;
       const isOut=pb.x+pb.w>oW+.5||pb.y+pb.h>oH+.5||pb.z+pb.d>oL+.5;
       const isOverlap=overlapSet.has(pb.id);
       const geo=new T.BoxGeometry(pb.w,pb.h,pb.d);
       const col=new T.Color(pb.color||'#3d7aba');
       if(isOut||isOverlap)col.set(0xcc3030);
-      const mat=new T.MeshLambertMaterial({color:col,transparent:true,opacity:xray?.28:isHL?.92:.78});
+      const mat=new T.MeshLambertMaterial({color:col,transparent:true,opacity:isHL?.92:.78});
       const mesh=new T.Mesh(geo,mat);
       mesh.position.set(pb.x+pb.w/2-oW/2,pb.y+pb.h/2-oH/2,pb.z+pb.d/2-oL/2);
       mesh.userData.pbId=pb.id;itmGrp.add(mesh);
@@ -443,7 +592,6 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
       meshMap[pb.id]=mesh;
     });
     s.meshMap=meshMap;
-
     const sel=placed.find(p=>p.id===selId);
     if(sel&&meshMap[sel.id]){
       const m=meshMap[sel.id];
@@ -452,20 +600,14 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
       selOutline.position.copy(m.position);selOutline.scale.set(sel.w,sel.h,sel.d);selOutline.visible=true;
     } else selOutline.visible=false;
 
-    /* ─ dimension lines (FIX#2 #3) ─ */
-    // Always rebuild dimAnchors so labels project correctly even without lines
+    /* dimension lines */
     s.dimAnchors=[];
     if(showLines&&placed.length>0){
       const hw=oW/2,hh=oH/2,hl=oL/2;
       const RED=new T.LineBasicMaterial({color:0xdd1111});
       const DGRAY=new T.LineBasicMaterial({color:0xdd1111,transparent:true,opacity:.5});
-
-      const addSeg=(p1,p2,mat)=>{
-        dimGrp.add(new T.Line(new T.BufferGeometry().setFromPoints([p1,p2]),mat||RED));
-      };
-      // Arrow head tick: cross mark at endpoint, perpendicular to dim line direction
+      const addSeg=(p1,p2,mat)=>{dimGrp.add(new T.Line(new T.BufferGeometry().setFromPoints([p1,p2]),mat||RED));};
       const addArrowHead=(pt,dir,len=7)=>{
-        // two perpendicular axes to dim direction
         const up=new T.Vector3(0,1,0);
         const perp1=new T.Vector3().crossVectors(dir,up).normalize();
         if(perp1.lengthSq()<.01){perp1.set(1,0,0);}
@@ -473,146 +615,65 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
         addSeg(pt.clone().addScaledVector(perp1,-len),pt.clone().addScaledVector(perp1,len),RED);
         addSeg(pt.clone().addScaledVector(perp2,-len),pt.clone().addScaledVector(perp2,len),RED);
       };
-      // Extension line from box face/wall to dim line point
       const extLine=(from,to)=>addSeg(from,to,DGRAY);
-      // Label at midpoint (color optional, for each-box mode)
       const addLbl=(p1,p2,text,color)=>{s.dimAnchors.push({pos:p1.clone().lerp(p2,.5),text,color:color||null});};
-
       if(gapMode==='total'){
-        // Max extents of all placed boxes (local coords, origin bottom-left-back)
         const mz=Math.max(...placed.map(p=>p.z+p.d));
         const mx2=Math.max(...placed.map(p=>p.x+p.w));
         const my2=Math.max(...placed.map(p=>p.y+p.h));
-        const gapL=+(oL-mz).toFixed(1);
-        const gapW=+(oW-mx2).toFixed(1);
-        const gapH=+(oH-my2).toFixed(1);
-        const OFF=28; // offset of dim line beyond outer box face
-
-        /* ── L gap (Z axis): from box max-Z face (mz) to outer +Z wall (oL) ──
-           Dim line: outside -X face, runs Z from mz to oL (world: mz-hl to +hl)
-           Extension lines: from box face point IN to dim line start; from outer wall IN to dim line end */
+        const gapL=+(oL-mz).toFixed(1),gapW=+(oW-mx2).toFixed(1),gapH=+(oH-my2).toFixed(1);
+        const OFF=28;
         if(gapL>0.5){
-          const dlx=-hw-OFF, dly=hh*0.55;
-          const dimA=new T.Vector3(dlx,dly,mz-hl);   // at box face level
-          const dimB=new T.Vector3(dlx,dly,hl);       // at outer wall
-          addSeg(dimA,dimB);
-          const dimDir=new T.Vector3(0,0,1);
+          const dlx=-hw-OFF,dly=hh*0.55;
+          const dimA=new T.Vector3(dlx,dly,mz-hl),dimB=new T.Vector3(dlx,dly,hl);
+          addSeg(dimA,dimB);const dimDir=new T.Vector3(0,0,1);
           addArrowHead(dimA,dimDir);addArrowHead(dimB,dimDir);
-          // Extension A: from box max-Z face (inside box, at box x=0 midpoint) → out to dim line
-          extLine(new T.Vector3(0,    dly, mz-hl), dimA);   // starts at box face
-          // Extension B: from outer +Z wall → dim line end
-          extLine(new T.Vector3(-hw,  dly, hl),    dimB);
-          addLbl(dimA,dimB,`L間隙 ${gapL>=0?'+':''}${gapL}mm`);
+          extLine(new T.Vector3(0,dly,mz-hl),dimA);extLine(new T.Vector3(-hw,dly,hl),dimB);
+          addLbl(dimA,dimB,(lang==='ja'?'L隙間 ':T2.gapL+' ')+`${gapL>=0?'+':''}${gapL}mm`);
         }
-
-        /* ── W gap (X axis): from box max-X face (mx2) to outer +X wall (oW) ──
-           Dim line: outside +Z face, runs X from mx2 to oW */
         if(gapW>0.5){
-          const dlz=hl+OFF, dly=hh*0.55;
-          const dimA=new T.Vector3(mx2-hw,dly,dlz);
-          const dimB=new T.Vector3(hw,     dly,dlz);
-          addSeg(dimA,dimB);
-          const dimDir=new T.Vector3(1,0,0);
+          const dlz=hl+OFF,dly=hh*0.55;
+          const dimA=new T.Vector3(mx2-hw,dly,dlz),dimB=new T.Vector3(hw,dly,dlz);
+          addSeg(dimA,dimB);const dimDir=new T.Vector3(1,0,0);
           addArrowHead(dimA,dimDir);addArrowHead(dimB,dimDir);
-          // Extension A: from box max-X face (inside, at z midpoint)
-          extLine(new T.Vector3(mx2-hw, dly, 0),   dimA);
-          // Extension B: from outer +X wall
-          extLine(new T.Vector3(hw,     dly, hl),  dimB);
-          addLbl(dimA,dimB,`W間隙 ${gapW>=0?'+':''}${gapW}mm`);
+          extLine(new T.Vector3(mx2-hw,dly,0),dimA);extLine(new T.Vector3(hw,dly,hl),dimB);
+          addLbl(dimA,dimB,(lang==='ja'?'W隙間 ':T2.gapW+' ')+`${gapW>=0?'+':''}${gapW}mm`);
         }
-
-        /* ── H gap (Y axis): from box max-Y face (my2) to outer +Y wall (oH) ──
-           Dim line: outside +X face, runs Y from my2 to oH */
         if(gapH>0.5){
-          const dlx=hw+OFF, dlz=0;
-          const dimA=new T.Vector3(dlx,my2-hh,dlz);
-          const dimB=new T.Vector3(dlx,hh,     dlz);
-          addSeg(dimA,dimB);
-          const dimDir=new T.Vector3(0,1,0);
+          const dlx=hw+OFF,dlz=0;
+          const dimA=new T.Vector3(dlx,my2-hh,dlz),dimB=new T.Vector3(dlx,hh,dlz);
+          addSeg(dimA,dimB);const dimDir=new T.Vector3(0,1,0);
           addArrowHead(dimA,dimDir);addArrowHead(dimB,dimDir);
-          // Extension A: from box max-Y face (inside, at x midpoint)
-          extLine(new T.Vector3(0,   my2-hh, dlz), dimA);
-          // Extension B: from outer +Y wall
-          extLine(new T.Vector3(hw,  hh,     dlz), dimB);
-          addLbl(dimA,dimB,`H間隙 ${gapH>=0?'+':''}${gapH}mm`);
+          extLine(new T.Vector3(0,my2-hh,dlz),dimA);extLine(new T.Vector3(hw,hh,dlz),dimB);
+          addLbl(dimA,dimB,(lang==='ja'?'H隙間 ':T2.gapH+' ')+`${gapH>=0?'+':''}${gapH}mm`);
         }
-
       } else {
-        /* FIX#2 each-box mode: draw gap lines from EACH box face to outer wall, with labels */
-        const targets=selId?placed.filter(p=>p.id===selId):placed.slice(0,vis);
+        const targets=selId?placed.filter(p=>p.id===selId):placed;
         targets.forEach(pb=>{
           const pbColor=pb.color||'#3d7aba';
-          // World-space face coordinates
-          const xMin=pb.x-hw,     xMax=pb.x+pb.w-hw;
-          const yMin=pb.y-hh,     yMax=pb.y+pb.h-hh;
-          const zMin=pb.z-hl,     zMax=pb.z+pb.d-hl;
-          const cx=(xMin+xMax)/2, cy=(yMin+yMax)/2, cz=(zMin+zMax)/2;
-          const OFF2=pb.h/2+14; // raise dim lines above box top
-
-          const dimDir_Z=new T.Vector3(0,0,1);
-          const dimDir_X=new T.Vector3(1,0,0);
-          const dimDir_Y=new T.Vector3(0,1,0);
-
-          /* +Z (front gap): box zMax face → outer +Z wall */
+          const xMin=pb.x-hw,xMax=pb.x+pb.w-hw;
+          const yMin=pb.y-hh,yMax=pb.y+pb.h-hh;
+          const zMin=pb.z-hl,zMax=pb.z+pb.d-hl;
+          const cx=(xMin+xMax)/2,cy=(yMin+yMax)/2,cz=(zMin+zMax)/2;
+          const OFF2=pb.h/2+14;
+          const dZ=new T.Vector3(0,0,1),dX=new T.Vector3(1,0,0),dY=new T.Vector3(0,1,0);
           const gZp=+(oL-(pb.z+pb.d)).toFixed(1);
-          if(gZp>0.5){
-            const dly=yMax+OFF2;
-            const pA=new T.Vector3(cx,dly,zMax), pB=new T.Vector3(cx,dly,hl);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_Z); addArrowHead(pB,dimDir_Z);
-            extLine(new T.Vector3(cx,yMax,zMax),pA); extLine(new T.Vector3(cx,yMax,hl),pB);
-            addLbl(pA,pB,`+Z ${gZp}mm`,pbColor);
-          }
-          /* -Z (back gap): outer -Z wall → box zMin face */
+          if(gZp>0.5){const dly=yMax+OFF2;const pA=new T.Vector3(cx,dly,zMax),pB=new T.Vector3(cx,dly,hl);addSeg(pA,pB);addArrowHead(pA,dZ);addArrowHead(pB,dZ);extLine(new T.Vector3(cx,yMax,zMax),pA);extLine(new T.Vector3(cx,yMax,hl),pB);addLbl(pA,pB,`+Z ${gZp}mm`,pbColor);}
           const gZn=+(pb.z).toFixed(1);
-          if(gZn>0.5){
-            const dly=yMax+OFF2;
-            const pA=new T.Vector3(cx,dly,-hl), pB=new T.Vector3(cx,dly,zMin);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_Z); addArrowHead(pB,dimDir_Z);
-            extLine(new T.Vector3(cx,yMax,-hl),pA); extLine(new T.Vector3(cx,yMax,zMin),pB);
-            addLbl(pA,pB,`-Z ${gZn}mm`,pbColor);
-          }
-          /* +X (right gap): box xMax face → outer +X wall */
+          if(gZn>0.5){const dly=yMax+OFF2;const pA=new T.Vector3(cx,dly,-hl),pB=new T.Vector3(cx,dly,zMin);addSeg(pA,pB);addArrowHead(pA,dZ);addArrowHead(pB,dZ);extLine(new T.Vector3(cx,yMax,-hl),pA);extLine(new T.Vector3(cx,yMax,zMin),pB);addLbl(pA,pB,`-Z ${gZn}mm`,pbColor);}
           const gXp=+(oW-(pb.x+pb.w)).toFixed(1);
-          if(gXp>0.5){
-            const dly=yMax+OFF2;
-            const pA=new T.Vector3(xMax,dly,cz), pB=new T.Vector3(hw,dly,cz);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_X); addArrowHead(pB,dimDir_X);
-            extLine(new T.Vector3(xMax,yMax,cz),pA); extLine(new T.Vector3(hw,yMax,cz),pB);
-            addLbl(pA,pB,`+X ${gXp}mm`,pbColor);
-          }
-          /* -X (left gap): outer -X wall → box xMin face */
+          if(gXp>0.5){const dly=yMax+OFF2;const pA=new T.Vector3(xMax,dly,cz),pB=new T.Vector3(hw,dly,cz);addSeg(pA,pB);addArrowHead(pA,dX);addArrowHead(pB,dX);extLine(new T.Vector3(xMax,yMax,cz),pA);extLine(new T.Vector3(hw,yMax,cz),pB);addLbl(pA,pB,`+X ${gXp}mm`,pbColor);}
           const gXn=+(pb.x).toFixed(1);
-          if(gXn>0.5){
-            const dly=yMax+OFF2;
-            const pA=new T.Vector3(-hw,dly,cz), pB=new T.Vector3(xMin,dly,cz);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_X); addArrowHead(pB,dimDir_X);
-            extLine(new T.Vector3(-hw,yMax,cz),pA); extLine(new T.Vector3(xMin,yMax,cz),pB);
-            addLbl(pA,pB,`-X ${gXn}mm`,pbColor);
-          }
-          /* +Y (top gap): box yMax face → outer +Y wall */
+          if(gXn>0.5){const dly=yMax+OFF2;const pA=new T.Vector3(-hw,dly,cz),pB=new T.Vector3(xMin,dly,cz);addSeg(pA,pB);addArrowHead(pA,dX);addArrowHead(pB,dX);extLine(new T.Vector3(-hw,yMax,cz),pA);extLine(new T.Vector3(xMin,yMax,cz),pB);addLbl(pA,pB,`-X ${gXn}mm`,pbColor);}
           const gYp=+(oH-(pb.y+pb.h)).toFixed(1);
-          if(gYp>0.5){
-            const dlz=zMax+14;
-            const pA=new T.Vector3(cx,yMax,dlz), pB=new T.Vector3(cx,hh,dlz);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_Y); addArrowHead(pB,dimDir_Y);
-            extLine(new T.Vector3(cx,yMax,zMax),pA); extLine(new T.Vector3(cx,hh,zMax),pB);
-            addLbl(pA,pB,`+Y ${gYp}mm`,pbColor);
-          }
-          /* -Y (bottom gap): outer -Y wall → box yMin face */
+          if(gYp>0.5){const dlz=zMax+14;const pA=new T.Vector3(cx,yMax,dlz),pB=new T.Vector3(cx,hh,dlz);addSeg(pA,pB);addArrowHead(pA,dY);addArrowHead(pB,dY);extLine(new T.Vector3(cx,yMax,zMax),pA);extLine(new T.Vector3(cx,hh,zMax),pB);addLbl(pA,pB,`+Y ${gYp}mm`,pbColor);}
           const gYn=+(pb.y).toFixed(1);
-          if(gYn>0.5){
-            const dlz=zMax+14;
-            const pA=new T.Vector3(cx,-hh,dlz), pB=new T.Vector3(cx,yMin,dlz);
-            addSeg(pA,pB); addArrowHead(pA,dimDir_Y); addArrowHead(pB,dimDir_Y);
-            extLine(new T.Vector3(cx,-hh,zMax),pA); extLine(new T.Vector3(cx,yMin,zMax),pB);
-            addLbl(pA,pB,`-Y ${gYn}mm`,pbColor);
-          }
+          if(gYn>0.5){const dlz=zMax+14;const pA=new T.Vector3(cx,-hh,dlz),pB=new T.Vector3(cx,yMin,dlz);addSeg(pA,pB);addArrowHead(pA,dY);addArrowHead(pB,dY);extLine(new T.Vector3(cx,-hh,zMax),pA);extLine(new T.Vector3(cx,yMin,zMax),pB);addLbl(pA,pB,`-Y ${gYn}mm`,pbColor);}
         });
       }
     }
-  },[outer,placed,viewStep,xray,hlId,selId,gapMode,showLines]);
+  },[outer,placed,hlId,selId,gapMode,showLines]);
 
-  /* view presets */
   const setView=useCallback((preset)=>{
     const s=stRef.current;if(!s)return;
     const{camP,controls}=s;
@@ -623,7 +684,6 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
     if(pos){camP.position.set(...pos);controls.target.set(0,0,0);controls.update();}
   },[outer]);
 
-  /* raycasting – no camera reset */
   const handleClick=useCallback(e=>{
     const s=stRef.current;if(!s)return;
     const T=window.THREE,{camP,itmGrp,renderer}=s;
@@ -638,7 +698,6 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
     onSelect(null);
   },[onSelect]);
 
-  /* keyboard movement */
   useEffect(()=>{
     const h=e=>{
       if(!selId)return;
@@ -653,19 +712,15 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[selId,onSnap]);
 
-  // v1.7: btnPos used directly
-  const gV={L:gaps.L,W:gaps.W,H:gaps.H};
-  const gC=v=>v<0?'var(--err)':v<5?'var(--warn)':'var(--ok)';
-  const selBox=placed.find(p=>p.id===selId);
-
-  return React.createElement('div',{style:{display:'flex',flexDirection:'column',height:'100%',gap:8}},
+  return React.createElement('div',{style:{display:'flex',flexDirection:'column',height:'100%'}},
     React.createElement('div',{style:{flex:1,position:'relative'}},
+      /* 3D canvas */
       React.createElement('div',{
         ref:mountRef,className:hovering?'drop-active':'',
-        style:{width:'100%',height:'100%',minHeight:300,borderRadius:10,overflow:'hidden',cursor:'crosshair',border:'1px solid var(--border)',boxShadow:'0 2px 8px var(--shadow)',background:'#f5f2eb'},
+        style:{width:'100%',height:'100%',minHeight:300,borderRadius:10,overflow:'hidden',cursor:'crosshair',border:'1px solid var(--border)',boxShadow:'0 2px 8px var(--shadow)',background:'#f5f2eb',touchAction:'none'},
         onDragOver:e=>e.preventDefault(),onDrop:e=>{e.preventDefault();onDrop&&onDrop(e);},onClick:handleClick
       }),
-      /* view bar */
+      /* top-center view bar */
       React.createElement('div',{className:'view-bar'},
         ['front','back','left','right','top','iso'].map(v=>
           React.createElement('button',{key:v,className:'vbtn',onClick:e=>{e.stopPropagation();setView(v);}},
@@ -673,17 +728,39 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
         )
       ),
       /* selected badge */
-      selBox&&React.createElement('div',{className:'sel-badge'},`✦ ${selBox.name}  ${moveMode==='snap'?T2.snapHint:T2.freeHint}`),
-      /* left panel */
-      React.createElement('div',{className:'side-left-panel',onClick:e=>e.stopPropagation()},
+      selBox&&React.createElement('div',{className:'sel-badge'},`✦ ${selBox.name}`),
+      /* [改善3] top-left: 移動模式切換 */
+      selBox&&React.createElement('div',{className:'move-mode-overlay',onClick:e=>e.stopPropagation()},
+        React.createElement('div',{className:'mmo-title'},T2.moveModeTitle),
+        React.createElement('div',{className:'move-mode-seg'},
+          React.createElement('button',{
+            style:{background:moveMode==='snap'?'var(--accent)':'var(--panel2)',color:moveMode==='snap'?'#fff':'var(--text2)'},
+            onClick:e=>{e.stopPropagation();/* handled in parent via prop */onModeChange('snap');}
+          },T2.modeSnap),
+          React.createElement('button',{
+            style:{background:moveMode==='free'?'var(--accent2)':'var(--panel2)',color:moveMode==='free'?'#fff':'var(--text2)',borderLeft:'1px solid var(--border)'},
+            onClick:e=>{e.stopPropagation();onModeChange('free');}
+          },T2.modeFree)
+        ),
+        moveMode==='free'&&React.createElement('div',{className:'move-mode-step'},
+          React.createElement('span',null,T2.stepLabel),
+          React.createElement('input',{type:'number',min:1,max:500,value:freeStep,onChange:e=>onFreeStepChange(Math.max(1,+e.target.value))})
+        )
+      ),
+      /* [改善1] top-right: Radial Dial */
+      dialOpen&&selBox&&React.createElement('div',{className:'dial-overlay',onClick:e=>e.stopPropagation()},
+        React.createElement(RadialDial,{selBox,lang,moveMode,freeStep,onSnap,onRotateBox,onClose:onDialClose})
+      ),
+      /* bottom-left: VIEW options */
+      React.createElement('div',{className:'side-bottom-left',onClick:e=>e.stopPropagation()},
         React.createElement('div',{className:'side-panel-title'},'VIEW'),
         React.createElement('label',{className:'side-opt'},
           React.createElement('input',{type:'checkbox',checked:ortho,onChange:e=>onOrthoChange(e.target.checked)}),
           T2.orthoLabel
         )
       ),
-      /* right panel */
-      React.createElement('div',{className:'side-right-panel',onClick:e=>e.stopPropagation()},
+      /* bottom-right: gap options */
+      React.createElement('div',{className:'side-bottom-right',onClick:e=>e.stopPropagation()},
         React.createElement('div',{className:'side-panel-title'},T2.gapOptTitle),
         React.createElement('label',{className:'side-opt'},
           React.createElement('input',{type:'radio',name:'gd',checked:gapMode==='total',onChange:()=>onGapModeChange('total')}),
@@ -699,123 +776,51 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,gaps,lang,onSelect,onS
           T2.gapOptLines
         )
       ),
-      /* FIX#3: dim labels projected from 3D – rendered as HTML overlay */
+      /* dim labels overlay */
       dimLabels.length>0&&React.createElement('div',{id:'dim-labels-wrap'},
         dimLabels.map((dl,i)=>{
-          const isBox=!!dl.color&&dl.color!=='#cc1111'&&dl.color!==null;
+          const isBox=!!dl.color&&dl.color!=='#cc1111';
           const bg=isBox?`${dl.color}22`:'rgba(253,252,249,.92)';
           const border=isBox?dl.color:'#dd3333';
           const textCol=isBox?dl.color:'#cc1111';
-          return React.createElement('div',{key:i,className:'dim-lbl',style:{left:dl.x,top:dl.y,color:textCol,borderColor:border,background:bg,borderWidth:'2px'}},dl.text);
+          return React.createElement('div',{key:i,className:'dim-lbl',style:{left:dl.x,top:dl.y,color:textCol,borderColor:border,background:bg}},dl.text);
         })
-      ),
-      /* v1.7: Tab bar + unified 6-button ring */
-      selBox&&React.createElement('div',{
-        className:'tool-tab-bar',
-        style:{
-          left: btnPos.length>0 ? Math.min(...btnPos.map(b=>b.x))-10 : '50%',
-          top:  btnPos.length>0 ? Math.min(...btnPos.map(b=>b.y))-52 : '20%',
-          transform: btnPos.length>0 ? 'none' : 'translateX(-50%)'
-        },
-        onClick:e=>e.stopPropagation()
-      },
-        React.createElement('button',{className:`tool-tab${toolMode==='move'?' active':''}`,onClick:()=>setToolMode('move')},
-          (lang==='zh'?'🔀 移動':'🔀 移動')
-        ),
-        React.createElement('button',{className:`tool-tab${toolMode==='rotate'?' active':''}`,onClick:()=>setToolMode('rotate')},
-          (lang==='zh'?'🔄 旋轉':'🔄 回転')
-        )
-      ),
-      btnPos.map((b)=>{
-        if(b.mode==='move'){
-          const dirLabels=T2.snapDir;
-          const tip=moveMode==='free'?`${dirLabels[b.dir]} ${freeStep}mm`:dirLabels[b.dir];
-          return React.createElement('button',{
-            key:`mv${b.i}`,className:`mv-btn ${b.cls}`,
-            style:{left:b.x-18,top:b.y-18,opacity:moveMode==='free'?.88:1,outline:moveMode==='free'?'2.5px dashed rgba(255,255,255,.8)':'none'},
-            onClick:e=>{e.stopPropagation();onSnap(selId,b.dir);}
-          },
-            b.icon,
-            React.createElement('span',{className:'mv-tip'},tip)
-          );
-        } else {
-          const axName={x:T2.rotAxisX,y:T2.rotAxisY,z:T2.rotAxisZ}[b.axis]||b.axis.toUpperCase();
-          const tip=`${axName} ${b.sign>0?'+':'-'}90°`;
-          return React.createElement('button',{
-            key:`rv${b.i}`,className:`rv-btn ${b.cls}`,
-            style:{left:b.x-18,top:b.y-18},
-            onClick:e=>{e.stopPropagation();onRotateBox(selId,b.axis,b.sign);}
-          },
-            b.icon,
-            React.createElement('span',{className:'rv-tip'},tip)
-          );
-        }
-      })
-    ),
-    /* step + xray */
-    placed.length>0&&React.createElement('div',{style:{background:'rgba(253,252,249,.97)',borderRadius:8,padding:'6px 12px',border:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexShrink:0}},
-      React.createElement('span',{style:{color:'var(--accent)',fontFamily:'IBM Plex Mono',fontSize:13,minWidth:58}},`${Math.round(placed.length*clamp(viewStep,0,100)/100)} / ${placed.length}`),
-      React.createElement('input',{type:'range',min:0,max:100,value:viewStep,onChange:e=>setViewStep(+e.target.value),style:{flex:1,accentColor:'var(--accent)'}}),
-      React.createElement('label',{style:{display:'flex',alignItems:'center',gap:4,fontSize:13,color:'var(--text2)',cursor:'pointer',userSelect:'none'}},
-        React.createElement('input',{type:'checkbox',checked:xray,onChange:e=>setXray(e.target.checked),style:{accentColor:'var(--accent2)'}}),
-        'X-Ray'
       )
     )
+    /* [改善2] 移除 viewStep slider — 不再渲染 */
   );
 }
 
 /* ─── BoxDragPanel ─── */
-/* Compact isometric preview cards shown in the bottom drag strip */
-function BoxDragPanel({bts,lang,outer}){
-  const T=I[lang];
-  return React.createElement('div',{style:{
-    padding:'8px 10px',
-    borderTop:'2px dashed var(--accent2)',
-    background:'linear-gradient(180deg,var(--tok) 0%,var(--panel) 100%)',
-    flexShrink:0,
-  }},
-    React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
-      React.createElement('div',{className:'panel-label',style:{margin:0}},T.dragPreviewTitle),
-      React.createElement('div',{style:{
-        fontSize:12,color:'var(--accent2)',fontWeight:700,
-        background:'var(--tok)',border:'1.5px solid var(--accent2)',
-        borderRadius:20,padding:'3px 12px',display:'flex',alignItems:'center',gap:5,
-        boxShadow:'0 1px 4px rgba(42,157,124,.15)',
-        animation:'pulseHint 2s ease-in-out infinite',
-      }},
-        React.createElement('span',{style:{fontSize:15}},'☝'),
-        T.dragPanelInstr
-      )
+function BoxDragPanel({bts,lang}){
+  const zh=lang==='zh';
+  return React.createElement('div',{style:{borderTop:'2px solid var(--accent2)',background:'var(--panel)',flexShrink:0}},
+    React.createElement('div',{style:{background:'linear-gradient(90deg,#1d6fa3 0%,#1a8a6a 100%)',padding:'7px 12px 5px',display:'flex',alignItems:'center',gap:8}},
+      React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',background:'rgba(255,255,255,.2)',borderRadius:8,padding:'3px 7px',minWidth:36}},
+        React.createElement('span',{style:{fontSize:18,lineHeight:1,display:'inline-block',animation:'bounceUp 1.2s ease-in-out infinite'}},'☝'),
+        React.createElement('span',{style:{fontSize:9,color:'rgba(255,255,255,.85)',fontWeight:700,marginTop:1}},zh?'拖曳':'ドラッグ')
+      ),
+      React.createElement('div',{style:{flex:1}},
+        React.createElement('div',{style:{fontSize:12,fontWeight:900,color:'#fff',lineHeight:1.3}},zh?'↑ 將下方紙箱拖入上方 3D 外箱 ↑':'↑ 下のカードを上の 3D 外箱へドラッグ ↑'),
+        React.createElement('div',{style:{fontSize:10,color:'rgba(255,255,255,.8)',marginTop:2}},zh?'▶ 按住卡片，移至3D視窗後放開即可放置':'▶ カードを掴み、3Dウィンドウ上で離して配置')
+      ),
+      React.createElement('div',{style:{background:'rgba(255,255,255,.15)',border:'1.5px dashed rgba(255,255,255,.6)',borderRadius:8,padding:'4px 9px',fontSize:16,lineHeight:1}},'⬆')
     ),
-    React.createElement('div',{style:{display:'flex',gap:8,overflowX:'auto',paddingBottom:4}},
+    React.createElement('div',{style:{display:'flex',gap:8,overflowX:'auto',padding:'5px 10px 5px'}},
       bts.map(bt=>{
         const oriIdx=bt._ori??0;
-        const eL=effD(bt.L,bt.tP,bt.tM,bt.tS||'nominal');
-        const eW=effD(bt.W,bt.tP,bt.tM,bt.tS||'nominal');
-        const eH=effD(bt.H,bt.tP,bt.tM,bt.tS||'nominal');
+        const{L:eL,W:eW,H:eH}=btEffOuter(bt);
         return React.createElement('div',{
-          key:bt.id,
-          draggable:true,
+          key:bt.id,draggable:true,
           onDragStart:e=>e.dataTransfer.setData('boxTypeId',bt.id),
-          title:`${bt.name} — ${T.dragPreviewHint}`,
-          style:{
-            flexShrink:0,width:90,
-            border:`2px solid ${bt.color}`,
-            borderRadius:10,
-            background:bt.color+'18',
-            padding:'6px 5px 4px',
-            cursor:'grab',
-            display:'flex',flexDirection:'column',alignItems:'center',gap:3,
-            userSelect:'none',
-            transition:'box-shadow .15s,transform .15s',
-          },
+          style:{flexShrink:0,width:88,border:`2px solid ${bt.color}`,borderRadius:10,background:bt.color+'18',padding:'5px 5px 4px',cursor:'grab',display:'flex',flexDirection:'column',alignItems:'center',gap:2,userSelect:'none',transition:'box-shadow .15s,transform .15s'},
           onMouseEnter:e=>{e.currentTarget.style.boxShadow=`0 4px 14px ${bt.color}55`;e.currentTarget.style.transform='translateY(-2px)';},
           onMouseLeave:e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.transform='';},
         },
           React.createElement(MiniBoxView,{L:eL,W:eW,H:eH,oriIdx,color:bt.color}),
-          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:bt.color,textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',width:'100%',paddingTop:3}},bt.name),
-          React.createElement('div',{style:{fontSize:11,color:'var(--text3)',fontFamily:'IBM Plex Mono'}},`${eL}×${eW}×${eH}`),
-          React.createElement('div',{style:{fontSize:11,color:'var(--text2)',opacity:.7}},`×${bt.qty}`)
+          React.createElement('div',{style:{fontSize:11,fontWeight:700,color:bt.color,textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',width:'100%',paddingTop:2}},bt.name),
+          React.createElement('div',{style:{fontSize:10,color:'var(--text3)',fontFamily:'IBM Plex Mono'}},`${eL}×${eW}×${eH}`),
+          React.createElement('div',{style:{fontSize:10,color:'var(--text2)',opacity:.7}},`×${bt.qty}`)
         );
       })
     )
@@ -830,18 +835,20 @@ function BoxTypeCard({bt,onUpdate,onDelete,lang}){
   const[showTol,setShowTol]=useState(false);
   useEffect(()=>setEName(bt.name),[bt.name]);
   const oriIdx=bt._ori??0;
+  const flute=bt.flute||'';
   const rotTo=idx=>onUpdate({...bt,_ori:idx});
-  const handleName=e=>{setEName(e.target.value);onUpdate({...bt,name:e.target.value||bt.name});};
-  const eL=effD(bt.L,bt.tP,bt.tM,bt.tS||'nominal');
-  const eW=effD(bt.W,bt.tP,bt.tM,bt.tS||'nominal');
-  const eH=effD(bt.H,bt.tP,bt.tM,bt.tS||'nominal');
+  const{oL:outerNL,oW:outerNW,oH:outerNH}=innerToOuter(bt.L,bt.W,bt.H,flute);
+  const{L:eL,W:eW,H:eH}=btEffOuter(bt);
+  const hasFlute=!!flute;
   const hasTol=(bt.tP||0)>0||(bt.tM||0)>0;
   const tS=bt.tS||'nominal';
   const sL={nominal:T.tolNom,max:T.tolMax,min:T.tolMin};
-  return React.createElement('div',{className:'box-item fade-in',style:{borderLeft:`3px solid ${bt.color}`,cursor:'default'}},
+  const FLUTE_OPTS=['','AB','A','B','EB','E'];
+  const fluteName=k=>k===''?T.fluteNone:T[`flute${k}`]||k;
+  return React.createElement('div',{className:'box-item fade-in',style:{borderLeft:`3px solid ${bt.color}`}},
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginBottom:8}},
       React.createElement('div',{className:'swatch',style:{background:bt.color},onClick:()=>setShowCol(v=>!v)}),
-      React.createElement('input',{className:'name-inp',value:eName,onChange:handleName,onBlur:()=>onUpdate({...bt,name:eName.trim()||bt.name}),maxLength:20}),
+      React.createElement('input',{className:'name-inp',value:eName,onChange:e=>{setEName(e.target.value);onUpdate({...bt,name:e.target.value||bt.name});},onBlur:()=>onUpdate({...bt,name:eName.trim()||bt.name}),maxLength:20}),
       React.createElement('button',{className:'btn btn-xs btn-danger',onClick:onDelete,style:{borderRadius:5}},'✕')
     ),
     showCol&&React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}},
@@ -857,13 +864,33 @@ function BoxTypeCard({bt,onUpdate,onDelete,lang}){
       React.createElement('button',{className:'rot-btn',onClick:()=>rotTo((oriIdx+1)%6)},'▶'),
       React.createElement('button',{className:'rot-btn',onClick:()=>rotTo(0),style:{padding:'3px 7px'}},'↺')
     ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,marginTop:7}},
-      ['L','W','H'].map(d=>React.createElement('div',{key:d},
-        React.createElement('div',{style:{fontSize:13,color:'var(--text3)',fontWeight:700,marginBottom:2}},`${d}(mm)`),
-        React.createElement('input',{type:'number',min:1,className:'inp inp-sm mono',value:bt[d],onChange:e=>onUpdate({...bt,[d]:Math.max(1,+e.target.value)})})
-      ))
+    React.createElement('div',{style:{marginTop:7}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}},
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'var(--text3)'}},'▣ '+T.fluteLabel),
+        hasFlute&&React.createElement('span',{style:{fontSize:10,color:'var(--warn)',fontWeight:700,background:'var(--twarn)',borderRadius:4,padding:'1px 5px'}},fluteName(flute))
+      ),
+      React.createElement('select',{className:'inp inp-sm',value:flute,onChange:e=>onUpdate({...bt,flute:e.target.value}),style:{fontSize:12,height:28}},
+        FLUTE_OPTS.map(k=>React.createElement('option',{key:k||'__none',value:k},fluteName(k)))
+      )
     ),
-    hasTol&&React.createElement('div',{style:{display:'flex',gap:5,marginTop:5,background:'var(--tinfo)',borderRadius:5,padding:'3px 7px',alignItems:'center'}},
+    React.createElement('div',{style:{marginTop:7}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',marginBottom:3}},(hasFlute?'🔵 ':'')+T.innerDimTitle+' (mm)'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}},
+        ['L','W','H'].map(d=>React.createElement('div',{key:d},
+          React.createElement('div',{style:{fontSize:11,color:'var(--text3)',fontWeight:700,marginBottom:2}},d),
+          React.createElement('input',{type:'number',min:1,className:'inp inp-sm mono',value:bt[d],onChange:e=>onUpdate({...bt,[d]:Math.max(1,+e.target.value)})})
+        ))
+      )
+    ),
+    hasFlute&&React.createElement('div',{style:{marginTop:5,padding:'6px 9px',borderRadius:7,background:'linear-gradient(135deg,#fffbe8,#fff9e0)',border:'1.5px solid #d4a820',display:'flex',flexDirection:'column',gap:2}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:5,marginBottom:2}},
+        React.createElement('span',{style:{fontSize:10,fontWeight:900,color:'#9a7010'}},'🟡 '+T.outerCalcTitle+' (mm)'),
+        React.createElement('span',{style:{fontSize:9,color:'#b08020',background:'#fef3b0',borderRadius:3,padding:'1px 5px'}},fluteName(flute))
+      ),
+      React.createElement('div',{style:{fontFamily:'IBM Plex Mono',fontSize:13,fontWeight:700,color:'#7a5800'}},`L:${outerNL}  W:${outerNW}  H:${outerNH}`),
+      hasTol&&React.createElement('div',{style:{fontFamily:'IBM Plex Mono',fontSize:11,color:'var(--accent)',marginTop:1}},`(${T.effLbl} L:${eL} W:${eW} H:${eH})`)
+    ),
+    !hasFlute&&hasTol&&React.createElement('div',{style:{display:'flex',gap:5,marginTop:5,background:'var(--tinfo)',borderRadius:5,padding:'3px 7px',alignItems:'center'}},
       React.createElement('span',{style:{fontSize:13,color:'var(--accent)',fontWeight:700}},T.effLbl),
       React.createElement('span',{style:{fontFamily:'IBM Plex Mono',fontSize:13,color:'var(--accent)'}},`L:${eL} W:${eW} H:${eH}`)
     ),
@@ -874,14 +901,8 @@ function BoxTypeCard({bt,onUpdate,onDelete,lang}){
       ),
       showTol&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:7}},
         React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}},
-          React.createElement('div',null,
-            React.createElement('div',{style:{fontSize:13,color:'var(--ok)',fontWeight:700,marginBottom:2}},T.tolPlus),
-            React.createElement('input',{type:'number',min:0,step:.1,className:'inp inp-sm mono',style:{borderColor:'#b8ddc8'},value:bt.tP??0,onChange:e=>onUpdate({...bt,tP:Math.max(0,+e.target.value)})})
-          ),
-          React.createElement('div',null,
-            React.createElement('div',{style:{fontSize:13,color:'var(--err)',fontWeight:700,marginBottom:2}},T.tolMinus),
-            React.createElement('input',{type:'number',min:0,step:.1,className:'inp inp-sm mono',style:{borderColor:'#e8c4c4'},value:bt.tM??0,onChange:e=>onUpdate({...bt,tM:Math.max(0,+e.target.value)})})
-          )
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:13,color:'var(--ok)',fontWeight:700,marginBottom:2}},T.tolPlus),React.createElement('input',{type:'number',min:0,step:.1,className:'inp inp-sm mono',style:{borderColor:'#b8ddc8'},value:bt.tP??0,onChange:e=>onUpdate({...bt,tP:Math.max(0,+e.target.value)})})),
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:13,color:'var(--err)',fontWeight:700,marginBottom:2}},T.tolMinus),React.createElement('input',{type:'number',min:0,step:.1,className:'inp inp-sm mono',style:{borderColor:'#e8c4c4'},value:bt.tM??0,onChange:e=>onUpdate({...bt,tM:Math.max(0,+e.target.value)})}))
         ),
         React.createElement('div',null,
           React.createElement('div',{style:{fontSize:13,color:'var(--text3)',fontWeight:700,marginBottom:5}},T.tolState),
@@ -901,7 +922,7 @@ function BoxTypeCard({bt,onUpdate,onDelete,lang}){
       React.createElement('span',{style:{fontSize:13,color:'var(--text2)'}},T.unit),
       React.createElement('button',{className:'btn btn-xs btn-success',onClick:()=>onUpdate({...bt,_ap:true})},T.placeBtn)
     ),
-    React.createElement('div',{style:{fontSize:11,color:'var(--text3)',marginTop:4,textAlign:'center',letterSpacing:'.02em'}},lang==='zh'?'↓ 使用下方等角圖拖曳排入':'↓ 下の等角図をドラッグして配置')
+    React.createElement('div',{style:{fontSize:11,color:'var(--text3)',marginTop:4,textAlign:'center'}},lang==='zh'?'↓ 使用下方等角圖拖曳排入':'↓ 下の等角図をドラッグして配置')
   );
 }
 
@@ -921,12 +942,12 @@ function GapBar({label,value,max}){
   );
 }
 
-/* ─── HelpModal ─── */
+/* ─── HelpModal（已更新說明內容） ─── */
 function HelpModal({onClose,lang}){
   const T=I[lang];
+  const zh=lang==='zh';
   const Sec=({t,ch})=>React.createElement('div',{style:{marginBottom:18}},React.createElement('div',{className:'help-sec-title'},t),ch);
   const Row=({k,d})=>React.createElement('div',{className:'help-row'},React.createElement('span',{className:'help-key'},k),React.createElement('span',{className:'help-desc'},d));
-  const zh=lang==='zh';
   return React.createElement('div',{className:'modal-overlay',onClick:e=>e.target===e.currentTarget&&onClose()},
     React.createElement('div',{className:'modal-box'},
       React.createElement('div',{className:'modal-header'},
@@ -934,40 +955,33 @@ function HelpModal({onClose,lang}){
         React.createElement('button',{className:'btn btn-sm btn-ghost',onClick:onClose},T.helpClose)
       ),
       React.createElement('div',{className:'modal-body'},
-        Sec({t:zh?'🗃 外箱內寸':'🗃 外箱内寸',ch:Row({k:'L/W/H',d:zh?'輸入外箱組裝後的內部空間尺寸(mm)。':'組立後の内部寸法(mm)を入力。'})}),
-        Sec({t:zh?'📦 製品紙箱設定':'📦 製品箱設定',ch:React.createElement('div',null,
-          Row({k:zh?'名稱':'名前',d:zh?'點擊直接編輯，即時同步至所有清單。':'クリックして編集。リアルタイム反映。'}),
-          Row({k:'◀▶',d:zh?'切換3D預覽方向，L/W/H數值不變。':'3Dプレビューの向きのみ変更。L/W/H値は変わらない。'}),
-          Row({k:'±',d:zh?'輸入公差，選擇最大/最小/中間計算狀態。':'公差を入力し最大/最小/中間を選択。'}),
-          Row({k:zh?'預定數量(預設1)':'予定数量(デフォルト1)',d:zh?'預設為1，修改後點「↗ 排入」自動放置。':'デフォルト1。変更後「↗ 配置」で自動配置。'})
+        React.createElement(Sec,{t:zh?'🗃 外箱內寸':'🗃 外箱内寸',ch:React.createElement(Row,{k:'L/W/H',d:zh?'輸入外箱組裝後的內部空間尺寸 (mm)。':'組立後の内部寸法 (mm) を入力。'})}),
+        React.createElement(Sec,{t:zh?'📦 製品紙箱設定（左側面板）':'📦 製品箱設定（左パネル）',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'紙板種類':'フルート種類',d:zh?'選擇AB/A/B/EB/E段後自動換算外寸。選直接輸入時，輸入值即為外寸。':'AB/A/B/EB/E段選択で外寸自動換算。直接入力選択時は入力値が外寸になります。'}),
+          React.createElement(Row,{k:'◀▶',d:zh?'切換3D預覽方向，尺寸值不變。':'3Dプレビューの向きを変更。寸法値は変わりません。'}),
+          React.createElement(Row,{k:'±',d:zh?'公差設定基於外寸值計算。':'公差設定は外寸値ベースで計算。'}),
+          React.createElement(Row,{k:zh?'左側列表自動延伸':'左パネル自動拡張',d:zh?'左側紙箱列表會自動延伸至頁面底部，可新增多個箱型並滾動瀏覽。':'左パネルの箱型リストはページ底部まで自動拡張され、複数の箱型を追加してスクロールできます。'})
         )}),
-        Sec({t:zh?'⚠ 干涉 & 重疊提示':'⚠ 干渉 & 重複検知',ch:React.createElement('div',null,
-          Row({k:zh?'重疊變紅':'重複で赤色',d:zh?'當兩個紙箱發生重疊干涉時，該紙箱自動變為紅色（3D及邊框），方便快速辨認並移動修正。':'2つの箱が重なった場合、その箱が自動で赤色に変わります（3D本体・枠線）。すぐに気づいて修正できます。'}),
-          Row({k:zh?'超出外箱也變紅':'外箱超過も赤色',d:zh?'紙箱任何一面超出外箱邊界時同樣變紅。':'外箱の境界を超えた場合も同様に赤色になります。'})
+        React.createElement(Sec,{t:zh?'📦 拖曳排入（3D視窗下方卡片區）':'📦 ドラッグ配置（3Dウィンドウ下部カードエリア）',ch:React.createElement(Row,{k:zh?'拖曳卡片':'カードドラッグ',d:zh?'3D視窗下方的等角預覽卡片是唯一的拖曳入口。將卡片直接拖到上方3D外箱內即可放置。':'3Dウィンドウ下部の等角プレビューカードが唯一のドラッグ入口です。カードを上の3D外箱にドラッグして配置します。'})}),
+        React.createElement(Sec,{t:zh?'✦ 點擊選取 & 操作盤（3D右上角）':'✦ クリック選択 & 操作パネル（3D右上角）',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'點擊選取':'クリック選択',d:zh?'直接點擊3D中箱體即可選取（白框亮起），視角不重置。選取後，3D視窗右上角自動出現圓形操作盤。':'3D内の箱をクリックして選択（白枠表示）。視点はリセットされず、3Dウィンドウ右上角に円形操作パネルが自動表示されます。'}),
+          React.createElement(Row,{k:zh?'🎛 圓形操作盤（3D右上角）':'🎛 円形操作パネル（3D右上角）',d:zh?'選取箱體後，3D視窗右上角出現圓形操作盤（直徑約182px）。採用深石板色玻璃背景、中央淡色卡片、6個色相方向按鈕，配色協調且清晰。中央有「移動/旋轉」切換標籤。':'箱選択後、3Dウィンドウ右上角に円形操作パネル（直径約182px）が表示されます。深スレートガラス背景・中央淡色カード・6色方向ボタンの統一感あるデザインで、中央に「移動/回転」切替タブがあります。'}),
+          React.createElement(Row,{k:zh?'移動模式（6色圓鈕）':'移動モード（6色丸ボタン）',d:zh?'青綠=前(+Z) / 深藍=後(-Z) / 琥珀=右(+X) / 紫=左(-X) / 深紅=上(+Y) / 青=下(-Y)。顏色對應各軸向，直覺操作。':'青緑=前(+Z) / 紺=後(-Z) / 琥珀=右(+X) / 紫=左(-X) / 深赤=上(+Y) / 青=下(-Y)。色は各軸向に対応しています。'}),
+          React.createElement(Row,{k:zh?'旋轉模式（6色圓鈕）':'回転モード（6色丸ボタン）',d:zh?'點擊可將紙箱旋轉 +90°。前/後=Z軸，右/左=Y軸，上/下=X軸。旋轉後自動夾緊在外箱邊界內。':'クリックで+90°回転。前後=Z軸、右左=Y軸、上下=X軸。外箱境界内で自動クランプ。'})
         )}),
-        Sec({t:zh?'📦 拖曳排入區（3D視窗下方）':'📦 ドラッグ配置エリア（3D下部）',ch:React.createElement('div',null,
-          Row({k:zh?'專用拖曳區':'専用ドラッグ区',d:zh?'3D視窗下方的等角預覽卡片是唯一的拖曳入口，左側紙箱設定面板已停用拖曳功能。將卡片直接拖到上方3D外箱內即可放置。':'3Dウィンドウ下部の等角プレビューカードが唯一のドラッグ入口です。左側の設定パネルはドラッグ無効化済み。カードを上の3D外箱にドラッグして配置します。'}),
-          Row({k:zh?'說明提示標籤':'操作ヒントラベル',d:zh?'拖曳區上方有醒目的操作提示標籤，清楚說明拖曳方向，有脈動動畫提示使用者。':'ドラッグエリア上部に目立つ操作ヒントラベルがあります。ドラッグ方向を明示し、パルスアニメで使用者に案内します。'}),
-          Row({k:zh?'尺寸同步':'寸法同期',d:zh?'左側修改箱型的L/W/H數值或公差設定時，3D視窗內已放置的同型紙箱會自動同步調整尺寸並夾緊位置。':'左側で箱型のL/W/H値や公差を変更すると、3D内に配置済みの同型箱が自動で寸法を同期し、位置もクランプされます。'}),
-          Row({k:zh?'顯示數量':'数量表示',d:zh?'每張卡片顯示箱名、尺寸（L×W×H mm）和預定數量，方便確認。':'各カードに箱名・寸法(L×W×H mm)・予定数量を表示。確認に便利です。'})
+        React.createElement(Sec,{t:zh?'🧲 移動模式切換（3D左上角）':'🧲 移動モード切替（3D左上角）',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'吸附 / 自由（左上角小面板）':'吸着 / 自由（左上角パネル）',d:zh?'選取箱體後，3D視窗左上角出現移動模式切換小面板。吸附模式：操作盤箭頭自動貼合至最近鄰箱或外箱壁。自由模式：每次移動指定步進距離(mm)，可在面板輸入步進值。':'箱選択後、3Dウィンドウ左上角に移動モード切替パネルが表示されます。吸着モード：操作パネルの矢印で最近の箱か外壁に自動吸着。自由モード：指定ステップ(mm)ずつ移動。'}),
+          React.createElement(Row,{k:zh?'⌨ 鍵盤 ←→↑↓':'⌨ キーボード ←→↑↓',d:zh?'選取後：←→=X軸，↑↓=Y軸，Shift+↑↓=Z軸，到邊界自動停止。':'選択後：←→=X軸、↑↓=Y軸、Shift+↑↓=Z軸。境界で自動停止。'})
         )}),
-        Sec({t:zh?'✦ 點擊選取 & 移動 & 旋轉':'✦ クリック選択 & 移動 & 回転',ch:React.createElement('div',null,
-          Row({k:zh?'3D點擊':'3Dクリック',d:zh?'直接點擊3D中箱體選取（白框亮起），視角不重置。同時顯示6個移動箭頭與6個旋轉按鈕。':'3D内の箱をクリックして選択（白枠表示）。視点はリセットされません。移動矢印6個と回転ボタン6個が出現。'}),
-          Row({k:zh?'🔀移動 / 🔄旋轉 切換標籤':'🔀移動 / 🔄回転 切替タブ',d:zh?'選取箱體後，3D視窗內出現「移動」和「旋轉」兩個標籤；點選標籤即可切換6個按鈕的功能，每次只顯示6個按鈕，介面簡潔不混亂。':'箱選択後、3D内に「移動」と「回転」の2タブが表示されます。タブ切替でボタンの機能が変わり、常に6個のみ表示されてスッキリ。'}),
-          Row({k:zh?'移動模式（6個彩色圓鈕）':'移動モード（6色丸ボタン）',d:zh?'貼合模式：自動貼合至最近鄰箱或外箱壁。自由模式：每次移動指定步進距離(mm)。方向對應：綠=前/青=後/橙=右/紫=左/紅=上/青綠=下。':'吸着モード：最近の箱か外壁に吸着。自由モード：指定ステップ(mm)移動。色対応：緑=前/青=後/橙=右/紫=左/赤=上/青緑=下。'}),
-          Row({k:zh?'旋轉模式（6個彩色圓鈕）':'回転モード（6色丸ボタン）',d:zh?'點擊可將紙箱依+90°旋轉。方向說明：前/後鈕=Z軸旋轉、右/左鈕=Y軸水平旋轉、上/下鈕=X軸垂直旋轉。旋轉後自動夾緊不超出外箱邊界。':'クリックで+90°回転。前後ボタン=Z軸、右左ボタン=Y軸水平回転、上下ボタン=X軸垂直回転。外箱境界内で自動クランプ。'}),
-          Row({k:zh?'⌨ 鍵盤 ←→↑↓':'⌨ キーボード ←→↑↓',d:zh?'選取後：←→=X軸，↑↓=Y軸，Shift+↑↓=Z軸，到邊界自動停止。':'選択後：←→=X軸、↑↓=Y軸、Shift+↑↓=Z軸。境界で自動停止。'})
+        React.createElement(Sec,{t:zh?'🖥 3D視圖操作':'🖥 3D視点操作',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'視圖預設（上方列）':'視点プリセット（上部）',d:zh?'前視/後視/左視/右視/俯視/等角快速切換。':'正面/背面/左面/右面/平面/等角ワンクリック切替。'}),
+          React.createElement(Row,{k:zh?'正投影（左下角）':'平行投影（左下角）',d:zh?'勾選取消透視效果，改以正投影顯示。':'チェックで透視オフ、平行投影に切替。'}),
+          React.createElement(Row,{k:zh?'拖曳旋轉 / 滾輪縮放':'ドラッグ回転 / ホイールズーム',d:zh?'左鍵拖曳旋轉視角，滾輪縮放。':'左ドラッグで視点回転、ホイールでズーム。'})
         )}),
-        Sec({t:zh?'🖥 3D視圖操作':'🖥 3D視点操作',ch:React.createElement('div',null,
-          Row({k:zh?'視圖預設（上方列）':'視点プリセット（上部）',d:zh?'前視/後視/左視/右視/俯視/等角快速切換，不影響選取狀態。':'正面/背面/左面/右面/平面/等角ワンクリック切替。選択状態は維持。'}),
-          Row({k:zh?'旋轉':'回転',d:zh?'左鍵拖曳旋轉視角（避免拖到箱子）。':'左ドラッグで視点回転（箱以外を使用）。'}),
-          Row({k:'X-Ray',d:zh?'半透明模式確認內部排列。':'半透明モードで内部配置を確認。'}),
-          Row({k:zh?'正投影（左側）':'正投影（左側）',d:zh?'勾選取消透視效果，改以正投影顯示。':'チェックで透視効果オフ、正投影表示に切替。'})
-        )}),
-        Sec({t:zh?'📐 間隙顯示（右側面板）':'📐 隙間表示（右側パネル）',ch:React.createElement('div',null,
-          Row({k:zh?'整體最小間隙':'全体の最小隙間',d:zh?'以符合機械製圖規範的尺寸線方式，標示L/W/H三方向間隙值，尺寸線兩端含端點標記，延伸線從箱體面/外箱壁連接至尺寸線，數值直接標註於線上。':'機械製図規格準拠の寸法線でL/W/H各方向の隙間を表示。端部マーク付き。延長線が箱面・外壁から寸法線まで接続され、数値が直接ラベルとして表示されます。'}),
-          Row({k:zh?'各箱對外箱':'各箱と外箱',d:zh?'顯示每個紙箱在六個方向(±X/±Y/±Z)與外箱壁的間距；含尺寸線、端點標記與延伸線；選取某箱後僅顯示該箱數據。':'各箱の±X/±Y/±Z全6方向と外壁の隙間を個別表示。寸法線・端部マーク・延長線付き。箱選択中はその箱のみ表示。'}),
-          Row({k:zh?'顯示尺寸線':'寸法線を表示',d:zh?'勾選後啟用紅色尺寸線，數值標註直接顯示於3D視窗內；取消勾選則隱藏所有尺寸線。':'チェックで赤い寸法線を有効化。数値ラベルを3D内に直接表示。チェックを外すと全ての寸法線を非表示。'})
+        React.createElement(Sec,{t:zh?'📐 間隙顯示（3D右下角）':'📐 隙間表示（3D右下角）',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'整體最小間隙':'全体の最小隙間',d:zh?'以紅色機械製圖尺寸線標示L/W/H三方向整體最大間隙。':'赤い機械製図寸法線でL/W/H各方向の全体最大隙間を表示。'}),
+          React.createElement(Row,{k:zh?'各箱對外箱':'各箱と外箱',d:zh?'顯示每個紙箱在±X/±Y/±Z六方向與外箱壁的個別間距。選取某箱後僅顯示該箱數據。':'各箱の±X/±Y/±Z全6方向と外壁の隙間を個別表示。箱選択中はその箱のみ表示。'}),
+          React.createElement(Row,{k:zh?'顯示尺寸線':'寸法線を表示',d:zh?'勾選後啟用紅色尺寸線，直接顯示於3D視窗內。':'チェックで赤い寸法線を有効化し3D内に直接表示。'})
         )})
       ),
       React.createElement('div',{className:'modal-footer'},React.createElement('button',{className:'btn btn-primary',onClick:onClose},T.helpOk))
@@ -979,7 +993,7 @@ function HelpModal({onClose,lang}){
 function autoPack(oL,oW,oH,bts){
   const q=[];
   bts.forEach(bt=>{
-    const[d,w,h]=ORI[bt._ori??0](effD(bt.L,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.W,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.H,bt.tP,bt.tM,bt.tS||'nominal'));
+    const _ae=btEffOuter(bt);const[d,w,h]=ORI[bt._ori??0](_ae.L,_ae.W,_ae.H);
     for(let i=0;i<bt.qty;i++)q.push({typeId:bt.id,d,w,h,color:bt.color,name:bt.name});
   });
   if(!q.length)return[];
@@ -1014,8 +1028,8 @@ function App(){
   const T=I[lang];
   const[outer,setOuter]=useState({L:500,W:400,H:300});
   const[bts,setBts]=useState([
-    {id:uid(),name:'Box A',L:120,W:100,H:80,qty:1,color:'#3d7aba',tP:0,tM:0,tS:'nominal',_ori:0},
-    {id:uid(),name:'Box B',L:150,W:120,H:60,qty:1,color:'#2a9d7c',tP:0,tM:0,tS:'nominal',_ori:0},
+    {id:uid(),name:'Box A',L:120,W:100,H:80,qty:1,color:'#3d7aba',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
+    {id:uid(),name:'Box B',L:150,W:120,H:60,qty:1,color:'#2a9d7c',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
   ]);
   const[placed,setPlaced]=useState([]);
   const[hlId,setHlId]=useState(null);
@@ -1027,22 +1041,17 @@ function App(){
   const[gapMode,setGapMode]=useState('total');
   const[showLines,setShowLines]=useState(false);
   const[ortho,setOrtho]=useState(false);
+  const[dialOpen,setDialOpen]=useState(false);
 
   const updBt=useCallback(u=>{
     setBts(prev=>prev.map(b=>b.id===u.id?u:b));
-    // Sync placed boxes: always update name; also sync w/h/d when dims or tolerance changed
     setPlaced(prev=>prev.map(p=>{
       if(p.typeId!==u.id)return p;
       const upd={...p};
       if(u.name)upd.name=u.name;
-      // Recalculate effective dims with new tolerance/orientation
-      const[nd,nw,nh]=ORI[u._ori??0](
-        effD(u.L,u.tP,u.tM,u.tS||'nominal'),
-        effD(u.W,u.tP,u.tM,u.tS||'nominal'),
-        effD(u.H,u.tP,u.tM,u.tS||'nominal')
-      );
-      upd.w=nw; upd.h=nh; upd.d=nd;
-      // Clamp position so box stays inside outer after resize
+      const _ue=btEffOuter(u);
+      const[nd,nw,nh]=ORI[u._ori??0](_ue.L,_ue.W,_ue.H);
+      upd.w=nw;upd.h=nh;upd.d=nd;
       upd.x=clamp(p.x,0,Math.max(0,outer.W-nw));
       upd.y=clamp(p.y,0,Math.max(0,outer.H-nh));
       upd.z=clamp(p.z,0,Math.max(0,outer.L-nd));
@@ -1063,14 +1072,13 @@ function App(){
   const utilRate=outerVol>0?Math.round(totalVol/outerVol*100):0;
   const counts=useMemo(()=>{const m={};placed.forEach(p=>{m[p.typeId]=(m[p.typeId]||0)+1;});return m;},[placed]);
 
-  /* auto-place trigger – use apRef queue to prevent duplication */
   const apRef=useRef(null);
   useEffect(()=>{
     const bt=bts.find(b=>b._ap);if(!bt)return;
-    if(apRef.current===bt.id)return; // guard: already processing
+    if(apRef.current===bt.id)return;
     apRef.current=bt.id;
     setBts(prev=>prev.map(b=>b._ap?{...b,_ap:false}:b));
-    const[d,w,h]=ORI[bt._ori??0](effD(bt.L,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.W,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.H,bt.tP,bt.tM,bt.tS||'nominal'));
+    const _ape=btEffOuter(bt);const[d,w,h]=ORI[bt._ori??0](_ape.L,_ape.W,_ape.H);
     setPlaced(prev=>{
       let cur=[...prev];
       for(let i=0;i<bt.qty;i++){const pos=findPos(outer.L,outer.W,outer.H,cur,d,w,h);if(!pos)break;cur=[...cur,{id:uid(),typeId:bt.id,name:bt.name,color:bt.color,...pos,w,h,d}];}
@@ -1079,18 +1087,17 @@ function App(){
     setTimeout(()=>{apRef.current=null;},100);
   },[bts,outer]);
 
+  useEffect(()=>{setDialOpen(!!selId);},[selId]);
+
   const handleAutoAll=()=>setPlaced(autoPack(outer.L,outer.W,outer.H,bts));
   const handleClear=()=>{setPlaced([]);setSelId(null);};
 
-  /* FIX#1: drag adds ONE new placed instance – NOT modifying existing */
   const handleDrop=useCallback(e=>{
     const typeId=e.dataTransfer.getData('boxTypeId');if(!typeId)return;
     const bt=bts.find(b=>b.id===typeId);if(!bt)return;
-    const[d,w,h]=ORI[bt._ori??0](effD(bt.L,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.W,bt.tP,bt.tM,bt.tS||'nominal'),effD(bt.H,bt.tP,bt.tM,bt.tS||'nominal'));
+    const _de=btEffOuter(bt);const[d,w,h]=ORI[bt._ori??0](_de.L,_de.W,_de.H);
     const pos=findPos(outer.L,outer.W,outer.H,placed,d,w,h)||{x:0,y:0,z:0};
-    // always create NEW uid – never reuse existing placed id
-    const newItem={id:uid(),typeId:bt.id,name:bt.name,color:bt.color,...pos,w,h,d};
-    setPlaced(prev=>[...prev,newItem]);
+    setPlaced(prev=>[...prev,{id:uid(),typeId:bt.id,name:bt.name,color:bt.color,...pos,w,h,d}]);
     setHovering(false);
   },[bts,outer,placed]);
 
@@ -1103,144 +1110,147 @@ function App(){
     setPlaced(prev=>prev.map(p=>p.id===id?{...p,...moved}:p));
   },[placed,outer,moveMode,freeStep]);
 
-  /* FIX#4: rotate a placed box in 3D */
   const handleRotateBox=useCallback((id,axis,sign)=>{
     if(!id)return;
     const pb=placed.find(p=>p.id===id);if(!pb)return;
-    const rotated=rotatePlaced(pb,axis,sign,outer.L,outer.W,outer.H);
-    setPlaced(prev=>prev.map(p=>p.id===id?rotated:p));
+    setPlaced(prev=>prev.map(p=>p.id===id?rotatePlaced(pb,axis,sign,outer.L,outer.W,outer.H):p));
   },[placed,outer]);
 
   const removeP=id=>{setPlaced(prev=>prev.filter(p=>p.id!==id));if(selId===id)setSelId(null);};
-  const addBt=()=>{const c=COLORS[bts.length%COLORS.length];setBts(prev=>[...prev,{id:uid(),name:`Box ${String.fromCharCode(65+prev.length%26)}`,L:100,W:80,H:60,qty:1,color:c,tP:0,tM:0,tS:'nominal',_ori:0}]);};
+  const addBt=()=>{const c=COLORS[bts.length%COLORS.length];setBts(prev=>[...prev,{id:uid(),name:`Box ${String.fromCharCode(65+prev.length%26)}`,L:100,W:80,H:60,qty:1,color:c,tP:0,tM:0,tS:'nominal',_ori:0,flute:''}]);};
   const selBox=placed.find(p=>p.id===selId);
 
-  return React.createElement('div',{style:{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden',background:'var(--bg)'}},
-    React.createElement('header',{style:{padding:'9px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'linear-gradient(90deg,var(--panel),#f5f2ea)',flexShrink:0,boxShadow:'0 1px 4px var(--shadow)'}},
+  /* Scene3D に onModeChange / onFreeStepChange を渡す */
+  const handleModeChange=useCallback(m=>setMoveMode(m),[]);
+  const handleFreeStepChange=useCallback(v=>setFreeStep(v),[]);
+
+  return React.createElement('div',{className:'app-root'},
+    /* header */
+    React.createElement('header',{style:{padding:'7px 16px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'linear-gradient(90deg,var(--panel),#f5f2ea)',flexShrink:0,boxShadow:'0 1px 4px var(--shadow)'}},
       React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
-        React.createElement('div',{style:{width:30,height:30,background:'linear-gradient(135deg,var(--accent),var(--accent2))',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15}},'📦'),
-        React.createElement('h1',{style:{fontSize:14,fontWeight:900,lineHeight:1.2}},
+        React.createElement('div',{style:{width:26,height:26,background:'linear-gradient(135deg,var(--accent),var(--accent2))',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}},'📦'),
+        React.createElement('h1',{style:{fontSize:13,fontWeight:900,lineHeight:1.2}},
           React.createElement('span',{className:'header-accent'},T.title),
-          React.createElement('span',{style:{fontSize:12,color:'var(--text3)',fontWeight:400,marginLeft:8}},T.ver)
+          React.createElement('span',{style:{fontSize:11,color:'var(--text3)',fontWeight:400,marginLeft:8}},T.ver)
         )
       ),
-      React.createElement('div',{style:{display:'flex',gap:7}},
+      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}},
         React.createElement('button',{className:'btn btn-sm btn-jp',onClick:()=>setLang(l=>l==='zh'?'ja':'zh')},T.jpBtn),
         React.createElement('button',{className:'btn btn-sm btn-help',onClick:()=>setShowHelp(true)},T.helpBtn),
         React.createElement('button',{className:'btn btn-primary btn-sm',onClick:handleAutoAll},T.autoBtn),
         React.createElement('button',{className:'btn btn-sm btn-ghost',onClick:handleClear},T.clearBtn)
       )
     ),
-    React.createElement('div',{style:{display:'flex',flex:1,overflow:'hidden'}},
-      /* LEFT */
-      React.createElement('div',{style:{width:252,flexShrink:0,borderRight:'1px solid var(--border)',padding:'12px 10px',overflowY:'auto',display:'flex',flexDirection:'column',gap:10,background:'var(--panel)'}},
-        React.createElement('div',{style:{background:'#eff5fb',border:'1px solid #b8d0f0',borderRadius:12,padding:13}},
-          React.createElement('div',{className:'panel-label',style:{color:'#5080b0'}},T.outerLbl),
-          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}},
-            ['L','W','H'].map(d=>React.createElement('div',{key:d},
-              React.createElement('div',{style:{fontSize:13,color:'#5080b0',fontWeight:700,marginBottom:2}},{L:T.dimL,W:T.dimW,H:T.dimH}[d]),
-              React.createElement('input',{type:'number',min:1,className:'inp inp-sm mono',style:{borderColor:'#b8d0f0',background:'#fff'},value:outer[d],onChange:e=>setOuter(prev=>({...prev,[d]:Math.max(1,+e.target.value)}))})
-            ))
-          )
-        ),
-        React.createElement('div',{className:'panel-label'},T.boxLbl),
-        React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:8,maxHeight:430,overflowY:'auto'}},
-          bts.map(bt=>React.createElement(BoxTypeCard,{key:bt.id,bt,lang,onUpdate:updBt,onDelete:()=>{setBts(prev=>prev.filter(b=>b.id!==bt.id));setPlaced(prev=>prev.filter(p=>p.typeId!==bt.id));}}))
-        ),
-        React.createElement('button',{className:'btn btn-ghost',style:{width:'100%',fontSize:12,padding:'7px',borderRadius:8},onClick:addBt},T.addBox)
+    React.createElement('div',{className:'app-body'},
+      /* [改善4] LEFT — 紙箱列表填滿頁面高度 */
+      React.createElement('div',{className:'app-left',style:{width:'clamp(200px,21vw,260px)'}},
+        React.createElement('div',{className:'app-left-inner'},
+          /* 外箱 */
+          React.createElement('div',{style:{background:'#eff5fb',border:'1px solid #b8d0f0',borderRadius:12,padding:13,flexShrink:0}},
+            React.createElement('div',{className:'panel-label',style:{color:'#5080b0'}},T.outerLbl),
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}},
+              ['L','W','H'].map(d=>React.createElement('div',{key:d},
+                React.createElement('div',{style:{fontSize:13,color:'#5080b0',fontWeight:700,marginBottom:2}},{L:T.dimL,W:T.dimW,H:T.dimH}[d]),
+                React.createElement('input',{type:'number',min:1,className:'inp inp-sm mono',style:{borderColor:'#b8d0f0',background:'#fff'},value:outer[d],onChange:e=>setOuter(prev=>({...prev,[d]:Math.max(1,+e.target.value)}))})
+              ))
+            )
+          ),
+          React.createElement('div',{className:'panel-label',style:{flexShrink:0}},T.boxLbl),
+          /* [改善4] 紙箱列表：flex:1 撐高，自帶滾動 */
+          React.createElement('div',{className:'box-list-wrap'},
+            bts.map(bt=>React.createElement(BoxTypeCard,{key:bt.id,bt,lang,onUpdate:updBt,onDelete:()=>{setBts(prev=>prev.filter(b=>b.id!==bt.id));setPlaced(prev=>prev.filter(p=>p.typeId!==bt.id));}}))
+          ),
+          React.createElement('button',{className:'btn btn-ghost',style:{width:'100%',fontSize:12,padding:'7px',borderRadius:8,flexShrink:0},onClick:addBt},T.addBox)
+        )
       ),
       /* MIDDLE */
       React.createElement('div',{
-        style:{flex:1,padding:12,display:'flex',flexDirection:'column',overflow:'hidden',gap:8},
+        className:'app-mid',style:{padding:'8px 8px 0'},
         onDragOver:e=>{e.preventDefault();setHovering(true);},
-        onDragLeave:()=>setHovering(false),
+        onDragLeave:e=>{if(!e.currentTarget.contains(e.relatedTarget))setHovering(false);},
         onDrop:e=>{e.stopPropagation();}
       },
-        React.createElement(Scene3D,{outer,placed,hlId,selId,onDrop:handleDrop,hovering,gaps,lang,onSelect:setSelId,onSnap:handleSnap,onRotateBox:handleRotateBox,moveMode,freeStep,gapMode,showLines,ortho,onOrthoChange:setOrtho,onGapModeChange:setGapMode,onShowLinesChange:setShowLines}),
-        React.createElement(BoxDragPanel,{bts,lang,outer})
+        React.createElement(Scene3D,{
+          outer,placed,hlId,selId,onDrop:handleDrop,hovering,lang,
+          onSelect:setSelId,onSnap:handleSnap,onRotateBox:handleRotateBox,
+          moveMode,freeStep,gapMode,showLines,ortho,
+          onOrthoChange:setOrtho,onGapModeChange:setGapMode,onShowLinesChange:setShowLines,
+          dialOpen,onDialClose:()=>{setDialOpen(false);setSelId(null);},selBox,
+          onModeChange:handleModeChange,onFreeStepChange:handleFreeStepChange
+        }),
+        React.createElement(BoxDragPanel,{bts,lang})
       ),
       /* RIGHT */
-      React.createElement('div',{style:{width:235,flexShrink:0,borderLeft:'1px solid var(--border)',padding:'12px 10px',overflowY:'auto',display:'flex',flexDirection:'column',gap:10,background:'var(--panel)'}},
-        React.createElement('div',null,
-          React.createElement('div',{className:'panel-label'},T.gapTitle),
-          React.createElement(GapBar,{label:T.gapL,value:gaps.L,max:outer.L}),
-          React.createElement(GapBar,{label:T.gapW,value:gaps.W,max:outer.W}),
-          React.createElement(GapBar,{label:T.gapH,value:gaps.H,max:outer.H}),
-          (gaps.L<0||gaps.W<0||gaps.H<0)&&React.createElement('div',{className:'tag tag-err',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.over),
-          (gaps.L>=0&&gaps.W>=0&&gaps.H>=0&&placed.length>0)&&React.createElement('div',{className:'tag tag-ok',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.fitOk)
-        ),
-        React.createElement('hr',{className:'divider'}),
-        React.createElement('div',null,
-          React.createElement('div',{className:'panel-label'},T.utilTitle),
-          React.createElement('div',{style:{fontSize:26,fontWeight:900,fontFamily:'IBM Plex Mono',color:utilRate>=80?'var(--ok)':utilRate>=60?'var(--warn)':'var(--err)',textAlign:'center',padding:'4px 0'}},`${utilRate}%`),
-          React.createElement('div',{style:{background:'var(--panel2)',borderRadius:5,height:7,overflow:'hidden'}},
-            React.createElement('div',{style:{width:`${utilRate}%`,height:'100%',borderRadius:5,background:utilRate>=80?'var(--ok)':utilRate>=60?'var(--warn)':'var(--err)',transition:'width .5s'}})
+      React.createElement('div',{className:'app-right',style:{width:'clamp(190px,20vw,250px)'}},
+        React.createElement('div',{className:'app-right-inner'},
+          React.createElement('div',null,
+            React.createElement('div',{className:'panel-label'},T.gapTitle),
+            React.createElement(GapBar,{label:T.gapL,value:gaps.L,max:outer.L}),
+            React.createElement(GapBar,{label:T.gapW,value:gaps.W,max:outer.W}),
+            React.createElement(GapBar,{label:T.gapH,value:gaps.H,max:outer.H}),
+            (gaps.L<0||gaps.W<0||gaps.H<0)&&React.createElement('div',{className:'tag tag-err',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.over),
+            (gaps.L>=0&&gaps.W>=0&&gaps.H>=0&&placed.length>0)&&React.createElement('div',{className:'tag tag-ok',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.fitOk)
           ),
-          React.createElement('div',{style:{fontSize:12,color:'var(--text3)',marginTop:4,textAlign:'center'}},`${(totalVol/1e6).toFixed(2)} / ${(outerVol/1e6).toFixed(2)} dm³`)
-        ),
-        React.createElement('hr',{className:'divider'}),
-        React.createElement('div',null,
-          React.createElement('div',{className:'panel-label'},T.qtyTitle),
-          bts.map(bt=>{const tgt=bt.qty,act=counts[bt.id]||0;return React.createElement('div',{key:bt.id,style:{display:'flex',alignItems:'center',gap:6,marginBottom:7}},
-            React.createElement('div',{style:{width:8,height:8,borderRadius:2,background:bt.color,flexShrink:0}}),
-            React.createElement('span',{style:{fontSize:13,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--text2)'}},bt.name),
-            React.createElement('span',{className:`tag ${act>=tgt?'tag-ok':act>0?'tag-warn':'tag-err'}`,style:{minWidth:38,justifyContent:'center'}},`${act}/${tgt}`)
-          );})
-        ),
-        React.createElement('hr',{className:'divider'}),
-        React.createElement('div',null,
-          React.createElement('div',{className:'panel-label'},T.specTitle),
-          ['L','W','H'].map(d=>React.createElement('div',{key:d,style:{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}},
-            React.createElement('span',{style:{color:'var(--text2)'}},{L:T.lenL,W:T.lenW,H:T.lenH}[d]),
-            React.createElement('span',{className:'mono',style:{color:'var(--accent)',fontWeight:700,fontSize:13}},`${outer[d]} mm`)
-          )),
-          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,paddingTop:6,borderTop:'1px solid var(--border)'}},
-            React.createElement('span',{style:{color:'var(--text2)'}},T.volL),
-            React.createElement('span',{className:'mono',style:{fontSize:13,color:'var(--text2)'}},`${(outerVol/1e6).toFixed(1)} dm³`)
-          )
-        ),
-        placed.length>0&&React.createElement('div',null,
-          React.createElement('hr',{className:'divider',style:{margin:'4px 0 8px'}}),
-          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}},
-            React.createElement('div',{className:'panel-label',style:{margin:0}},T.placedTitle(placed.length)),
-            React.createElement('span',{style:{fontSize:13,color:'var(--text3)'}},T.placedHint)
+          React.createElement('hr',{className:'divider'}),
+          React.createElement('div',null,
+            React.createElement('div',{className:'panel-label'},T.utilTitle),
+            React.createElement('div',{style:{fontSize:26,fontWeight:900,fontFamily:'IBM Plex Mono',color:utilRate>=80?'var(--ok)':utilRate>=60?'var(--warn)':'var(--err)',textAlign:'center',padding:'4px 0'}},`${utilRate}%`),
+            React.createElement('div',{style:{background:'var(--panel2)',borderRadius:5,height:7,overflow:'hidden'}},
+              React.createElement('div',{style:{width:`${utilRate}%`,height:'100%',borderRadius:5,background:utilRate>=80?'var(--ok)':utilRate>=60?'var(--warn)':'var(--err)',transition:'width .5s'}})
+            ),
+            React.createElement('div',{style:{fontSize:12,color:'var(--text3)',marginTop:4,textAlign:'center'}},`${(totalVol/1e6).toFixed(2)} / ${(outerVol/1e6).toFixed(2)} dm³`)
           ),
-          selBox&&React.createElement('div',{style:{background:'var(--tinfo)',border:'1.5px solid var(--accent)',borderRadius:9,padding:'8px 10px',marginBottom:7,display:'flex',flexDirection:'column',gap:7}},
-            React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
-              React.createElement('span',{style:{fontSize:13,fontWeight:900,color:'var(--accent)'}},`✦ ${selBox.name}`),
-              React.createElement('button',{className:'btn btn-xs btn-ghost',style:{fontSize:9},onClick:()=>setSelId(null)},T.deselect)
-            ),
-            /* size display of selected box */
-            React.createElement('div',{style:{fontSize:13,color:'var(--text3)',fontFamily:'IBM Plex Mono'}},
-              `${selBox.w}×${selBox.h}×${selBox.d} mm`
-            ),
-            React.createElement('div',{style:{display:'flex',gap:0,borderRadius:7,overflow:'hidden',border:'1px solid var(--border)'}},
-              React.createElement('button',{style:{flex:1,padding:'5px 4px',fontSize:12,fontWeight:700,border:'none',cursor:'pointer',fontFamily:'inherit',background:moveMode==='snap'?'var(--accent)':'var(--panel2)',color:moveMode==='snap'?'#fff':'var(--text2)',transition:'all .15s'},onClick:()=>setMoveMode('snap')},T.modeSnap),
-              React.createElement('button',{style:{flex:1,padding:'5px 4px',fontSize:12,fontWeight:700,border:'none',borderLeft:'1px solid var(--border)',cursor:'pointer',fontFamily:'inherit',background:moveMode==='free'?'var(--accent2)':'var(--panel2)',color:moveMode==='free'?'#fff':'var(--text2)',transition:'all .15s'},onClick:()=>setMoveMode('free')},T.modeFree)
-            ),
-            moveMode==='free'&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
-              React.createElement('span',{style:{fontSize:12,color:'var(--text2)',whiteSpace:'nowrap'}},T.stepLabel),
-              React.createElement('input',{type:'number',min:1,max:500,className:'qty-inp',style:{width:54},value:freeStep,onChange:e=>setFreeStep(Math.max(1,+e.target.value))})
-            ),
-            React.createElement('div',{style:{fontSize:13,color:'var(--text2)',lineHeight:1.5}},moveMode==='snap'?T.snapHint:T.freeHint),
-            React.createElement('div',{style:{fontSize:13,color:'var(--text3)',lineHeight:1.5}},lang==='zh'?'⌨ 方向鍵移動（Shift+↑↓=Z軸）':'⌨ 矢印キー移動（Shift+↑↓=Z軸）'),
-            /* FIX#4: rotation hint in right panel */
-            React.createElement('div',{style:{fontSize:13,color:'var(--text3)',lineHeight:1.5,borderTop:'1px dashed var(--border)',paddingTop:5}},
-              lang==='zh'?'🔀移動 / 🔄旋轉：點標籤切換功能':'🔀移動 / 🔄回転：タブで機能切替'
-            ),
-            React.createElement('button',{className:'btn btn-danger btn-xs',style:{width:'100%',fontSize:10},onClick:()=>{removeP(selId);setSelId(null);}},T.removeBtn)
+          React.createElement('hr',{className:'divider'}),
+          React.createElement('div',null,
+            React.createElement('div',{className:'panel-label'},T.qtyTitle),
+            bts.map(bt=>{
+              const tgt=bt.qty,act=counts[bt.id]||0;
+              return React.createElement('div',{key:bt.id,style:{display:'flex',alignItems:'center',gap:6,marginBottom:7}},
+                React.createElement('div',{style:{width:8,height:8,borderRadius:2,background:bt.color,flexShrink:0}}),
+                React.createElement('span',{style:{fontSize:13,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--text2)'}},bt.name),
+                React.createElement('span',{className:`tag ${act>=tgt?'tag-ok':act>0?'tag-warn':'tag-err'}`,style:{minWidth:38,justifyContent:'center'}},`${act}/${tgt}`)
+              );
+            })
           ),
-          React.createElement('div',{style:{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}},
-            placed.map((pb,i)=>React.createElement('div',{
-              key:pb.id,className:`placed-chip${pb.id===selId?' sel':''}`,
-              onMouseEnter:()=>setHlId(pb.id),onMouseLeave:()=>setHlId(null),
-              onClick:()=>setSelId(id=>id===pb.id?null:pb.id)
-            },
-              React.createElement('div',{style:{width:9,height:9,borderRadius:2,background:pb.color,flexShrink:0}}),
-              React.createElement('span',{style:{color:pb.id===selId?'var(--accent)':'var(--text2)',fontSize:12,flex:1,fontWeight:pb.id===selId?700:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},`#${i+1} ${pb.name}`),
-              React.createElement('span',{className:'mono',style:{fontSize:8,color:'var(--text3)',flexShrink:0}},`${pb.x},${pb.y},${pb.z}`),
-              React.createElement('span',{style:{fontSize:12,color:'var(--err)',opacity:.6,cursor:'pointer',paddingLeft:3,flexShrink:0},onClick:e=>{e.stopPropagation();removeP(pb.id);}},'✕')
-            ))
+          React.createElement('hr',{className:'divider'}),
+          React.createElement('div',null,
+            React.createElement('div',{className:'panel-label'},T.specTitle),
+            ['L','W','H'].map(d=>React.createElement('div',{key:d,style:{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}},
+              React.createElement('span',{style:{color:'var(--text2)'}},{L:T.lenL,W:T.lenW,H:T.lenH}[d]),
+              React.createElement('span',{className:'mono',style:{color:'var(--accent)',fontWeight:700,fontSize:13}},`${outer[d]} mm`)
+            )),
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,paddingTop:6,borderTop:'1px solid var(--border)'}},
+              React.createElement('span',{style:{color:'var(--text2)'}},T.volL),
+              React.createElement('span',{className:'mono',style:{fontSize:13,color:'var(--text2)'}},`${(outerVol/1e6).toFixed(1)} dm³`)
+            )
+          ),
+          placed.length>0&&React.createElement('div',null,
+            React.createElement('hr',{className:'divider',style:{margin:'4px 0 8px'}}),
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}},
+              React.createElement('div',{className:'panel-label',style:{margin:0}},T.placedTitle(placed.length)),
+              React.createElement('span',{style:{fontSize:13,color:'var(--text3)'}},T.placedHint)
+            ),
+            selBox&&React.createElement('div',{style:{background:'var(--tinfo)',border:'1.5px solid var(--accent)',borderRadius:9,padding:'7px 10px',marginBottom:7,display:'flex',flexDirection:'column',gap:6}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+                React.createElement('span',{style:{fontSize:13,fontWeight:900,color:'var(--accent)'}},`✦ ${selBox.name}`),
+                React.createElement('button',{className:'btn btn-xs btn-ghost',style:{fontSize:9},onClick:()=>setSelId(null)},T.deselect)
+              ),
+              React.createElement('div',{style:{fontSize:12,color:'var(--text3)',fontFamily:'IBM Plex Mono'}},`${selBox.w}×${selBox.h}×${selBox.d} mm`),
+              React.createElement('div',{style:{fontSize:11,color:'var(--accent2)',lineHeight:1.5}},lang==='zh'?'💡 使用3D右上角圓形操作盤移動/旋轉':'💡 3D右上角の操作パネルで移動・回転'),
+              React.createElement('button',{className:'btn btn-danger btn-xs',style:{width:'100%',fontSize:10},onClick:()=>{removeP(selId);setSelId(null);}},T.removeBtn)
+            ),
+            React.createElement('div',{style:{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}},
+              placed.map((pb,i)=>React.createElement('div',{
+                key:pb.id,className:`placed-chip${pb.id===selId?' sel':''}`,
+                onMouseEnter:()=>setHlId(pb.id),onMouseLeave:()=>setHlId(null),
+                onClick:()=>setSelId(id=>id===pb.id?null:pb.id)
+              },
+                React.createElement('div',{style:{width:9,height:9,borderRadius:2,background:pb.color,flexShrink:0}}),
+                React.createElement('span',{style:{color:pb.id===selId?'var(--accent)':'var(--text2)',fontSize:12,flex:1,fontWeight:pb.id===selId?700:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},`#${i+1} ${pb.name}`),
+                React.createElement('span',{className:'mono',style:{fontSize:8,color:'var(--text3)',flexShrink:0}},`${pb.x},${pb.y},${pb.z}`),
+                React.createElement('span',{style:{fontSize:12,color:'var(--err)',opacity:.6,cursor:'pointer',paddingLeft:3,flexShrink:0},onClick:e=>{e.stopPropagation();removeP(pb.id);}},'✕')
+              ))
+            )
           )
         )
       )
