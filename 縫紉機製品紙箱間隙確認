@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ミシン製品包裝設計 v2.2</title>
+<title>ミシン製品包裝設計 v2.4</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -204,11 +204,35 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .name-inp:focus{border-bottom-color:var(--accent)}
 .rot-btn{background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:4px 9px;font-size:12px;cursor:pointer;font-weight:700;transition:all .12s}
 .rot-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--tinfo)}
-.tol-btn{padding:4px 10px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text2);cursor:pointer;font-family:inherit}
-.tol-btn.act-nom{background:#6a5f52;color:#fff;border-color:#6a5f52}
-.tol-btn.act-max{background:var(--ok);color:#fff;border-color:var(--ok)}
-.tol-btn.act-min{background:var(--err);color:#fff;border-color:var(--err)}
-.drop-active{box-shadow:inset 0 0 0 3px var(--accent2)!important}
+.tol-btn{
+  padding:5px 12px;font-size:11px;font-weight:700;border-radius:6px;
+  border:1.5px solid var(--border);
+  background:var(--panel2);color:var(--text3);
+  cursor:pointer;font-family:inherit;transition:all .15s;
+  flex:1;text-align:center;
+}
+.tol-btn:hover{border-color:var(--border2);color:var(--text2);}
+/* Active states: each with distinct vivid color — nom=blue, max=green, min=red */
+.tol-btn.act-nom{
+  background:#2563a8;color:#fff;border-color:#1a4f8e;
+  box-shadow:0 2px 8px rgba(37,99,168,.45);
+  transform:translateY(-1px);
+}
+.tol-btn.act-max{
+  background:#1e7a45;color:#fff;border-color:#185f35;
+  box-shadow:0 2px 8px rgba(30,122,69,.45);
+  transform:translateY(-1px);
+}
+.tol-btn.act-min{
+  background:#b82c2c;color:#fff;border-color:#942020;
+  box-shadow:0 2px 8px rgba(184,44,44,.45);
+  transform:translateY(-1px);
+}
+.btn-save{background:#fff8e8;color:#8a6010;border:1px solid #e0c870;}
+.btn-save:hover{background:#fff0c0;border-color:#c8a830;color:#6a4800;}
+@keyframes savePop{0%{transform:scale(1)}40%{transform:scale(1.15)}100%{transform:scale(1)}}
+.save-pop{animation:savePop .28s ease;}
+
 /* [改善3] 吸附/自由 模式切換區：移至 3D 視窗左上角 */
 .move-mode-overlay{
   position:absolute;
@@ -274,16 +298,20 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 <div id="root"></div>
 <script>
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
+/* ── SAVED_STATE placeholder (replaced on save) ── */
+const SAVED_STATE=null; /* __SAVED_STATE_JSON__ */
 
 const I={
 zh:{
-  title:'ミシン製品包裝設計',ver:'v2.2 · Drag & Drop',
+  title:'ミシン製品包裝設計',ver:'v2.4 · Drag & Drop',
   jpBtn:'🇯🇵 日本語',helpBtn:'❓ 使用說明',autoBtn:'⚡ 全部自動排列',clearBtn:'🗑 清空',
+  saveBtn:'💾 儲存檔案',saveDone:'✓ 已儲存！',
   outerLbl:'🗃 外箱內寸 (mm)',dimL:'L 長',dimW:'W 寬',dimH:'H 高',
   boxLbl:'📦 製品紙箱(內寸)',addBox:'+ 新增箱型',
   qty:'預定數量',unit:'個',placeBtn:'↗ 排入',
   tolTitle:'± 公差設定',tolPlus:'+ 正公差(mm)',tolMinus:'- 負公差(mm)',
-  tolState:'計算狀態',tolNom:'中間',tolMax:'最大',tolMin:'最小',
+  tolState:'計算狀態',tolNom:'中間值',tolMax:'最大值',tolMin:'最小值',
+  outerTolTitle:'± 外箱公差',outerTolHint:'套用外箱尺寸公差（影響可用空間計算）',
   fluteLabel:'紙板種類',fluteNone:'— 直接輸入外寸 —',
   fluteAB:'AB段',fluteA:'A段',fluteB:'B段',fluteEB:'EB段',fluteE:'E段',
   outerCalcTitle:'換算外寸',innerDimTitle:'內寸輸入',
@@ -309,13 +337,15 @@ zh:{
   moveModeTitle:'移動模式',
 },
 ja:{
-  title:'ミシン梱包設計確認ツール',ver:'v2.2 · Drag & Drop',
+  title:'ミシン梱包設計確認ツール',ver:'v2.4 · Drag & Drop',
   jpBtn:'🇨🇳 中文',helpBtn:'❓ 使用説明',autoBtn:'⚡ 全自動配置',clearBtn:'🗑 クリア',
+  saveBtn:'💾 ファイル保存',saveDone:'✓ 保存完了！',
   outerLbl:'🗃 外箱内寸 (mm)',dimL:'L 長',dimW:'W 幅',dimH:'H 高',
   boxLbl:'📦 製品箱(内寸)',addBox:'+ 箱型追加',
   qty:'予定数量',unit:'個',placeBtn:'↗ 配置',
   tolTitle:'± 公差設定',tolPlus:'+ 上限公差(mm)',tolMinus:'- 下限公差(mm)',
-  tolState:'計算状態',tolNom:'中間',tolMax:'最大',tolMin:'最小',
+  tolState:'計算状態',tolNom:'中間値',tolMax:'最大値',tolMin:'最小値',
+  outerTolTitle:'± 外箱公差',outerTolHint:'外箱寸法の公差を適用（隙間計算に影響）',
   fluteLabel:'フルート種類',fluteNone:'— 外寸を直接入力 —',
   fluteAB:'AB段',fluteA:'A段',fluteB:'B段',fluteEB:'EB段',fluteE:'E段',
   outerCalcTitle:'換算外寸',innerDimTitle:'内寸入力',
@@ -869,7 +899,11 @@ function BoxTypeCard({bt,onUpdate,onDelete,lang}){
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'var(--text3)'}},'▣ '+T.fluteLabel),
         hasFlute&&React.createElement('span',{style:{fontSize:10,color:'var(--warn)',fontWeight:700,background:'var(--twarn)',borderRadius:4,padding:'1px 5px'}},fluteName(flute))
       ),
-      React.createElement('select',{className:'inp inp-sm',value:flute,onChange:e=>onUpdate({...bt,flute:e.target.value}),style:{fontSize:12,height:28}},
+      React.createElement('select',{className:'inp inp-sm',value:flute,onChange:e=>{
+        const nf=e.target.value;
+        const defTol=nf==='AB'?5:nf?3:0;
+        onUpdate({...bt,flute:nf,tP:defTol,tM:defTol});
+      },style:{fontSize:12,height:28}},
         FLUTE_OPTS.map(k=>React.createElement('option',{key:k||'__none',value:k},fluteName(k)))
       )
     ),
@@ -955,12 +989,23 @@ function HelpModal({onClose,lang}){
         React.createElement('button',{className:'btn btn-sm btn-ghost',onClick:onClose},T.helpClose)
       ),
       React.createElement('div',{className:'modal-body'},
-        React.createElement(Sec,{t:zh?'🗃 外箱內寸':'🗃 外箱内寸',ch:React.createElement(Row,{k:'L/W/H',d:zh?'輸入外箱組裝後的內部空間尺寸 (mm)。':'組立後の内部寸法 (mm) を入力。'})}),
+        React.createElement(Sec,{t:zh?'💾 儲存檔案 & 狀態共有':'💾 ファイル保存 & 状態共有',ch:React.createElement('div',null,
+          React.createElement(Row,{k:zh?'💾 儲存檔案（頂部欄）':'💾 ファイル保存（上部バー）',d:zh?'點擊頂部欄「💾 儲存檔案」按鈕，即可將當前所有設定（外箱尺寸/公差、所有紙箱型號、已放置的箱體位置、語言、顯示模式等）全部打包存入一個新的 HTML 檔案並下載。':'上部バーの「💾 ファイル保存」ボタンをクリックすると、現在の全設定（外箱寸法/公差・箱型・配置済み箱の位置・言語・表示モードなど）を新しいHTMLファイルとして保存・ダウンロードできます。'}),
+          React.createElement(Row,{k:zh?'共有給他人':'他者との共有',d:zh?'將下載的 HTML 檔案直接傳送給同事或討論對象。對方用瀏覽器打開後，即可看到與儲存時完全相同的配置狀態，無需重新輸入任何數值。':'ダウンロードしたHTMLファイルを同僚や関係者に送るだけで、相手がブラウザで開くと保存時と全く同じ配置状態が再現されます。値を再入力する必要はありません。'}),
+          React.createElement(Row,{k:zh?'檔名格式':'ファイル名形式',d:zh?'自動命名為「ミシン包裝設計_YYYYMMDD_HHmm.html」，含儲存日期時間，方便版本管理。':'「ミシン包裝設計_YYYYMMDD_HHmm.html」の形式で自動命名。保存日時入りでバージョン管理が容易です。'})
+        )}),
+        React.createElement(Sec,{t:zh?'🗃 外箱內寸 & 公差':'🗃 外箱内寸 & 公差',ch:React.createElement('div',null,
+          React.createElement(Row,{k:'L/W/H',d:zh?'輸入外箱組裝後的內部空間尺寸 (mm)。':'組立後の内部寸法 (mm) を入力。'}),
+          React.createElement(Row,{k:zh?'± 外箱公差':'± 外箱公差',d:zh?'可為外箱設定正/負公差值，並選擇計算狀態（中間值/最大值/最小值）。有效尺寸會即時反映在右側規格欄及3D顯示中。':'外箱にも正/負公差を設定し、計算状態（中間値/最大値/最小値）を選択できます。有効寸法はリアルタイムで右パネルと3D表示に反映されます。'}),
+          React.createElement(Row,{k:zh?'公差按鈕三色辨識':'公差ボタン3色識別',d:zh?'中間值=藍色、最大值=綠色、最小值=紅色。外箱與製品紙箱均使用相同的色彩規則，選中的選項會以明顯色塊高亮，未選中的呈淡灰色。':'中間値=青、最大値=緑、最小値=赤。外箱・製品箱ともに同じ色ルールを使用。選択中は鮮やかな色で強調、未選択は薄いグレーで表示されます。'})
+        )}),
         React.createElement(Sec,{t:zh?'📦 製品紙箱設定（左側面板）':'📦 製品箱設定（左パネル）',ch:React.createElement('div',null,
-          React.createElement(Row,{k:zh?'紙板種類':'フルート種類',d:zh?'選擇AB/A/B/EB/E段後自動換算外寸。選直接輸入時，輸入值即為外寸。':'AB/A/B/EB/E段選択で外寸自動換算。直接入力選択時は入力値が外寸になります。'}),
+          React.createElement(Row,{k:zh?'紙板種類':'フルート種類',d:zh?'選擇AB/A/B/EB/E段後自動換算外寸。選「直接輸入」時，輸入值即為外寸。':'AB/A/B/EB/E段選択で外寸自動換算。直接入力選択時は入力値が外寸になります。'}),
+          React.createElement(Row,{k:zh?'公差預設值':'公差デフォルト値',d:zh?'選擇AB段時公差自動設為 ±5mm；選其他段別時自動設為 ±3mm；選直接輸入時設為 0mm。':'AB段選択時は公差が±5mmに自動設定されます。その他の段別は±3mm、直接入力は0mmに自動設定されます。'}),
+          React.createElement(Row,{k:zh?'中間值/最大值/最小值（彩色按鈕）':'中間値/最大値/最小値（カラーボタン）',d:zh?'選中狀態以明顯色塊標示：藍色=中間值（標稱尺寸）、綠色=最大值（加正公差）、紅色=最小值（減負公差）。未選中呈淡灰色，一眼即可確認當前公差模式。':'選択状態を明確な色で表示：青=中間値（公称寸法）、緑=最大値（正公差加算）、赤=最小値（負公差減算）。未選択は薄いグレーで表示され、現在の公差モードが一目でわかります。'}),
+          React.createElement(Row,{k:zh?'公差即時更新3D':'公差変更→3D即時更新',d:zh?'變更公差值或狀態後，所有已放置的同型紙箱尺寸會即時更新，3D視窗同步刷新，干涉（紅色）狀態也會即時重新判定。':'公差値や状態を変更すると、配置済みの同型箱の寸法がリアルタイムで更新され、3Dビューが即時再描画されます。干渉（赤色）の判定も再計算されます。'}),
           React.createElement(Row,{k:'◀▶',d:zh?'切換3D預覽方向，尺寸值不變。':'3Dプレビューの向きを変更。寸法値は変わりません。'}),
-          React.createElement(Row,{k:'±',d:zh?'公差設定基於外寸值計算。':'公差設定は外寸値ベースで計算。'}),
-          React.createElement(Row,{k:zh?'左側列表自動延伸':'左パネル自動拡張',d:zh?'左側紙箱列表會自動延伸至頁面底部，可新增多個箱型並滾動瀏覽。':'左パネルの箱型リストはページ底部まで自動拡張され、複数の箱型を追加してスクロールできます。'})
+          React.createElement(Row,{k:zh?'左側列表自動延伸':'左パネル自動拡張',d:zh?'左側紙箱列表會自動延伸至頁面底部，可新增多個箱型並滾動瀏覽。':'左パネルの箱型リストはページ底部まで自動拡張。複数の箱型を追加してスクロールできます。'})
         )}),
         React.createElement(Sec,{t:zh?'📦 拖曳排入（3D視窗下方卡片區）':'📦 ドラッグ配置（3Dウィンドウ下部カードエリア）',ch:React.createElement(Row,{k:zh?'拖曳卡片':'カードドラッグ',d:zh?'3D視窗下方的等角預覽卡片是唯一的拖曳入口。將卡片直接拖到上方3D外箱內即可放置。':'3Dウィンドウ下部の等角プレビューカードが唯一のドラッグ入口です。カードを上の3D外箱にドラッグして配置します。'})}),
         React.createElement(Sec,{t:zh?'✦ 點擊選取 & 操作盤（3D右上角）':'✦ クリック選択 & 操作パネル（3D右上角）',ch:React.createElement('div',null,
@@ -1024,25 +1069,34 @@ function findPos(oL,oW,oH,ex,d,w,h){
 
 /* ─── App ─── */
 function App(){
-  const[lang,setLang]=useState('zh');
+  const[lang,setLang]=useState((SAVED_STATE&&SAVED_STATE.lang)||'zh');
   const T=I[lang];
-  const[outer,setOuter]=useState({L:500,W:400,H:300});
-  const[bts,setBts]=useState([
-    {id:uid(),name:'Box A',L:120,W:100,H:80,qty:1,color:'#3d7aba',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
-    {id:uid(),name:'Box B',L:150,W:120,H:60,qty:1,color:'#2a9d7c',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
-  ]);
-  const[placed,setPlaced]=useState([]);
+  const[outer,setOuter]=useState((SAVED_STATE&&SAVED_STATE.outer)||{L:500,W:400,H:300,tP:0,tM:0,tS:'nominal'});
+  const[bts,setBts]=useState(()=>{
+    if(SAVED_STATE&&SAVED_STATE.bts&&SAVED_STATE.bts.length)return SAVED_STATE.bts;
+    return[
+      {id:uid(),name:'Box A',L:120,W:100,H:80,qty:1,color:'#3d7aba',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
+      {id:uid(),name:'Box B',L:150,W:120,H:60,qty:1,color:'#2a9d7c',tP:0,tM:0,tS:'nominal',_ori:0,flute:''},
+    ];
+  });
+  const[placed,setPlaced]=useState((SAVED_STATE&&SAVED_STATE.placed)||[]);
   const[hlId,setHlId]=useState(null);
   const[selId,setSelId]=useState(null);
   const[hovering,setHovering]=useState(false);
   const[showHelp,setShowHelp]=useState(false);
-  const[moveMode,setMoveMode]=useState('snap');
-  const[freeStep,setFreeStep]=useState(10);
-  const[gapMode,setGapMode]=useState('total');
-  const[showLines,setShowLines]=useState(false);
-  const[ortho,setOrtho]=useState(false);
+  const[moveMode,setMoveMode]=useState((SAVED_STATE&&SAVED_STATE.moveMode)||'snap');
+  const[freeStep,setFreeStep]=useState((SAVED_STATE&&SAVED_STATE.freeStep)||10);
+  const[gapMode,setGapMode]=useState((SAVED_STATE&&SAVED_STATE.gapMode)||'total');
+  const[showLines,setShowLines]=useState((SAVED_STATE&&SAVED_STATE.showLines)||false);
+  const[ortho,setOrtho]=useState((SAVED_STATE&&SAVED_STATE.ortho)||false);
   const[dialOpen,setDialOpen]=useState(false);
+  const[saveDone,setSaveDone]=useState(false);
 
+  const outerRef=useRef(outer);
+  useEffect(()=>{outerRef.current=outer;},[outer]);
+
+  /* Fix bug1+5: updBt must always use fresh outer and recalculate placed dims correctly.
+     Using outerRef avoids stale closure. setPlaced functional form ensures latest placed. */
   const updBt=useCallback(u=>{
     setBts(prev=>prev.map(b=>b.id===u.id?u:b));
     setPlaced(prev=>prev.map(p=>{
@@ -1051,24 +1105,32 @@ function App(){
       if(u.name)upd.name=u.name;
       const _ue=btEffOuter(u);
       const[nd,nw,nh]=ORI[u._ori??0](_ue.L,_ue.W,_ue.H);
+      const oc=outerRef.current;
       upd.w=nw;upd.h=nh;upd.d=nd;
-      upd.x=clamp(p.x,0,Math.max(0,outer.W-nw));
-      upd.y=clamp(p.y,0,Math.max(0,outer.H-nh));
-      upd.z=clamp(p.z,0,Math.max(0,outer.L-nd));
+      upd.x=clamp(p.x,0,Math.max(0,oc.W-nw));
+      upd.y=clamp(p.y,0,Math.max(0,oc.H-nh));
+      upd.z=clamp(p.z,0,Math.max(0,oc.L-nd));
       return upd;
     }));
-  },[outer]);
+  },[]);
+
+  /* Effective outer dims considering outer tolerance (fix 4) */
+  const effOuter=useMemo(()=>({
+    L:effD(outer.L,outer.tP,outer.tM,outer.tS||'nominal'),
+    W:effD(outer.W,outer.tP,outer.tM,outer.tS||'nominal'),
+    H:effD(outer.H,outer.tP,outer.tM,outer.tS||'nominal'),
+  }),[outer]);
 
   const gaps=useMemo(()=>{
-    if(!placed.length)return{L:outer.L,W:outer.W,H:outer.H};
+    if(!placed.length)return{L:effOuter.L,W:effOuter.W,H:effOuter.H};
     return{
-      L:+(outer.L-Math.max(...placed.map(p=>p.z+p.d))).toFixed(1),
-      W:+(outer.W-Math.max(...placed.map(p=>p.x+p.w))).toFixed(1),
-      H:+(outer.H-Math.max(...placed.map(p=>p.y+p.h))).toFixed(1),
+      L:+(effOuter.L-Math.max(...placed.map(p=>p.z+p.d))).toFixed(1),
+      W:+(effOuter.W-Math.max(...placed.map(p=>p.x+p.w))).toFixed(1),
+      H:+(effOuter.H-Math.max(...placed.map(p=>p.y+p.h))).toFixed(1),
     };
-  },[outer,placed]);
+  },[effOuter,placed]);
   const totalVol=useMemo(()=>placed.reduce((s,p)=>s+p.w*p.h*p.d,0),[placed]);
-  const outerVol=outer.L*outer.W*outer.H;
+  const outerVol=effOuter.L*effOuter.W*effOuter.H;
   const utilRate=outerVol>0?Math.round(totalVol/outerVol*100):0;
   const counts=useMemo(()=>{const m={};placed.forEach(p=>{m[p.typeId]=(m[p.typeId]||0)+1;});return m;},[placed]);
 
@@ -1124,6 +1186,29 @@ function App(){
   const handleModeChange=useCallback(m=>setMoveMode(m),[]);
   const handleFreeStepChange=useCallback(v=>setFreeStep(v),[]);
 
+  /* ── 儲存檔案 / ファイル保存 ── */
+  const handleSave=useCallback(()=>{
+    const state={lang,outer,bts,placed,moveMode,freeStep,gapMode,showLines,ortho};
+    const stateJson=JSON.stringify(state);
+    // 讀取本頁 HTML，把佔位符替換為實際狀態
+    const html=document.documentElement.outerHTML;
+    // 替換 SAVED_STATE 行：把 null; /* __SAVED_STATE_JSON__ */ 換成實際 JSON
+    const saved=html.replace(
+      /const SAVED_STATE=null;\s*\/\*\s*__SAVED_STATE_JSON__\s*\*\//,
+      `const SAVED_STATE=${stateJson};`
+    );
+    // 建立 Blob 並觸發下載
+    const blob=new Blob([saved],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const now=new Date();
+    const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+    a.href=url;a.download=`ミシン包裝設計_${ts}.html`;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+    setSaveDone(true);setTimeout(()=>setSaveDone(false),2200);
+  },[lang,outer,bts,placed,moveMode,freeStep,gapMode,showLines,ortho]);
+
   return React.createElement('div',{className:'app-root'},
     /* header */
     React.createElement('header',{style:{padding:'7px 16px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'linear-gradient(90deg,var(--panel),#f5f2ea)',flexShrink:0,boxShadow:'0 1px 4px var(--shadow)'}},
@@ -1136,6 +1221,11 @@ function App(){
       ),
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}},
         React.createElement('button',{className:'btn btn-sm btn-jp',onClick:()=>setLang(l=>l==='zh'?'ja':'zh')},T.jpBtn),
+        React.createElement('button',{
+          className:`btn btn-sm btn-save${saveDone?' save-pop':''}`,
+          onClick:handleSave,
+          title:lang==='zh'?'將目前設定另存為 HTML 檔案，共有後可直接載入狀態':'現在の設定をHTMLファイルで保存。共有後に状態を再現できます'
+        },saveDone?T.saveDone:T.saveBtn),
         React.createElement('button',{className:'btn btn-sm btn-help',onClick:()=>setShowHelp(true)},T.helpBtn),
         React.createElement('button',{className:'btn btn-primary btn-sm',onClick:handleAutoAll},T.autoBtn),
         React.createElement('button',{className:'btn btn-sm btn-ghost',onClick:handleClear},T.clearBtn)
@@ -1148,11 +1238,40 @@ function App(){
           /* 外箱 */
           React.createElement('div',{style:{background:'#eff5fb',border:'1px solid #b8d0f0',borderRadius:12,padding:13,flexShrink:0}},
             React.createElement('div',{className:'panel-label',style:{color:'#5080b0'}},T.outerLbl),
-            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}},
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,marginBottom:9}},
               ['L','W','H'].map(d=>React.createElement('div',{key:d},
                 React.createElement('div',{style:{fontSize:13,color:'#5080b0',fontWeight:700,marginBottom:2}},{L:T.dimL,W:T.dimW,H:T.dimH}[d]),
                 React.createElement('input',{type:'number',min:1,className:'inp inp-sm mono',style:{borderColor:'#b8d0f0',background:'#fff'},value:outer[d],onChange:e=>setOuter(prev=>({...prev,[d]:Math.max(1,+e.target.value)}))})
               ))
+            ),
+            /* outer tolerance */
+            React.createElement('div',{style:{borderTop:'1px solid #c8dcf0',paddingTop:8}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
+                React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#5080b0'}},T.outerTolTitle),
+                React.createElement('span',{style:{
+                  fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:10,
+                  background:outer.tS==='max'?'#e8f5ed':outer.tS==='min'?'#fce8e8':'#e8f0fb',
+                  color:outer.tS==='max'?'var(--ok)':outer.tS==='min'?'var(--err)':'var(--accent)',
+                  border:`1px solid ${outer.tS==='max'?'#b8ddc8':outer.tS==='min'?'#e8c4c4':'#b8d0f0'}`,
+                }},T[`tol${outer.tS.charAt(0).toUpperCase()+outer.tS.slice(1)}`])
+              ),
+              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,marginBottom:7}},
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontSize:10,color:'var(--ok)',fontWeight:700,marginBottom:2}},'+'),
+                  React.createElement('input',{type:'number',min:0,step:.5,className:'inp inp-sm mono',style:{borderColor:'#b8ddc8'},value:outer.tP??0,onChange:e=>setOuter(prev=>({...prev,tP:Math.max(0,+e.target.value)}))})
+                ),
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontSize:10,color:'var(--err)',fontWeight:700,marginBottom:2}},'-'),
+                  React.createElement('input',{type:'number',min:0,step:.5,className:'inp inp-sm mono',style:{borderColor:'#e8c4c4'},value:outer.tM??0,onChange:e=>setOuter(prev=>({...prev,tM:Math.max(0,+e.target.value)}))})
+                )
+              ),
+              React.createElement('div',{style:{display:'flex',gap:4}},
+                ['nominal','max','min'].map(s=>React.createElement('button',{
+                  key:s,
+                  className:`tol-btn ${outer.tS===s?`act-${s}`:''}`,
+                  onClick:()=>setOuter(prev=>({...prev,tS:s}))
+                },{nominal:T.tolNom,max:T.tolMax,min:T.tolMin}[s]))
+              )
             )
           ),
           React.createElement('div',{className:'panel-label',style:{flexShrink:0}},T.boxLbl),
@@ -1171,7 +1290,7 @@ function App(){
         onDrop:e=>{e.stopPropagation();}
       },
         React.createElement(Scene3D,{
-          outer,placed,hlId,selId,onDrop:handleDrop,hovering,lang,
+          outer:effOuter,placed,hlId,selId,onDrop:handleDrop,hovering,lang,
           onSelect:setSelId,onSnap:handleSnap,onRotateBox:handleRotateBox,
           moveMode,freeStep,gapMode,showLines,ortho,
           onOrthoChange:setOrtho,onGapModeChange:setGapMode,onShowLinesChange:setShowLines,
@@ -1185,9 +1304,9 @@ function App(){
         React.createElement('div',{className:'app-right-inner'},
           React.createElement('div',null,
             React.createElement('div',{className:'panel-label'},T.gapTitle),
-            React.createElement(GapBar,{label:T.gapL,value:gaps.L,max:outer.L}),
-            React.createElement(GapBar,{label:T.gapW,value:gaps.W,max:outer.W}),
-            React.createElement(GapBar,{label:T.gapH,value:gaps.H,max:outer.H}),
+            React.createElement(GapBar,{label:T.gapL,value:gaps.L,max:effOuter.L}),
+            React.createElement(GapBar,{label:T.gapW,value:gaps.W,max:effOuter.W}),
+            React.createElement(GapBar,{label:T.gapH,value:gaps.H,max:effOuter.H}),
             (gaps.L<0||gaps.W<0||gaps.H<0)&&React.createElement('div',{className:'tag tag-err',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.over),
             (gaps.L>=0&&gaps.W>=0&&gaps.H>=0&&placed.length>0)&&React.createElement('div',{className:'tag tag-ok',style:{display:'flex',padding:'5px 10px',borderRadius:7,marginTop:6}},T.fitOk)
           ),
@@ -1217,7 +1336,10 @@ function App(){
             React.createElement('div',{className:'panel-label'},T.specTitle),
             ['L','W','H'].map(d=>React.createElement('div',{key:d,style:{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}},
               React.createElement('span',{style:{color:'var(--text2)'}},{L:T.lenL,W:T.lenW,H:T.lenH}[d]),
-              React.createElement('span',{className:'mono',style:{color:'var(--accent)',fontWeight:700,fontSize:13}},`${outer[d]} mm`)
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4}},
+                outer.tS!=='nominal'&&React.createElement('span',{style:{fontSize:9,color:outer.tS==='max'?'var(--ok)':'var(--err)',fontWeight:700,opacity:.8}},`(${outer.tS==='max'?'+':'−'}${outer.tS==='max'?(outer.tP||0):(outer.tM||0)})`),
+                React.createElement('span',{className:'mono',style:{color:'var(--accent)',fontWeight:700,fontSize:13}},`${effOuter[d]} mm`)
+              )
             )),
             React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,paddingTop:6,borderTop:'1px solid var(--border)'}},
               React.createElement('span',{style:{color:'var(--text2)'}},T.volL),
