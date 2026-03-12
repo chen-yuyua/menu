@@ -52,40 +52,62 @@ class CountdownTimer:
             self.root.destroy()
 
 def read_excel_data(file_path):
+    # =============================================
+    # 2025年度台帳 欄位對應（実測確認済み）
+    #   col[0]  = A = 依頼書No（台帳）
+    #   col[7]  = H = 内容（顯示用）
+    #   col[10] = K = 希望納期（篩選用 datetime）
+    #   col[12] = M = 担当者
+    #   col[14] = O = 業務状況（None=未完成 / datetime=完了 / キャンセル）
+    # =============================================
     workbook = load_workbook(file_path, data_only=True)
     sheet = workbook["2025年度"]
     data = []
     current_date = datetime.today().date()
-    for row_idx, row in enumerate(sheet.iter_rows(min_row=12, max_row=1000, min_col=1, max_col=14), start=1):
-        if isinstance(row[9].value, datetime) and row[13].value is None:
-            delivery_date = row[9].value.date()
-            # 修改條件：包含超過當天的納期項目
+
+    for row_idx, row in enumerate(sheet.iter_rows(min_row=12, max_row=2000, min_col=1, max_col=15), start=1):
+        # 篩選條件1: K欄(col[10]) = 希望納期 必須是日期
+        # 篩選條件2: O欄(col[14]) = 業務状況 必須是 None（未完成）
+        if isinstance(row[10].value, datetime) and row[14].value is None:
+            delivery_date = row[10].value.date()
+            # 包含今天及過期（超過納期也顯示）
             if delivery_date <= current_date + timedelta(days=7):
                 values = [cell.value for cell in row]
-                if all(values[i] not in (None, "") for i in [0, 6, 11]):
-                    group = assign_group(values[11])
-                    data.append([row_idx, values[0], values[6], delivery_date, values[11], group])
+                # 必填：依頼書No(col[0]) 和 担当者(col[12]) 不為空
+                if values[0] not in (None, "") and values[12] not in (None, ""):
+                    group = assign_group(values[12])
+                    # 内容欄：優先使用 H欄(col[7])=内容，若空則退用 G欄(col[6])=設計依頼書No
+                    content = values[7] if values[7] not in (None, "") else values[6]
+                    data.append([row_idx, values[0], content, delivery_date, values[12], group])
+
     workbook.close()
     data.sort(key=lambda x: abs((current_date - x[3]).days))
     return data
 
 def read_specific_cells(file_path):
+    # =============================================
+    # 業務件數の格納セル（実測確認済み）
+    #   M欄 = 担当者名（人名）
+    #   N欄 = メカ1 各担当者のボール件数  ★修正：旧コードはM欄を参照していた
+    #   O欄 = 担当者名（人名）
+    #   P欄 = メカ2/メカ∞ 各担当者のボール件数  ★修正：旧コードはO欄を参照していた
+    # =============================================
     workbook = load_workbook(file_path, data_only=True)
     sheet = workbook["2025年度"]
     specific_cells = {
-        "M1": sheet["M1"].value,
-        "M2": sheet["M2"].value,
-        "M3": sheet["M3"].value,
-        "M4": sheet["M4"].value,
-        "M5": sheet["M5"].value,
-        "M6": sheet["M6"].value,
-        "O1": sheet["O1"].value,
-        "O2": sheet["O2"].value,
-        "O3": sheet["O3"].value,
-        "O4": sheet["O4"].value,
-        "O5": sheet["O5"].value,
-        "O6": sheet["O6"].value,
-        "O7": sheet["O7"].value,
+        "M1": sheet["N1"].value,  # 許映儂 件数
+        "M2": sheet["N2"].value,  # 葉羿廷 件数
+        "M3": sheet["N3"].value,  # 何佳欣 件数
+        "M4": sheet["N4"].value,  # 黄郁芸 件数
+        "M5": sheet["N5"].value,  # 王文豪 件数
+        "M6": sheet["N6"].value,  # 林宜增 件数
+        "O1": sheet["P1"].value,  # 陳俞源 件数
+        "O2": sheet["P2"].value,  # 呉汶珊 件数
+        "O3": sheet["P3"].value,  # 陳雅瑄 件数
+        "O4": sheet["P4"].value,  # 陳沅郁 件数
+        "O5": sheet["P5"].value,  # 李恩柔 件数
+        "O6": sheet["P6"].value,  # 翁紹綺 件数
+        "O7": sheet["P7"].value,  # 陳岳揚 件数
     }
     workbook.close()
     return specific_cells
@@ -98,30 +120,21 @@ def assign_group(name):
         return "メカ1"
 
 def setup_muji_style():
-    # 創建MUJI風格的ttk樣式
     style = ttk.Style()
-
-    # 配置Scrollbar風格
     style.configure("TScrollbar",
                     background=MUJI_COLORS["bg"],
                     troughcolor=MUJI_COLORS["bg"],
                     arrowcolor=MUJI_COLORS["text"])
-
-    # 配置分隔線風格
     style.configure("TSeparator",
                    background=MUJI_COLORS["accent"])
-
-    # 配置表格風格
     style.configure("Treeview",
                    background=MUJI_COLORS["bg"],
                    fieldbackground=MUJI_COLORS["bg"],
                    foreground=MUJI_COLORS["text"])
-
     style.configure("Treeview.Heading",
                    background=MUJI_COLORS["header"],
                    foreground=MUJI_COLORS["bg"],
                    relief="flat")
-
     style.map("Treeview.Heading",
              background=[('pressed', MUJI_COLORS["accent"]),
                          ('active', MUJI_COLORS["accent"])])
@@ -136,11 +149,9 @@ def run_program_1():
         for widget in canvas_frame.winfo_children():
             widget.destroy()
 
-        # 靜態資訊欄
         static_info_frame = tk.Frame(canvas_frame, bg=MUJI_COLORS["bg"])
         static_info_frame.grid(row=0, column=0, columnspan=6, pady=10, sticky="nsew")
 
-        # 計算總件數
         total_count = 0
         for key, value in specific_cells.items():
             if isinstance(value, (int, float)):
@@ -163,7 +174,7 @@ def run_program_1():
                     label = tk.Label(static_info_frame, text=text,
                                     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_title"]),
                                     fg=MUJI_COLORS["text"], bg=MUJI_COLORS["bg"])
-                elif text == "メカ1" or text == "メカ2" or text == "メカ∞":
+                elif text in ("メカ1", "メカ2", "メカ∞"):
                     label = tk.Label(static_info_frame, text=text,
                                     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_large"]),
                                     fg=MUJI_COLORS["accent"], bg=MUJI_COLORS["bg"])
@@ -177,20 +188,17 @@ def run_program_1():
                                     fg=MUJI_COLORS["text"], bg=MUJI_COLORS["bg"])
                 label.grid(row=i, column=j, padx=20, sticky="w")
 
-        # 當前日期
         date_label = tk.Label(root, text=current_date,
                              font=(MUJI_FONT["family_alt"], MUJI_FONT["size_title"]),
                              fg=MUJI_COLORS["text"], bg=MUJI_COLORS["bg"])
         date_label.place(relx=1.0, rely=0, anchor='ne')
 
-        # 倒數計時標籤
         countdown_var = tk.StringVar()
         countdown_label = tk.Label(root, textvariable=countdown_var,
                                   font=(MUJI_FONT["family_alt"], MUJI_FONT["size_small"]),
                                   fg=MUJI_COLORS["text"], bg=MUJI_COLORS["bg"])
         countdown_label.place(relx=1.0, rely=0.08, anchor='ne')
 
-        # 更新倒數計時
         def update_countdown(seconds_left):
             if seconds_left > 0:
                 countdown_var.set(f"視窗關閉倒數: {seconds_left}")
@@ -198,24 +206,19 @@ def run_program_1():
             else:
                 root.destroy()
 
-        # 開始倒數計時20秒
         update_countdown(20)
 
-        # 分隔線
         separator = tk.Frame(canvas_frame, height=2, bg=MUJI_COLORS["accent"], width=500)
         separator.grid(row=len(static_info_text), column=0, columnspan=6, pady=10, sticky="ew")
 
-        # 7日內通知書
         notice_label = tk.Label(canvas_frame, text="■7日內通知書",
                                font=(MUJI_FONT["family_alt"], MUJI_FONT["size_title"]),
                                fg=MUJI_COLORS["text"], bg=MUJI_COLORS["bg"])
         notice_label.grid(row=len(static_info_text) + 1, column=0, columnspan=6, pady=10, sticky="w")
 
-        # 表格背景框架
         table_frame = tk.Frame(canvas_frame, bg=MUJI_COLORS["bg"], padx=20)
         table_frame.grid(row=len(static_info_text) + 2, column=0, columnspan=6, sticky="nsew")
 
-        # 表頭
         headers = ["No.", "台帳", "內容", "納期", "擔當者", "グループ"]
         for i, header in enumerate(headers):
             header_label = tk.Label(table_frame, text=header,
@@ -235,12 +238,12 @@ def run_program_1():
                     value = i
                 if j == 3:  # 納期欄位
                     current_date_obj = datetime.today().date()
-                    if value < current_date_obj:  # 超過納期
+                    if value < current_date_obj:
                         font_color = "white"
-                        bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
-                    elif value == current_date_obj:  # 當天納期
+                        bg_color = MUJI_COLORS["overdue"]
+                    elif value == current_date_obj:
                         font_color = MUJI_COLORS["warning"]
-                        bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
+                        bg_color = "#FFEBEE"
                 elif j == 4 and value in ["呉汶珊", "陳雅瑄", "陳沅郁", "李恩柔", "翁紹綺", "陳岳揚"]:
                     font_color = MUJI_COLORS["success"]
                     font = (MUJI_FONT["family_alt"], MUJI_FONT["size_normal"], "bold")
@@ -260,7 +263,6 @@ def run_program_1():
 
         canvas.configure(scrollregion=canvas.bbox("all"))
 
-        # 調整視窗大小
         canvas.update_idletasks()
         frame_width = canvas_frame.winfo_reqwidth()
         frame_height = canvas_frame.winfo_reqheight()
@@ -270,7 +272,6 @@ def run_program_1():
     root.title("7日內通知書掲示板")
     root.configure(bg=MUJI_COLORS["bg"])
 
-    # 設置MUJI風格
     setup_muji_style()
 
     canvas = tk.Canvas(root, bg=MUJI_COLORS["bg"], highlightthickness=0)
@@ -283,7 +284,6 @@ def run_program_1():
     canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
 
     canvas_frame.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
-
     canvas.configure(yscrollcommand=scrollbar.set)
 
     update_info_label()
@@ -299,12 +299,12 @@ def program_1():
 
         for row in sheet.iter_rows(min_row=3):
             data_date = row[12].value
-            check_column_l = row[11].value  # L 列
+            check_column_l = row[11].value
             check_column_n = row[13].value
             if (isinstance(data_date, datetime) and
                 (check_column_l is None or check_column_l == "") and
                 (check_column_n is None or check_column_n == "") and
-                data_date.date() <= end_date):  # 修改：包含超過當天的項目
+                data_date.date() <= end_date):
                 row_data = [row[0].value, row[0].value, row[1].value, row[3].value, row[5].value, row[6].value, row[8].value, data_date.date()]
                 data.append(row_data)
 
@@ -326,7 +326,6 @@ def program_1():
     root.title("データ予定日")
     root.configure(bg=MUJI_COLORS["bg"])
 
-    # 設置MUJI風格
     setup_muji_style()
 
     main_frame = tk.Frame(root, padx=20, pady=20, bg=MUJI_COLORS["bg"])
@@ -370,21 +369,20 @@ def program_1():
     separator2 = ttk.Separator(main_frame, orient="horizontal")
     separator2.grid(row=3, column=0, columnspan=9, sticky="ew", pady=(10, 0))
 
-    # 修改後的日期顯示邏輯 - データ予定日早見表
     for row_idx, row_data in enumerate(excel_data, start=1):
         row_data[0] = row_idx
         for col_idx, cell_value in enumerate(row_data):
             font_color = MUJI_COLORS["text"]
             bg_color = MUJI_COLORS["bg"]
 
-            if col_idx == 7:  # データ予定日欄位
+            if col_idx == 7:
                 days_diff = (cell_value - datetime.today().date()).days
-                if days_diff < 0:  # 超過納期
-                    bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
-                    font_color = "white"  # 白色字體
-                elif 0 <= days_diff <= 7:  # 7日內
+                if days_diff < 0:
+                    bg_color = MUJI_COLORS["overdue"]
+                    font_color = "white"
+                elif 0 <= days_diff <= 7:
                     font_color = MUJI_COLORS["warning"]
-                    bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
+                    bg_color = "#FFEBEE"
 
             data_label = tk.Label(main_frame, text=cell_value,
                                  font=(MUJI_FONT["family_alt"], MUJI_FONT["size_normal"]),
@@ -406,17 +404,17 @@ def program_2():
         sheet = workbook["2025年 未発行図面"]
         data = []
         current_date = datetime.today()
-        end_date = current_date + timedelta(days=14)  # 修改：包含超過當天的項目
+        end_date = current_date + timedelta(days=14)
 
         for row in sheet.iter_rows(min_row=3):
-            if row[11].value in (None, ""):  # L 列為空格
-                data_date = row[9].value  # J 列的日期
-                if isinstance(data_date, datetime) and data_date.date() <= end_date.date():  # 修改條件
+            if row[11].value in (None, ""):
+                data_date = row[9].value
+                if isinstance(data_date, datetime) and data_date.date() <= end_date.date():
                     row_data = [None, row[0].value, row[1].value, row[3].value, row[5].value, row[6].value, row[8].value, data_date.date()]
                     data.append(row_data)
 
         workbook.close()
-        data.sort(key=lambda x: x[7])  # 按照日期排序
+        data.sort(key=lambda x: x[7])
         return data
 
     def update_countdown(root, countdown_label, seconds_left):
@@ -433,7 +431,6 @@ def program_2():
     root.title("未発行図面")
     root.configure(bg=MUJI_COLORS["bg"])
 
-    # 設置MUJI風格
     setup_muji_style()
 
     main_frame = tk.Frame(root, padx=20, pady=20, bg=MUJI_COLORS["bg"])
@@ -477,21 +474,20 @@ def program_2():
     separator2 = ttk.Separator(main_frame, orient="horizontal")
     separator2.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(10, 0))
 
-    # 修改後的日期顯示邏輯 - 未発行図面
     for row_idx, row_data in enumerate(excel_data, start=1):
         row_data[0] = row_idx
         for col_idx, cell_value in enumerate(row_data):
             font_color = MUJI_COLORS["text"]
             bg_color = MUJI_COLORS["bg"]
 
-            if col_idx == 7:  # 納期欄位
+            if col_idx == 7:
                 days_diff = (cell_value - datetime.today().date()).days
-                if days_diff < 0:  # 超過納期
-                    bg_color = MUJI_COLORS["overdue"]  # 深紅色背景
-                    font_color = "white"  # 白色字體
-                elif 0 <= days_diff <= 7:  # 7日內
+                if days_diff < 0:
+                    bg_color = MUJI_COLORS["overdue"]
+                    font_color = "white"
+                elif 0 <= days_diff <= 7:
                     font_color = MUJI_COLORS["warning"]
-                    bg_color = "#FFEBEE"  # 非常柔和的淺紅色背景
+                    bg_color = "#FFEBEE"
 
             data_label = tk.Label(main_frame, text=cell_value,
                                  font=(MUJI_FONT["family_alt"], MUJI_FONT["size_normal"]),
@@ -527,7 +523,6 @@ def create_rounded_button(parent, text, command, width=15):
     )
     button.pack(padx=10, pady=10)
 
-    # 按鈕懸停效果
     def on_enter(e):
         button['background'] = MUJI_COLORS["button_active"]
 
@@ -544,7 +539,6 @@ main_root = tk.Tk()
 main_root.title("分室業務関連")
 main_root.configure(bg=MUJI_COLORS["bg"])
 
-# 標題框架
 title_frame = tk.Frame(main_root, bg=MUJI_COLORS["bg"], pady=15)
 title_frame.pack(fill="x")
 
@@ -557,11 +551,9 @@ title_label = tk.Label(
 )
 title_label.pack()
 
-# 按鈕框架
 button_frame = tk.Frame(main_root, bg=MUJI_COLORS["bg"], padx=20, pady=10)
 button_frame.pack(fill="both", expand=True)
 
-# 創建圓角按鈕
 button1_frame = create_rounded_button(button_frame, "7日間通知書", run_program_1)
 button1_frame.pack(pady=8)
 
@@ -571,27 +563,23 @@ button2_frame.pack(pady=8)
 button3_frame = create_rounded_button(button_frame, "未発行図面", program_2)
 button3_frame.pack(pady=8)
 
-# 底部框架
 footer_frame = tk.Frame(main_root, bg=MUJI_COLORS["bg"], pady=15)
 footer_frame.pack(fill="x")
 
-# 版權資訊
 copyright_label = tk.Label(
     footer_frame,
-    text="© 2025 分室業務関連 Ver 1.3\n更新日:2025/11/24\n作成者：陳兪源",
+    text="© 2025 分室業務関連 Ver 1.5\n更新日:2026/03/12\n作成者：陳兪源",
     font=(MUJI_FONT["family_alt"], MUJI_FONT["size_small"]),
     fg=MUJI_COLORS["accent"],
     bg=MUJI_COLORS["bg"]
 )
 copyright_label.pack()
 
-# 調整主視窗大小和位置
 main_root.update_idletasks()
 frame_width = max(button_frame.winfo_reqwidth(), 300)
 frame_height = title_frame.winfo_reqheight() + button_frame.winfo_reqheight() + footer_frame.winfo_reqheight() + 60
 main_root.geometry(f"{frame_width}x{frame_height}")
 
-# 置中視窗
 screen_width = main_root.winfo_screenwidth()
 screen_height = main_root.winfo_screenheight()
 x = (screen_width - frame_width) // 2
