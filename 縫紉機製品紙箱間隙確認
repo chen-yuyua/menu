@@ -67,8 +67,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 @keyframes dialIn{from{opacity:0;transform:scale(.72) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes bounceUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 
-/* ══ [改善1] Radial Dial — 重新配色：slate-glass 主題 ══ */
-/* Dial 現在嵌在 3D 視窗右上角 overlay */
+/* ══ [操作盤重設計] 三軸分組卡片式 ══ */
 .dial-overlay{
   position:absolute;
   top:10px;right:10px;
@@ -76,88 +75,84 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
   pointer-events:all;
 }
 .rdial-wrap{
-  position:relative;
   pointer-events:all;
   animation:dialIn .2s cubic-bezier(.34,1.56,.64,1) forwards;
+  width:210px;
+  background:rgba(253,252,249,.97);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:10px 10px 8px;
+  box-shadow:0 4px 20px rgba(80,60,40,.14);
 }
-/* 外圈背景：深石板色，半透明玻璃感 */
-.rdial-bg{
-  position:absolute;
-  border-radius:50%;
-  background:var(--dial-bg);
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
-  border:1.5px solid var(--dial-border);
-  box-shadow:var(--dial-shadow);
-  transform-origin:center;
+.rdial-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;
 }
-/* 中心圓：白色卡片感 */
-.rdial-center{
-  position:absolute;
-  border-radius:50%;
-  background:var(--dial-center-bg);
-  border:1.5px solid rgba(61,122,186,.25);
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  box-shadow:0 2px 12px rgba(0,0,0,.18);
-  cursor:default;
+.rdial-boxname{
+  font-size:11px;font-weight:700;
+  color:var(--accent);
+  background:var(--tinfo);
+  border:1px solid #c0d8f4;
+  border-radius:6px;padding:2px 9px;
+  max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-/* 切換標籤：accent 主題 */
+.rdial-close{
+  width:20px;height:20px;border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--panel2);
+  color:var(--text3);
+  font-size:11px;font-weight:900;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .12s;flex-shrink:0;
+}
+.rdial-close:hover{background:#fce8e8;color:var(--err);border-color:#e8c4c4;}
 .rdial-tab{
-  display:flex;border-radius:6px;overflow:hidden;
-  margin-bottom:2px;
-  border:1px solid rgba(61,122,186,.22);
-  background:rgba(61,122,186,.07);
+  display:flex;background:var(--panel2);
+  border-radius:8px;padding:2px;margin-bottom:10px;gap:2px;
+  border:1px solid var(--border);
 }
 .rdial-tab-btn{
-  border:none;padding:3px 9px;font-size:10px;font-weight:700;
-  cursor:pointer;font-family:inherit;transition:all .13s;
-  color:var(--text2);background:transparent;
+  flex:1;border:none;padding:5px;font-size:11px;font-weight:700;
+  border-radius:6px;cursor:pointer;font-family:inherit;
+  transition:all .13s;color:var(--text3);background:transparent;
 }
-.rdial-tab-btn.active{
-  background:var(--accent);color:#fff;
-  box-shadow:0 1px 4px rgba(61,122,186,.35);
+.rdial-tab-btn.active{background:var(--accent);color:#fff;box-shadow:0 1px 4px rgba(61,122,186,.3);}
+.rdial-axis-group{margin-bottom:6px;}
+.rdial-axis-label{
+  font-size:9px;font-weight:700;letter-spacing:.06em;
+  color:var(--text3);
+  margin-bottom:4px;
+  display:flex;align-items:center;gap:5px;
 }
-/* 關閉鈕 */
-.rdial-close{
-  position:absolute;
-  width:22px;height:22px;border-radius:50%;
-  border:1px solid rgba(255,255,255,.2);
-  background:rgba(255,255,255,.1);
-  color:rgba(255,255,255,.75);
-  font-size:12px;font-weight:900;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  top:3px;right:3px;
-  transition:all .12s;
-  z-index:2;
+.rdial-axis-dot{
+  display:inline-block;width:3px;height:10px;border-radius:2px;flex-shrink:0;
 }
-.rdial-close:hover{background:rgba(176,48,48,.8);color:#fff;}
-/* 方向鈕：統一使用深色基底 + accent 色相環 */
+.rdial-btn-row{display:flex;gap:5px;}
 .rdial-btn{
-  position:absolute;width:38px;height:38px;border-radius:50%;
-  border:1.5px solid rgba(255,255,255,.22);
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:17px;font-weight:900;
-  box-shadow:0 2px 8px rgba(0,0,0,.32);
+  flex:1;border:none;border-radius:9px;
+  padding:7px 4px 6px;
+  cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:2px;
+  font-size:15px;font-weight:900;
   user-select:none;pointer-events:all;
-  transition:transform .12s,box-shadow .12s,filter .12s;
+  transition:transform .1s,filter .1s;
+  line-height:1;
 }
-.rdial-btn:hover{transform:scale(1.28)!important;box-shadow:0 5px 18px rgba(0,0,0,.45)!important;filter:brightness(1.18);}
-.rdial-btn:active{transform:scale(.88)!important;}
-/* 移動模式：深色 + 亮色文字，色相對應軸向 */
-.mv-pz{background:#1a6e54;color:#7fffd4;}   /* 前+Z  teal */
-.mv-nz{background:#1a4878;color:#90caf9;}   /* 後-Z  blue */
-.mv-px{background:#7a4510;color:#ffcc80;}   /* 右+X  amber */
-.mv-nx{background:#5a2878;color:#ce93d8;}   /* 左-X  purple */
-.mv-py{background:#7a1a1a;color:#ef9a9a;}   /* 上+Y  red */
-.mv-ny{background:#0d5448;color:#80cbc4;}   /* 下-Y  teal-dark */
-/* 旋轉模式：同色相但更飽和 */
-.rv-zp{background:#1a5c44;color:#a7ffeb;}
-.rv-zn{background:#153d6a;color:#bbdefb;}
-.rv-yp{background:#6a1a1a;color:#ffcdd2;}
-.rv-yn{background:#4a1060;color:#e1bee7;}
-.rv-xp{background:#14527a;color:#b3e5fc;}
-.rv-xn{background:#0d3d5e;color:#81d4fa;}
+.rdial-btn:hover{filter:brightness(.93);transform:scale(1.07);}
+.rdial-btn:active{transform:scale(.88);}
+.rdial-btn .rdial-btn-lbl{
+  font-size:9px;font-weight:700;font-family:inherit;
+}
+/* Z軸：緑系 — 淡背景 + 深色文字 */
+.rd-z{background:#e8f8ee;color:#1e7840;border:1px solid #b8ddc8;}
+/* X軸：橙系 */
+.rd-x{background:#fdf0e0;color:#8a4800;border:1px solid #e8c890;}
+/* Y軸：青系 */
+.rd-y{background:#e8f0fb;color:#1a4f8e;border:1px solid #b8d0f0;}
+/* 旋轉模式：同色系但稍有區別 */
+.rd-z-rot{background:#f0faf2;color:#257848;border:1px solid #c4e4cc;}
+.rd-x-rot{background:#fef5e8;color:#925208;border:1px solid #ecd098;}
+.rd-y-rot{background:#f0f4fd;color:#1e54a0;border:1px solid #c0d4f4;}
 
 /* ── 版面 ── */
 .app-root{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
@@ -275,7 +270,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .vbtn{border:none;border-radius:6px;background:transparent;color:var(--text2);font-size:12px;font-weight:700;padding:3px 8px;cursor:pointer;font-family:inherit;transition:all .12s;white-space:nowrap;}
 .vbtn:hover{background:var(--tinfo);color:var(--accent)}
 /* VIEW + 間隙顯示 合併左下角 panel */
-.side-bottom-left{position:absolute;left:8px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 9px;box-shadow:0 2px 8px var(--shadow);min-width:90px;}
+.side-bottom-left{position:absolute;left:120px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:18;background:rgba(253,252,249,.96);border:1px solid var(--border);border-radius:10px;padding:8px 9px;box-shadow:0 2px 8px var(--shadow);min-width:90px;}
 .side-panel-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-align:center;margin-bottom:3px;}
 .side-opt{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;line-height:1.7;}
 .side-opt input{accent-color:var(--accent);cursor:pointer;}
@@ -460,66 +455,93 @@ function MiniBoxView({L,W,H,oriIdx=0,color}){
   return React.createElement('div',{ref,style:{width:'100%',height:68},className:'mini-canvas-wrap'});
 }
 
-/* ─── [改善1] RadialDial — 嵌入3D視窗右上角，新配色 ─── */
+/* ─── [重設計] RadialDial — 三軸分組卡片式操作盤 ─── */
 function RadialDial({selBox,lang,moveMode,freeStep,onSnap,onRotateBox,onClose}){
   const[mode,setMode]=useState('move');
   const T2=I[lang];
   if(!selBox)return null;
-  const SZ=182;
-  const CSZ=70;
-  const R=(SZ-44)/2;
-  /* 移動模式：6方向，配色對應軸向 */
-  const moveBtns=[
-    {dir:0,icon:'↑',cls:'mv-pz',angle:270},
-    {dir:1,icon:'↓',cls:'mv-nz',angle:90},
-    {dir:2,icon:'→',cls:'mv-px',angle:0},
-    {dir:3,icon:'←',cls:'mv-nx',angle:180},
-    {dir:4,icon:'↑',cls:'mv-py',angle:315},
-    {dir:5,icon:'↓',cls:'mv-ny',angle:135},
-  ];
-  /* 旋轉模式：同位置，不同色系 */
-  const rotBtns=[
-    {axis:'z',sign:1,icon:'↻',cls:'rv-zp',angle:270},
-    {axis:'z',sign:-1,icon:'↺',cls:'rv-zn',angle:90},
-    {axis:'y',sign:1,icon:'↻',cls:'rv-yp',angle:0},
-    {axis:'y',sign:-1,icon:'↺',cls:'rv-yn',angle:180},
-    {axis:'x',sign:1,icon:'↻',cls:'rv-xp',angle:315},
-    {axis:'x',sign:-1,icon:'↺',cls:'rv-xn',angle:135},
-  ];
-  const btns=mode==='move'?moveBtns:rotBtns;
-  const cx=SZ/2,cy=SZ/2;
-  const getPos=deg=>{const rad=deg*Math.PI/180;return{x:cx+R*Math.cos(rad),y:cy+R*Math.sin(rad)};};
   const dirLabels=T2.snapDir||['前','後','右','左','上','下'];
-  return React.createElement('div',{className:'rdial-wrap',style:{width:SZ,height:SZ}},
-    React.createElement('div',{className:'rdial-bg',style:{width:SZ,height:SZ,left:0,top:0}}),
-    React.createElement('button',{className:'rdial-close',onClick:onClose,title:lang==='zh'?'關閉':'閉じる'},'✕'),
-    /* center */
-    React.createElement('div',{className:'rdial-center',style:{width:CSZ,height:CSZ,left:cx-CSZ/2,top:cy-CSZ/2,position:'absolute'}},
-      React.createElement('div',{className:'rdial-tab'},
-        React.createElement('button',{className:`rdial-tab-btn${mode==='move'?' active':''}`,onClick:()=>setMode('move')},lang==='zh'?'移動':'移動'),
-        React.createElement('button',{className:`rdial-tab-btn${mode==='rotate'?' active':''}`,onClick:()=>setMode('rotate')},lang==='zh'?'旋轉':'回転')
-      ),
-      React.createElement('div',{style:{fontSize:9,color:'var(--text3)',textAlign:'center',maxWidth:58,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}},selBox.name)
+  const moveAxes=[
+    {key:'z',dotColor:'#4db87a',label:lang==='zh'?'Z 軸（前後）':'Z 軸（前後）',
+      btns:[
+        {dir:0,icon:'▲',lbl:lang==='zh'?'前 +Z':'前方 +Z',cls:'rd-z'},
+        {dir:1,icon:'▼',lbl:lang==='zh'?'後 -Z':'後方 -Z',cls:'rd-z'},
+      ]},
+    {key:'x',dotColor:'#e09050',label:lang==='zh'?'X 軸（左右）':'X 軸（左右）',
+      btns:[
+        {dir:3,icon:'◀',lbl:lang==='zh'?'左 -X':'左 -X',cls:'rd-x'},
+        {dir:2,icon:'▶',lbl:lang==='zh'?'右 +X':'右 +X',cls:'rd-x'},
+      ]},
+    {key:'y',dotColor:'#6090e0',label:lang==='zh'?'Y 軸（上下）':'Y 軸（上下）',
+      btns:[
+        {dir:4,icon:'▲',lbl:lang==='zh'?'上 +Y':'上 +Y',cls:'rd-y'},
+        {dir:5,icon:'▼',lbl:lang==='zh'?'下 -Y':'下 -Y',cls:'rd-y'},
+      ]},
+  ];
+  const rotAxes=[
+    {key:'z',dotColor:'#4db87a',label:lang==='zh'?'Z 軸 旋轉':'Z 軸 回転',
+      btns:[
+        {axis:'z',sign:1, icon:'↻',lbl:'+90°',cls:'rd-z-rot'},
+        {axis:'z',sign:-1,icon:'↺',lbl:'-90°',cls:'rd-z-rot'},
+      ]},
+    {key:'y',dotColor:'#e09050',label:lang==='zh'?'Y 軸 旋轉':'Y 軸 回転',
+      btns:[
+        {axis:'y',sign:1, icon:'↻',lbl:'+90°',cls:'rd-x-rot'},
+        {axis:'y',sign:-1,icon:'↺',lbl:'-90°',cls:'rd-x-rot'},
+      ]},
+    {key:'x',dotColor:'#6090e0',label:lang==='zh'?'X 軸 旋轉':'X 軸 回転',
+      btns:[
+        {axis:'x',sign:1, icon:'↻',lbl:'+90°',cls:'rd-y-rot'},
+        {axis:'x',sign:-1,icon:'↺',lbl:'-90°',cls:'rd-y-rot'},
+      ]},
+  ];
+  const axes=mode==='move'?moveAxes:rotAxes;
+  return React.createElement('div',{className:'rdial-wrap'},
+    React.createElement('div',{className:'rdial-header'},
+      React.createElement('div',{className:'rdial-boxname'},`✦ ${selBox.name}`),
+      React.createElement('button',{className:'rdial-close',onClick:onClose},'✕')
     ),
-    /* 6 radial buttons */
-    btns.map((b,i)=>{
-      const{x,y}=getPos(b.angle);
-      if(mode==='move'){
-        const tip=moveMode==='free'?`${dirLabels[b.dir]} ${freeStep}mm`:dirLabels[b.dir];
-        return React.createElement('button',{
-          key:i,className:`rdial-btn ${b.cls}`,title:tip,
-          style:{left:x-19,top:y-19,position:'absolute'},
-          onClick:e=>{e.stopPropagation();onSnap(selBox.id,b.dir);}
-        },b.icon);
-      } else {
-        const axMap={x:T2.rotAxisX,y:T2.rotAxisY,z:T2.rotAxisZ};
-        return React.createElement('button',{
-          key:i,className:`rdial-btn ${b.cls}`,title:`${axMap[b.axis]} ${b.sign>0?'+':'-'}90°`,
-          style:{left:x-19,top:y-19,position:'absolute'},
-          onClick:e=>{e.stopPropagation();onRotateBox(selBox.id,b.axis,b.sign);}
-        },b.icon);
-      }
-    })
+    React.createElement('div',{className:'rdial-tab'},
+      React.createElement('button',{
+        className:`rdial-tab-btn${mode==='move'?' active':''}`,
+        onClick:()=>setMode('move')
+      },lang==='zh'?'⬡ 移動':'⬡ 移動'),
+      React.createElement('button',{
+        className:`rdial-tab-btn${mode==='rotate'?' active':''}`,
+        onClick:()=>setMode('rotate')
+      },lang==='zh'?'↻ 旋轉':'↻ 回転')
+    ),
+    axes.map(ax=>
+      React.createElement('div',{key:ax.key,className:'rdial-axis-group'},
+        React.createElement('div',{className:'rdial-axis-label'},
+          React.createElement('span',{className:'rdial-axis-dot',style:{background:ax.dotColor}}),
+          ax.label
+        ),
+        React.createElement('div',{className:'rdial-btn-row'},
+          ax.btns.map((b,i)=>{
+            if(mode==='move'){
+              const tip=moveMode==='free'?`${dirLabels[b.dir]} ${freeStep}mm`:dirLabels[b.dir];
+              return React.createElement('button',{
+                key:i,className:`rdial-btn ${b.cls}`,title:tip,
+                onClick:e=>{e.stopPropagation();onSnap(selBox.id,b.dir);}
+              },
+                b.icon,
+                React.createElement('span',{className:'rdial-btn-lbl'},b.lbl)
+              );
+            } else {
+              const axMap={x:T2.rotAxisX,y:T2.rotAxisY,z:T2.rotAxisZ};
+              return React.createElement('button',{
+                key:i,className:`rdial-btn ${b.cls}`,title:`${axMap[b.axis]} ${b.sign>0?'+':'-'}90°`,
+                onClick:e=>{e.stopPropagation();onRotateBox(selBox.id,b.axis,b.sign);}
+              },
+                b.icon,
+                React.createElement('span',{className:'rdial-btn-lbl'},b.lbl)
+              );
+            }
+          })
+        )
+      )
+    )
   );
 }
 
@@ -554,6 +576,29 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
     const dimGrp=new T.Group();scene.add(dimGrp);
     const selOutline=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1,1,1)),new T.LineBasicMaterial({color:0xffffff,linewidth:2}));
     selOutline.visible=false;scene.add(selOutline);
+    /* XYZ axes helper — 常駐顯示在3D，帶實體圓柱+箭頭 */
+    const axLen=100;
+    const mkAxis=(hex,dir)=>{
+      const mat=new T.MeshBasicMaterial({color:hex,depthTest:false});
+      const shaft=new T.Mesh(new T.CylinderGeometry(2.5,2.5,axLen,8),mat);
+      const head=new T.Mesh(new T.ConeGeometry(7,20,8),mat);
+      const grp=new T.Group();
+      shaft.position.set(0,axLen/2,0);
+      head.position.set(0,axLen+10,0);
+      grp.add(shaft);grp.add(head);
+      if(dir.x>0.5)grp.rotation.z=-Math.PI/2;
+      else if(dir.z>0.5)grp.rotation.x=Math.PI/2;
+      grp.children.forEach(c=>{c.renderOrder=999;c.material.depthTest=false;});
+      return grp;
+    };
+    const axisGrp=new T.Group();
+    axisGrp.renderOrder=999;
+    axisGrp.add(mkAxis(0xe09050,new T.Vector3(1,0,0)));  // X 橙（操作盤同色）
+    axisGrp.add(mkAxis(0x6090e0,new T.Vector3(0,1,0)));  // Y 藍（操作盤同色）
+    axisGrp.add(mkAxis(0x4db87a,new T.Vector3(0,0,1)));  // Z 綠（操作盤同色）
+    const orgMesh=new T.Mesh(new T.SphereGeometry(5,8,8),new T.MeshBasicMaterial({color:0xffffff,depthTest:false}));
+    orgMesh.renderOrder=999;axisGrp.add(orgMesh);
+    scene.add(axisGrp);
     let animId;
     const loop=()=>{
       animId=requestAnimationFrame(loop);
@@ -591,6 +636,9 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
     s.dimAnchors=[];
     const oL=outer.L||400,oW=outer.W||300,oH=outer.H||200;
     grid.position.y=-oH/2;
+    /* 座標軸錨點：外箱左前下角 */
+    const axGrp=s.scene.children.find(c=>c.isGroup&&c.children.length>=4);
+    if(axGrp)axGrp.position.set(-oW/2,-oH/2,-oL/2);
     const bGeo=new T.BoxGeometry(oW,oH,oL);
     boxGrp.add(new T.LineSegments(new T.EdgesGeometry(bGeo),new T.LineBasicMaterial({color:0x7090b8})));
     boxGrp.add(new T.Mesh(bGeo,new T.MeshLambertMaterial({color:0xd8e8f8,transparent:true,opacity:.07,side:T.BackSide})));
@@ -599,7 +647,7 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
       s.camP.position.set(md*1.3,md*.9,md*1.3);s.controls.target.set(0,0,0);s.controls.update();
       camInited.current=true;
     }
-    const vis=placed.length; // 移除滑條後全部顯示
+    const vis=placed.length;
     const overlapSet=new Set();
     for(let i=0;i<vis;i++)for(let j=i+1;j<vis;j++){
       const a=placed[i],b=placed[j];
@@ -765,7 +813,7 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
         React.createElement('div',{className:'move-mode-seg'},
           React.createElement('button',{
             style:{background:moveMode==='snap'?'var(--accent)':'var(--panel2)',color:moveMode==='snap'?'#fff':'var(--text2)'},
-            onClick:e=>{e.stopPropagation();/* handled in parent via prop */onModeChange('snap');}
+            onClick:e=>{e.stopPropagation();onModeChange('snap');}
           },T2.modeSnap),
           React.createElement('button',{
             style:{background:moveMode==='free'?'var(--accent2)':'var(--panel2)',color:moveMode==='free'?'#fff':'var(--text2)',borderLeft:'1px solid var(--border)'},
@@ -777,7 +825,7 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
           React.createElement('input',{type:'number',min:1,max:500,value:freeStep,onChange:e=>onFreeStepChange(Math.max(1,+e.target.value))})
         )
       ),
-      /* [改善1] top-right: Radial Dial */
+      /* [重設計] top-right: Radial Dial */
       dialOpen&&selBox&&React.createElement('div',{className:'dial-overlay',onClick:e=>e.stopPropagation()},
         React.createElement(RadialDial,{selBox,lang,moveMode,freeStep,onSnap,onRotateBox,onClose:onDialClose})
       ),
@@ -806,6 +854,25 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
           T2.gapOptLines
         )
       ),
+      /* XYZ legend overlay — 3D視窗左下角底部 */
+      React.createElement('div',{
+        style:{position:'absolute',left:8,bottom:14,zIndex:19,pointerEvents:'none',
+          background:'rgba(253,252,249,.94)',border:'1px solid var(--border)',
+          borderRadius:10,padding:'7px 10px',boxShadow:'0 2px 8px var(--shadow)'}
+      },
+        React.createElement('div',{style:{fontSize:9,fontWeight:700,color:'var(--text3)',letterSpacing:'.06em',marginBottom:5,textAlign:'center'}},'XYZ 座標軸'),
+        [
+          {label:'X',color:'#e09050',dir:lang==='zh'?'→ 右':'→ 右'},
+          {label:'Y',color:'#6090e0',dir:lang==='zh'?'↑ 上':'↑ 上'},
+          {label:'Z',color:'#4db87a',dir:lang==='zh'?'• 前':'• 前'},
+        ].map(ax=>React.createElement('div',{key:ax.label,
+          style:{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,
+            fontFamily:'IBM Plex Mono',color:ax.color,lineHeight:1.7}},
+          React.createElement('span',{style:{width:16,height:3,background:ax.color,borderRadius:2,display:'inline-block',flexShrink:0}}),
+          ax.label,
+          React.createElement('span',{style:{fontSize:9,color:'var(--text3)',fontWeight:400,fontFamily:'inherit',marginLeft:2}},ax.dir)
+        ))
+      ),
       /* dim labels overlay */
       dimLabels.length>0&&React.createElement('div',{id:'dim-labels-wrap'},
         dimLabels.map((dl,i)=>{
@@ -817,7 +884,6 @@ function Scene3D({outer,placed,hlId,selId,onDrop,hovering,lang,onSelect,onSnap,o
         })
       )
     )
-    /* [改善2] 移除 viewStep slider — 不再渲染 */
   );
 }
 
@@ -976,7 +1042,7 @@ function GapBar({label,value,max}){
   );
 }
 
-/* ─── HelpModal（已更新說明內容） ─── */
+/* ─── HelpModal ─── */
 function HelpModal({onClose,lang}){
   const T=I[lang];
   const zh=lang==='zh';
@@ -1009,10 +1075,9 @@ function HelpModal({onClose,lang}){
         )}),
         React.createElement(Sec,{t:zh?'📦 拖曳排入（3D視窗下方卡片區）':'📦 ドラッグ配置（3Dウィンドウ下部カードエリア）',ch:React.createElement(Row,{k:zh?'拖曳卡片':'カードドラッグ',d:zh?'3D視窗下方的等角預覽卡片是唯一的拖曳入口。將卡片直接拖到上方3D外箱內即可放置。':'3Dウィンドウ下部の等角プレビューカードが唯一のドラッグ入口です。カードを上の3D外箱にドラッグして配置します。'})}),
         React.createElement(Sec,{t:zh?'✦ 點擊選取 & 操作盤（3D右上角）':'✦ クリック選択 & 操作パネル（3D右上角）',ch:React.createElement('div',null,
-          React.createElement(Row,{k:zh?'點擊選取':'クリック選択',d:zh?'直接點擊3D中箱體即可選取（白框亮起），視角不重置。選取後，3D視窗右上角自動出現圓形操作盤。':'3D内の箱をクリックして選択（白枠表示）。視点はリセットされず、3Dウィンドウ右上角に円形操作パネルが自動表示されます。'}),
-          React.createElement(Row,{k:zh?'🎛 圓形操作盤（3D右上角）':'🎛 円形操作パネル（3D右上角）',d:zh?'選取箱體後，3D視窗右上角出現圓形操作盤（直徑約182px）。採用深石板色玻璃背景、中央淡色卡片、6個色相方向按鈕，配色協調且清晰。中央有「移動/旋轉」切換標籤。':'箱選択後、3Dウィンドウ右上角に円形操作パネル（直径約182px）が表示されます。深スレートガラス背景・中央淡色カード・6色方向ボタンの統一感あるデザインで、中央に「移動/回転」切替タブがあります。'}),
-          React.createElement(Row,{k:zh?'移動模式（6色圓鈕）':'移動モード（6色丸ボタン）',d:zh?'青綠=前(+Z) / 深藍=後(-Z) / 琥珀=右(+X) / 紫=左(-X) / 深紅=上(+Y) / 青=下(-Y)。顏色對應各軸向，直覺操作。':'青緑=前(+Z) / 紺=後(-Z) / 琥珀=右(+X) / 紫=左(-X) / 深赤=上(+Y) / 青=下(-Y)。色は各軸向に対応しています。'}),
-          React.createElement(Row,{k:zh?'旋轉模式（6色圓鈕）':'回転モード（6色丸ボタン）',d:zh?'點擊可將紙箱旋轉 +90°。前/後=Z軸，右/左=Y軸，上/下=X軸。旋轉後自動夾緊在外箱邊界內。':'クリックで+90°回転。前後=Z軸、右左=Y軸、上下=X軸。外箱境界内で自動クランプ。'})
+          React.createElement(Row,{k:zh?'點擊選取':'クリック選択',d:zh?'直接點擊3D中箱體即可選取（白框亮起），視角不重置。選取後，3D視窗右上角自動出現三軸操作盤。':'3D内の箱をクリックして選択（白枠表示）。視点はリセットされず、3Dウィンドウ右上角に3軸操作パネルが自動表示されます。'}),
+          React.createElement(Row,{k:zh?'🎛 三軸操作盤（3D右上角）':'🎛 3軸操作パネル（3D右上角）',d:zh?'選取箱體後，右上角出現三軸分組操作盤。Z軸（前後）=綠色，X軸（左右）=橙色，Y軸（上下）=藍色。每軸兩個方向按鈕，清楚標示方向名稱與座標符號。':'箱選択後、右上角に3軸グループ操作パネルが表示されます。Z軸（前後）=緑、X軸（左右）=橙、Y軸（上下）=青。各軸に2方向ボタンがあり、方向名と座標符号が明確に表示されます。'}),
+          React.createElement(Row,{k:zh?'移動/旋轉 切換':'移動/回転 切替',d:zh?'操作盤頂部的「移動/旋轉」標籤可切換模式。旋轉模式下，各軸顯示 ↻/↺ 按鈕，每次旋轉90°。':'操作パネル上部の「移動/回転」タブでモードを切替。回転モードでは各軸に↻/↺ボタンが表示され、90°ずつ回転できます。'})
         )}),
         React.createElement(Sec,{t:zh?'🧲 移動模式切換（3D左上角）':'🧲 移動モード切替（3D左上角）',ch:React.createElement('div',null,
           React.createElement(Row,{k:zh?'吸附 / 自由（左上角小面板）':'吸着 / 自由（左上角パネル）',d:zh?'選取箱體後，3D視窗左上角出現移動模式切換小面板。吸附模式：操作盤箭頭自動貼合至最近鄰箱或外箱壁。自由模式：每次移動指定步進距離(mm)，可在面板輸入步進值。':'箱選択後、3Dウィンドウ左上角に移動モード切替パネルが表示されます。吸着モード：操作パネルの矢印で最近の箱か外壁に自動吸着。自由モード：指定ステップ(mm)ずつ移動。'}),
@@ -1095,8 +1160,6 @@ function App(){
   const outerRef=useRef(outer);
   useEffect(()=>{outerRef.current=outer;},[outer]);
 
-  /* Fix bug1+5: updBt must always use fresh outer and recalculate placed dims correctly.
-     Using outerRef avoids stale closure. setPlaced functional form ensures latest placed. */
   const updBt=useCallback(u=>{
     setBts(prev=>prev.map(b=>b.id===u.id?u:b));
     setPlaced(prev=>prev.map(p=>{
@@ -1114,7 +1177,6 @@ function App(){
     }));
   },[]);
 
-  /* Effective outer dims considering outer tolerance (fix 4) */
   const effOuter=useMemo(()=>({
     L:effD(outer.L,outer.tP,outer.tM,outer.tS||'nominal'),
     W:effD(outer.W,outer.tP,outer.tM,outer.tS||'nominal'),
@@ -1182,22 +1244,18 @@ function App(){
   const addBt=()=>{const c=COLORS[bts.length%COLORS.length];setBts(prev=>[...prev,{id:uid(),name:`Box ${String.fromCharCode(65+prev.length%26)}`,L:100,W:80,H:60,qty:1,color:c,tP:0,tM:0,tS:'nominal',_ori:0,flute:''}]);};
   const selBox=placed.find(p=>p.id===selId);
 
-  /* Scene3D に onModeChange / onFreeStepChange を渡す */
   const handleModeChange=useCallback(m=>setMoveMode(m),[]);
   const handleFreeStepChange=useCallback(v=>setFreeStep(v),[]);
 
-  /* ── 儲存檔案 / ファイル保存 ── */
+  /* ── 儲存檔案 ── */
   const handleSave=useCallback(()=>{
     const state={lang,outer,bts,placed,moveMode,freeStep,gapMode,showLines,ortho};
     const stateJson=JSON.stringify(state);
-    // 讀取本頁 HTML，把佔位符替換為實際狀態
     const html=document.documentElement.outerHTML;
-    // 替換 SAVED_STATE 行：把 null; /* __SAVED_STATE_JSON__ */ 換成實際 JSON
     const saved=html.replace(
       /const SAVED_STATE=null;\s*\/\*\s*__SAVED_STATE_JSON__\s*\*\//,
       `const SAVED_STATE=${stateJson};`
     );
-    // 建立 Blob 並觸發下載
     const blob=new Blob([saved],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -1232,7 +1290,7 @@ function App(){
       )
     ),
     React.createElement('div',{className:'app-body'},
-      /* [改善4] LEFT — 紙箱列表填滿頁面高度 */
+      /* LEFT */
       React.createElement('div',{className:'app-left',style:{width:'clamp(200px,21vw,260px)'}},
         React.createElement('div',{className:'app-left-inner'},
           /* 外箱 */
@@ -1275,7 +1333,6 @@ function App(){
             )
           ),
           React.createElement('div',{className:'panel-label',style:{flexShrink:0}},T.boxLbl),
-          /* [改善4] 紙箱列表：flex:1 撐高，自帶滾動 */
           React.createElement('div',{className:'box-list-wrap'},
             bts.map(bt=>React.createElement(BoxTypeCard,{key:bt.id,bt,lang,onUpdate:updBt,onDelete:()=>{setBts(prev=>prev.filter(b=>b.id!==bt.id));setPlaced(prev=>prev.filter(p=>p.typeId!==bt.id));}}))
           ),
@@ -1358,7 +1415,7 @@ function App(){
                 React.createElement('button',{className:'btn btn-xs btn-ghost',style:{fontSize:9},onClick:()=>setSelId(null)},T.deselect)
               ),
               React.createElement('div',{style:{fontSize:12,color:'var(--text3)',fontFamily:'IBM Plex Mono'}},`${selBox.w}×${selBox.h}×${selBox.d} mm`),
-              React.createElement('div',{style:{fontSize:11,color:'var(--accent2)',lineHeight:1.5}},lang==='zh'?'💡 使用3D右上角圓形操作盤移動/旋轉':'💡 3D右上角の操作パネルで移動・回転'),
+              React.createElement('div',{style:{fontSize:11,color:'var(--accent2)',lineHeight:1.5}},lang==='zh'?'💡 使用3D右上角操作盤移動/旋轉':'💡 3D右上角の操作パネルで移動・回転'),
               React.createElement('button',{className:'btn btn-danger btn-xs',style:{width:'100%',fontSize:10},onClick:()=>{removeP(selId);setSelId(null);}},T.removeBtn)
             ),
             React.createElement('div',{style:{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}},
