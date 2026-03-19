@@ -1,10 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-╔══════════════════════════════════════════════════════════╗
-║     Dino-Lite AM3111  多鏡頭精密測量系統                ║
-║     Ver. 2.1.0                                          ║
-║     支援多視訊同時顯示 / 條碼掃描 / 強制LED / 高對比UI  ║
-╚══════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║     Dino-Lite AM3111  多鏡頭精密測量系統                    ║
+║     Ver. 2.5.0                                              ║
+║     支援多視訊同時顯示 / 條碼掃描 / 曝光手動控制 / 高對比UI ║
+║                                                              ║
+║  v2.5 變更說明：                                            ║
+║  • 新增「手動曝光控制」取代原 LED 亮度滑桿                  ║
+║    - 開啟攝影機後自動關閉 AE（Auto Exposure）               ║
+║    - 同步關閉 AWB（Auto White Balance）                     ║
+║    - 提供曝光值 / 增益 / 亮度補償三組滑桿                   ║
+║  • 移除 LED 亮度滑桿 / LED 強制全亮按鈕（UVC 無效）         ║
+║  • 修正 UPG650 PLUS 等電子顯微鏡畫面暗沉問題                ║
+╚══════════════════════════════════════════════════════════════╝
+
+【畫面暗沉根本原因】
+  電子顯微鏡的鏡頭視野極小，攝影機內建的「自動曝光」(AE)
+  演算法將顯微放大的高亮樣品誤判為「整體過亮場景」，
+  自動壓低曝光值，造成畫面整體暗沉。
+  普通網路攝影機拍攝正常場景，AE 運作正常所以明亮。
+  解法：開啟攝影機後立即鎖定手動曝光，避免 AE 干擾。
 """
 
 import cv2
@@ -52,69 +67,54 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════
 #  版本 & 字型設定
 # ══════════════════════════════════════════════════════════════
-VERSION = "Ver. 2.4.1"
+VERSION      = "Ver. 2.8.0"
+VERSION_DATE = "更新日：2026/03/19　作成：分室"
 
-# 字型優先鏈：UD Digi Kyokasho NP-B → 備用日系等寬字型 → 通用後備
-_FONT_PRIMARY = "UD Digi Kyokasho NP-B"
+_FONT_PRIMARY  = "UD Digi Kyokasho NP-B"
 _FONT_FALLBACK = ["Yu Gothic UI", "Meiryo UI", "Microsoft JhengHei UI",
                   "Microsoft YaHei UI", "Segoe UI"]
 
 def F(size: int, bold: bool = False, italic: bool = False) -> tuple:
-    """建立字型 tuple，自動帶入主字型"""
     style_parts = []
-    if bold:
-        style_parts.append("bold")
-    if italic:
-        style_parts.append("italic")
+    if bold:   style_parts.append("bold")
+    if italic: style_parts.append("italic")
     if style_parts:
         return (_FONT_PRIMARY, size, " ".join(style_parts))
     return (_FONT_PRIMARY, size)
 
 # ══════════════════════════════════════════════════════════════
-#  高對比護眼配色  (深藍石墨 + 明亮文字)
+#  高對比護眼配色
 # ══════════════════════════════════════════════════════════════
 P = {
-    # ── 背景層次 ──────────────────────────────────────────────
-    "bg"         : "#1A1D27",   # 最底層：深石墨藍
-    "panel"      : "#22263A",   # 側面板底色
-    "card"       : "#2C3150",   # 卡片 / 區塊
-    "card_hover" : "#343862",   # 滑鼠懸停卡片
-    "input_bg"   : "#1E2236",   # 輸入框背景
-    "canvas_bg"  : "#0D0F18",   # 影像畫布底色
-
-    # ── 主要強調色 ────────────────────────────────────────────
-    "accent"     : "#4A9EFF",   # 主藍（高對比）
-    "accent_dk"  : "#2B7FE8",   # 深藍（按壓）
-    "accent_glow": "#7DC0FF",   # 淺藍（高亮）
-
-    # ── 功能色 ────────────────────────────────────────────────
-    "green"      : "#3DBA7A",   # 啟動 / 成功
+    "bg"         : "#1A1D27",
+    "panel"      : "#22263A",
+    "card"       : "#2C3150",
+    "card_hover" : "#343862",
+    "input_bg"   : "#1E2236",
+    "canvas_bg"  : "#0D0F18",
+    "accent"     : "#4A9EFF",
+    "accent_dk"  : "#2B7FE8",
+    "accent_glow": "#7DC0FF",
+    "green"      : "#3DBA7A",
     "green_dk"   : "#2A9A60",
-    "green_txt"  : "#DFFFF0",   # 綠底文字
-    "red"        : "#E85050",   # 停止 / 危險
+    "green_txt"  : "#DFFFF0",
+    "red"        : "#E85050",
     "red_dk"     : "#C83030",
     "red_txt"    : "#FFE0E0",
-    "orange"     : "#F0A030",   # 警告
-    "yellow"     : "#F5D060",   # 提示亮色
-
-    # ── 文字層次（高對比）────────────────────────────────────
-    "text_h1"    : "#FFFFFF",   # 標題 / 重要值：純白
-    "text_h2"    : "#E8EEFF",   # 一般標籤：近白冷白
-    "text_body"  : "#C4CCEF",   # 內文：中亮藍白
-    "text_dim"   : "#8B96C8",   # 次要 / 說明：中藍灰
-    "text_hint"  : "#5A6499",   # 最淡（hint）：深藍灰
-
-    # ── 邊框 / 分隔線 ─────────────────────────────────────────
+    "orange"     : "#F0A030",
+    "yellow"     : "#F5D060",
+    "text_h1"    : "#FFFFFF",
+    "text_h2"    : "#E8EEFF",
+    "text_body"  : "#C4CCEF",
+    "text_dim"   : "#8B96C8",
+    "text_hint"  : "#5A6499",
     "border"     : "#3A4070",
-    "border_hi"  : "#4A9EFF",   # 高亮邊框（選中）
+    "border_hi"  : "#4A9EFF",
     "divider"    : "#2A2E48",
-
-    # ── LED 指示 ──────────────────────────────────────────────
-    "led_on"     : "#FFEE55",   # LED 亮起（暖黃）
+    "led_on"     : "#FFEE55",
     "led_off"    : "#44475A",
 }
 
-# 攝影機色標 (BGR for OpenCV, HEX for Tkinter)
 CAM_COLORS_HEX = ["#FF7070", "#70C8FF", "#60F0A0", "#FFE050",
                   "#D070FF", "#70FFE0"]
 CAM_COLORS_BGR = [
@@ -123,47 +123,163 @@ CAM_COLORS_BGR = [
 ]
 
 # ══════════════════════════════════════════════════════════════
-#  CameraSession  — 單一攝影機所有狀態
+#  曝光預設值
+#  CAP_PROP_AUTO_EXPOSURE：DirectShow 下 1=手動 / 3=自動
+#  CAP_PROP_EXPOSURE：對數尺度，-1 ~ -13（數值越小越暗）
 # ══════════════════════════════════════════════════════════════
+EXPOSURE_DEFAULT = -5    # 建議顯微鏡初始曝光值
+GAIN_DEFAULT     = 64    # 增益 0~100
+BRIGHT_DEFAULT   = 128   # 亮度補償 0~255
+
+# ══════════════════════════════════════════════════════════════
+#  CameraSession
+# ══════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════
+#  圓角按鈕元件
+#  用 Canvas 繪製圓角矩形背景，套用於工具列所有 tk.Button
+# ══════════════════════════════════════════════════════════════
+class RoundButton(tk.Canvas):
+    """
+    以 Canvas 實作的圓角按鈕。
+    支援 text、command、bg、fg、font、padx、pady、radius 參數。
+    hover / press 時自動變色。
+    """
+    def __init__(self, parent, text="", command=None,
+                 bg="#2C3150", fg="#FFFFFF",
+                 hover_bg=None, press_bg=None,
+                 font=None, padx=14, pady=6,
+                 radius=8, **kwargs):
+        # 先用暫定尺寸初始化，之後依文字量測後更新
+        super().__init__(parent, highlightthickness=0,
+                         bd=0, relief="flat",
+                         bg=parent.cget("bg"), **kwargs)
+
+        self._text    = text
+        self._command = command
+        self._bg      = bg
+        self._fg      = fg
+        self._hbg     = hover_bg or self._lighten(bg, 30)
+        self._pbg     = press_bg or self._darken(bg, 30)
+        self._font    = font or F(12, bold=True)
+        self._padx    = padx
+        self._pady    = pady
+        self._radius  = radius
+        self._current_bg = bg
+
+        # 量測文字尺寸後設定 Canvas 大小
+        import tkinter.font as tkfont
+        try:
+            fobj = tkfont.Font(font=self._font)
+            tw = fobj.measure(text)
+            th = fobj.metrics("linespace")
+        except Exception:
+            tw, th = len(text) * 10, 18
+        w = tw + padx * 2
+        h = th + pady * 2
+        self.config(width=w, height=h)
+
+        self._draw(bg)
+
+        self.bind("<Enter>",          self._on_enter)
+        self.bind("<Leave>",          self._on_leave)
+        self.bind("<ButtonPress-1>",  self._on_press)
+        self.bind("<ButtonRelease-1>",self._on_release)
+        self.config(cursor="hand2")
+
+    # ── 色彩工具 ──────────────────────────────────────────────
+    @staticmethod
+    def _adjust(hex_color: str, delta: int) -> str:
+        hex_color = hex_color.lstrip("#")
+        r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        r = max(0, min(255, r + delta))
+        g = max(0, min(255, g + delta))
+        b = max(0, min(255, b + delta))
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _lighten(self, c, d): return self._adjust(c,  d)
+    def _darken (self, c, d): return self._adjust(c, -d)
+
+    # ── 繪製 ──────────────────────────────────────────────────
+    def _draw(self, bg_color: str):
+        self.delete("all")
+        w = self.winfo_reqwidth()
+        h = self.winfo_reqheight()
+        r = self._radius
+        # 圓角矩形（用多邊形近似）
+        self.create_polygon(
+            r, 0,  w-r, 0,
+            w, 0,  w, r,
+            w, h-r, w, h,
+            w-r, h, r, h,
+            0, h,  0, h-r,
+            0, r,  0, 0,
+            r, 0,
+            fill=bg_color, outline="", smooth=True)
+        self.create_text(w//2, h//2,
+                         text=self._text,
+                         fill=self._fg,
+                         font=self._font,
+                         anchor="center")
+        self._current_bg = bg_color
+
+    def _on_enter(self, e):  self._draw(self._hbg)
+    def _on_leave(self, e):  self._draw(self._bg)
+    def _on_press(self, e):  self._draw(self._pbg)
+    def _on_release(self, e):
+        self._draw(self._hbg)
+        if self._command:
+            self._command()
+
+    def config(self, **kw):
+        # 允許外部更新 text
+        if "text" in kw:
+            self._text = kw.pop("text")
+            self.after_idle(lambda: self._draw(self._current_bg))
+        super().config(**kw)
+
+    # 讓 pack/grid/place 正常工作
+    def pack(self, **kw):   super().pack(**kw)
+    def grid(self, **kw):   super().grid(**kw)
+    def place(self, **kw):  super().place(**kw)
+
+
 class CameraSession:
-    """封裝單一攝影機的視訊流、測量狀態、條碼資料"""
-
     def __init__(self, cam_id: int):
-        self.cam_id = cam_id
-        self.cap    = None
+        self.cam_id  = cam_id
+        self.cap     = None
         self.running = False
-        self.current_frame  = None
-        self.display_frame  = None
+        self.current_frame = None
+        self.display_frame = None
 
-        # ── 測量 ──────────────────────────────────────────────
         self.measurement_mode    = "none"
         self.pending_points: list[tuple] = []
         self.measurement_results: list[dict] = []
         self.max_measurements    = 10
         self._rep_data: list[float] = []
 
-        # ── 校準 ──────────────────────────────────────────────
         self.is_calibrated        = False
-        self.scale_factor         = 1.0   # mm/pixel
-        self.calibration_distance = 1.0   # mm
-        self.pixel_size_um        = 5.0   # μm/pixel
+        self.scale_factor         = 1.0
+        self.calibration_distance = 1.0
+        self.pixel_size_um        = 5.0
         self.magnification        = 50.0
 
-        # ── 條碼 ──────────────────────────────────────────────
         self.current_barcode   : str | None = None
         self.barcode_history   : list[str]  = []
         self.last_barcode_time : float      = 0.0
         self.frame_count       : int        = 0
         self.scan_interval     : int        = 4
 
-        # ── 顯示縮放 ──────────────────────────────────────────
         self.display_scale  = 1.0
         self.display_offset = (0, 0)
 
-        # ── 十字游標 ──────────────────────────────────────────
         self.crosshair_visible = False
         self.crosshair_x = 0
         self.crosshair_y = 0
+
+        # ── 曝光狀態 ──────────────────────────────────────────
+        self.manual_exposure_applied = False   # 是否已套用手動曝光
+        self.microscope_mode         = False   # True=顯微鏡模式(關AE/AWB) False=一般模式(保留AWB)
 
     def release(self):
         self.running = False
@@ -173,215 +289,166 @@ class CameraSession:
 
 
 # ══════════════════════════════════════════════════════════════
-#  DinoLiteApp  — 主應用程式
+#  DinoLiteApp
 # ══════════════════════════════════════════════════════════════
 class DinoLiteApp:
 
-    # ── 初始化 ──────────────────────────────────────────────────
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title(f"Dino-Lite AM3111  多鏡頭精密測量系統  {VERSION}")
-        self.root.geometry("1440x900")
-        self.root.minsize(1100, 700)
+        self.root.title(f"多鏡頭測量系統  {VERSION}")
+        self.root.geometry("1440x960")
+        self.root.minsize(1150, 760)
         self.root.configure(bg=P["bg"])
 
-        # ── 全域狀態 ─────────────────────────────────────────
         self.sessions          : list[CameraSession] = []
         self.available_cameras : list[dict]          = []
         self.active_session_idx: int                 = 0
         self.save_directory    : str                 = os.getcwd()
 
-        # ── 手持掃描器 ───────────────────────────────────────
         self.handheld_enabled    = False
         self.handheld_buffer     = ""
         self.handheld_last_time  = 0.0
         self.handheld_timeout_ms = 100
 
-        # ── 更新迴圈 ─────────────────────────────────────────
         self._update_after_id = None
+        self._capture_mode    = "single"   # "single" | "all_merged" | "all_individual"
 
-        # ── 建立 UI ──────────────────────────────────────────
         self._apply_theme()
         self._build_ui()
         self._bind_keys()
 
     # ══════════════════════════════════════════════════════════
-    #  TTK 主題套用
+    #  TTK 主題
     # ══════════════════════════════════════════════════════════
     def _apply_theme(self):
         s = ttk.Style(self.root)
         s.theme_use("clam")
 
-        # ── 基底 ────────────────────────────────────────────
         s.configure(".",
-            background=P["bg"],
-            foreground=P["text_h2"],
-            font=F(10),
-            borderwidth=0,
-            focuscolor=P["accent"])
+            background=P["bg"], foreground=P["text_h2"],
+            font=F(12), borderwidth=0, focuscolor=P["accent"])
 
-        # ── Frame 系列 ───────────────────────────────────────
         s.configure("TFrame",       background=P["bg"])
         s.configure("Panel.TFrame", background=P["panel"])
         s.configure("Card.TFrame",  background=P["card"])
 
-        # ── Label 系列 ───────────────────────────────────────
         s.configure("TLabel",
-            background=P["bg"], foreground=P["text_h2"], font=F(10))
+            background=P["bg"], foreground=P["text_h2"], font=F(12))
         s.configure("H1.TLabel",
-            background=P["bg"], foreground=P["text_h1"], font=F(13, bold=True))
+            background=P["bg"], foreground=P["text_h1"], font=F(15, bold=True))
         s.configure("H2.TLabel",
-            background=P["panel"], foreground=P["text_h2"], font=F(10, bold=True))
+            background=P["panel"], foreground=P["text_h2"], font=F(12, bold=True))
         s.configure("Dim.TLabel",
-            background=P["panel"], foreground=P["text_body"], font=F(9))
+            background=P["panel"], foreground=P["text_body"], font=F(11))
         s.configure("Hint.TLabel",
-            background=P["panel"], foreground=P["text_dim"], font=F(9))
+            background=P["panel"], foreground=P["text_dim"], font=F(11))
         s.configure("Value.TLabel",
-            background=P["card"], foreground=P["accent_glow"], font=F(10, bold=True))
+            background=P["card"], foreground=P["accent_glow"], font=F(12, bold=True))
         s.configure("Good.TLabel",
-            background=P["panel"], foreground=P["green"], font=F(10, bold=True))
+            background=P["panel"], foreground=P["green"], font=F(12, bold=True))
         s.configure("Warn.TLabel",
-            background=P["panel"], foreground=P["orange"], font=F(10, bold=True))
+            background=P["panel"], foreground=P["orange"], font=F(12, bold=True))
         s.configure("Bad.TLabel",
-            background=P["panel"], foreground=P["red"], font=F(10, bold=True))
+            background=P["panel"], foreground=P["red"], font=F(12, bold=True))
 
-        # ── LabelFrame ───────────────────────────────────────
         s.configure("TLabelframe",
-            background=P["panel"],
-            foreground=P["accent_glow"],
-            font=F(10, bold=True),
-            bordercolor=P["border"],
-            relief="groove",
-            borderwidth=1)
+            background=P["panel"], foreground=P["accent_glow"],
+            font=F(12, bold=True), bordercolor=P["border"],
+            relief="groove", borderwidth=1)
         s.configure("TLabelframe.Label",
-            background=P["panel"],
-            foreground=P["accent_glow"],
-            font=F(10, bold=True))
+            background=P["panel"], foreground=P["accent_glow"],
+            font=F(12, bold=True))
 
-        # ── Button 系列 ──────────────────────────────────────
         s.configure("TButton",
-            background=P["card"],
-            foreground=P["text_h2"],
-            font=F(10),
-            borderwidth=1,
-            relief="flat",
-            padding=(10, 6))
+            background=P["card"], foreground=P["text_h2"],
+            font=F(12), borderwidth=1, relief="flat", padding=(10, 6))
         s.map("TButton",
             background=[("active", P["card_hover"]), ("pressed", P["accent_dk"])],
-            foreground=[("active", P["text_h1"]),   ("pressed", P["text_h1"])],
+            foreground=[("active", P["text_h1"]),    ("pressed", P["text_h1"])],
             relief=[("pressed", "flat")])
 
         s.configure("Accent.TButton",
-            background=P["accent"],
-            foreground=P["text_h1"],
-            font=F(10, bold=True),
-            padding=(10, 6))
+            background=P["accent"], foreground=P["text_h1"],
+            font=F(12, bold=True), padding=(10, 6))
         s.map("Accent.TButton",
             background=[("active", P["accent_glow"]), ("pressed", P["accent_dk"])],
             foreground=[("active", P["bg"]),           ("pressed", P["text_h1"])])
 
         s.configure("Green.TButton",
-            background=P["green"],
-            foreground=P["green_txt"],
-            font=F(10, bold=True),
-            padding=(10, 6))
+            background=P["green"], foreground=P["green_txt"],
+            font=F(12, bold=True), padding=(10, 6))
         s.map("Green.TButton",
             background=[("active", P["green_dk"]), ("pressed", "#1A7A48")],
             foreground=[("active", "#FFFFFF"),      ("pressed", "#FFFFFF")])
 
         s.configure("Red.TButton",
-            background=P["red"],
-            foreground=P["red_txt"],
-            font=F(10, bold=True),
-            padding=(10, 6))
+            background=P["red"], foreground=P["red_txt"],
+            font=F(12, bold=True), padding=(10, 6))
         s.map("Red.TButton",
             background=[("active", P["red_dk"]), ("pressed", "#A01010")],
             foreground=[("active", "#FFFFFF"),    ("pressed", "#FFFFFF")])
 
         s.configure("Orange.TButton",
-            background=P["orange"],
-            foreground="#1A0A00",
-            font=F(10, bold=True),
-            padding=(10, 6))
+            background=P["orange"], foreground="#1A0A00",
+            font=F(12, bold=True), padding=(10, 6))
         s.map("Orange.TButton",
             background=[("active", P["yellow"]), ("pressed", "#C07010")],
             foreground=[("active", "#1A0A00"),    ("pressed", "#1A0A00")])
 
-        # ── Entry ────────────────────────────────────────────
         s.configure("TEntry",
-            fieldbackground=P["input_bg"],
-            foreground=P["text_h1"],
-            insertcolor=P["accent_glow"],
-            bordercolor=P["border"],
-            font=F(10),
-            padding=4)
+            fieldbackground=P["input_bg"], foreground=P["text_h1"],
+            insertcolor=P["accent_glow"], bordercolor=P["border"],
+            font=F(12), padding=4)
         s.map("TEntry",
             bordercolor=[("focus", P["border_hi"])],
             fieldbackground=[("focus", P["card"])])
 
-        # ── Combobox ─────────────────────────────────────────
         s.configure("TCombobox",
-            fieldbackground=P["input_bg"],
-            background=P["card"],
-            foreground=P["text_h1"],
-            selectbackground=P["accent"],
-            selectforeground=P["text_h1"],
-            arrowcolor=P["accent"],
-            font=F(10),
-            padding=4)
+            fieldbackground=P["input_bg"], background=P["card"],
+            foreground=P["text_h1"], selectbackground=P["accent"],
+            selectforeground=P["text_h1"], arrowcolor=P["accent"],
+            font=F(12), padding=4)
         s.map("TCombobox",
             fieldbackground=[("readonly", P["input_bg"])],
             foreground=[("readonly", P["text_h1"])],
             bordercolor=[("focus", P["border_hi"])])
 
-        # ── Scale ────────────────────────────────────────────
         s.configure("TScale",
-            background=P["panel"],
-            troughcolor=P["card"],
-            sliderlength=18,
-            sliderrelief="flat")
+            background=P["panel"], troughcolor=P["card"],
+            sliderlength=18, sliderrelief="flat")
 
-        # ── Checkbutton ──────────────────────────────────────
         s.configure("TCheckbutton",
-            background=P["panel"],
-            foreground=P["text_h2"],
-            indicatorcolor=P["input_bg"],
-            font=F(10))
+            background=P["panel"], foreground=P["text_h2"],
+            indicatorcolor=P["input_bg"], font=F(12))
         s.map("TCheckbutton",
-            indicatorcolor=[("selected", P["accent"]),
-                            ("active",   P["accent_glow"])],
+            indicatorcolor=[("selected", P["accent"]), ("active", P["accent_glow"])],
             foreground=[("active", P["text_h1"])])
 
-        # ── Scrollbar ────────────────────────────────────────
         s.configure("TScrollbar",
-            background=P["card"],
-            troughcolor=P["panel"],
-            arrowcolor=P["text_dim"],
-            borderwidth=0,
-            arrowsize=12)
+            background=P["card"], troughcolor=P["panel"],
+            arrowcolor=P["text_dim"], borderwidth=0, arrowsize=12)
 
-        # ── Progressbar ──────────────────────────────────────
         s.configure("Horizontal.TProgressbar",
-            troughcolor=P["card"],
-            background=P["accent"],
-            borderwidth=0)
+            troughcolor=P["card"], background=P["accent"], borderwidth=0)
 
     # ══════════════════════════════════════════════════════════
     #  UI 主架構
     # ══════════════════════════════════════════════════════════
     def _build_ui(self):
+        # ── 語言狀態（預設中文） ──────────────────────────────
+        self._lang = "zh"   # "zh" | "jp"
+
         self._build_topbar()
+        self._build_toolbar_strip()   # ★ 新：頂部檔案操作橫列
 
         body = ttk.Frame(self.root, style="TFrame")
         body.pack(fill="both", expand=True, padx=8, pady=(4, 0))
 
-        # 左側控制面板  (固定寬 295px)
-        self.left_panel = tk.Frame(body, bg=P["panel"], width=295)
+        self.left_panel = tk.Frame(body, bg=P["panel"], width=320)
         self.left_panel.pack(side="left", fill="y", padx=(0, 6))
         self.left_panel.pack_propagate(False)
         self._build_left_panel()
 
-        # 右側影像區
         self.right_panel = ttk.Frame(body, style="TFrame")
         self.right_panel.pack(side="right", fill="both", expand=True)
         self._build_camera_area()
@@ -390,49 +457,168 @@ class DinoLiteApp:
 
     # ── 頂部工具列 ──────────────────────────────────────────────
     def _build_topbar(self):
-        bar = tk.Frame(self.root, bg=P["card"], height=56)
+        bar = tk.Frame(self.root, bg=P["card"], height=64)
         bar.pack(fill="x")
         bar.pack_propagate(False)
 
-        # 左：圖示 + 標題
         lf = tk.Frame(bar, bg=P["card"])
         lf.pack(side="left", padx=16, pady=10)
         tk.Label(lf, text="🔬", font=(_FONT_PRIMARY, 22),
                  bg=P["card"], fg=P["accent_glow"]).pack(side="left")
-        tk.Label(lf, text="  Dino-Lite  多鏡頭精密測量系統",
-                 font=F(14, bold=True),
-                 bg=P["card"], fg=P["text_h1"]).pack(side="left")
+        self.title_lbl = tk.Label(lf, text="  多鏡頭測量系統",
+                 font=F(16, bold=True),
+                 bg=P["card"], fg=P["text_h1"])
+        self.title_lbl.pack(side="left")
 
-        # 右：功能按鈕
         rf = tk.Frame(bar, bg=P["card"])
         rf.pack(side="right", padx=14, pady=10)
 
-        top_btns = [
-            ("❓  使用說明",    self._show_help,          P["accent"],  P["text_h1"]),
-            ("⚙   關閉其他程式", self._close_other_progs, P["card"],    P["text_dim"]),
+        # 日語切換按鈕
+        self.lang_btn = tk.Button(
+            rf, text="🇯🇵  日語切換",
+            command=self._toggle_language,
+            bg=P["card"], fg=P["text_dim"],
+            font=F(12), relief="flat", padx=10, pady=5,
+            activebackground=P["card_hover"],
+            activeforeground=P["text_h1"],
+            cursor="hand2", bd=1,
+            highlightbackground=P["border"],
+            highlightthickness=1)
+        self.lang_btn.pack(side="right", padx=5)
+
+        # 使用說明按鈕
+        self.help_btn = tk.Button(
+            rf, text="❓  使用說明",
+            command=self._show_help,
+            bg=P["accent"], fg=P["text_h1"],
+            font=F(12), relief="flat", padx=12, pady=5,
+            activebackground=P["accent_glow"],
+            activeforeground=P["bg"],
+            cursor="hand2", bd=0)
+        self.help_btn.pack(side="right", padx=5)
+
+        # 關閉其他程式按鈕
+        self.close_other_btn = tk.Button(
+            rf, text="⚙   關閉其他程式",
+            command=self._close_other_progs,
+            bg=P["card"], fg=P["text_dim"],
+            font=F(12), relief="flat", padx=12, pady=5,
+            activebackground=P["accent"],
+            activeforeground=P["text_h1"],
+            cursor="hand2", bd=0)
+        self.close_other_btn.pack(side="right", padx=5)
+
+    # ── 頂部檔案操作橫列 ────────────────────────────────────────
+    def _build_toolbar_strip(self):
+        """
+        檔案操作工具列：固定在視窗頂部（標題列下方），
+        使用者不需要捲動左側面板即可存取所有檔案功能。
+        """
+        strip = tk.Frame(self.root, bg=P["card"], height=54)
+        strip.pack(fill="x")
+        strip.pack_propagate(False)
+
+        # 分隔線
+        tk.Frame(self.root, bg=P["border"], height=1).pack(fill="x")
+
+        # ── 儲存路徑區 ────────────────────────────────────────
+        path_wrap = tk.Frame(strip, bg=P["card"])
+        path_wrap.pack(side="left", padx=10, pady=6, fill="x")
+
+        self.tb_path_icon = tk.Label(
+            path_wrap, text="📁",
+            bg=P["card"], fg=P["orange"], font=F(13))
+        self.tb_path_icon.pack(side="left")
+
+        self.savedir_lbl = tk.Label(
+            path_wrap,
+            text=self._short_path(self.save_directory, 45),
+            bg=P["input_bg"], fg=P["accent_glow"],
+            font=F(11), anchor="w", padx=8, pady=3,
+            width=38)
+        self.savedir_lbl.pack(side="left", padx=(4, 0))
+
+        self.tb_sel_btn = RoundButton(
+            path_wrap, text="選擇路徑",
+            command=self._select_savedir,
+            bg=P["orange"], fg="#1A0800",
+            hover_bg=P["yellow"], press_bg="#C07010",
+            font=F(11, bold=True), padx=10, pady=4,
+            radius=8)
+        self.tb_sel_btn.pack(side="left", padx=(6, 0))
+
+        # ── 分隔線 ────────────────────────────────────────────
+        tk.Frame(strip, bg=P["border"], width=1).pack(
+            side="left", fill="y", pady=8, padx=8)
+
+        # ── 操作按鈕群 ────────────────────────────────────────
+        cap_outer = tk.Frame(strip, bg=P["card"])
+        cap_outer.pack(side="left", padx=4, pady=3)
+
+        cap_frame = tk.Frame(cap_outer, bg=P["card"])
+        cap_frame.pack()
+
+        self._cap_main_btn = RoundButton(
+            cap_frame, text="📷  拍照",
+            command=self._do_capture,
+            bg=P["green"], fg=P["green_txt"],
+            hover_bg=P["green_dk"], press_bg="#1A7A48",
+            font=F(12, bold=True), padx=12, pady=5,
+            radius=8)
+        self._cap_main_btn.pack(side="left")
+
+        self._cap_arrow_btn = RoundButton(
+            cap_frame, text="▼",
+            command=self._show_capture_menu,
+            bg=P["green_dk"], fg=P["green_txt"],
+            hover_bg=P["green"], press_bg="#1A7A48",
+            font=F(10, bold=True), padx=7, pady=5,
+            radius=8)
+        self._cap_arrow_btn.pack(side="left", padx=(2, 0))
+
+        self._cap_mode_lbl = tk.Label(
+            cap_outer,
+            text="▸ 目前鏡頭",
+            bg=P["card"], fg=P["text_dim"],
+            font=F(9))
+        self._cap_mode_lbl.pack(pady=(1, 0))
+
+        self._tb_action_btns = {"capture_main": self._cap_main_btn,
+                                 "capture_arrow": self._cap_arrow_btn}
+
+        btn_round_defs = [
+            ("💾  儲存",  "save",   self._save_image,     P["accent"],  P["text_h1"],  P["accent_glow"], P["accent_dk"]),
+            ("📤  匯出",  "export", self._export_results, P["card"],    P["text_h2"],  P["card_hover"],  P["bg"]),
         ]
-        for txt, cmd, bg, fg in top_btns:
-            tk.Button(rf, text=txt, command=cmd,
-                      bg=bg, fg=fg,
-                      font=F(10),
-                      relief="flat", padx=12, pady=5,
-                      activebackground=P["accent"],
-                      activeforeground=P["text_h1"],
-                      cursor="hand2",
-                      bd=0).pack(side="right", padx=5)
+        for label, key, cmd, bg, fg, hbg, pbg in btn_round_defs:
+            f = tk.Frame(strip, bg=P["card"])
+            f.pack(side="left", padx=4, pady=5)
+            btn = RoundButton(
+                f, text=label,
+                command=cmd,
+                bg=bg, fg=fg,
+                hover_bg=hbg, press_bg=pbg,
+                font=F(12, bold=True), padx=12, pady=5,
+                radius=8)
+            btn.pack()
+            self._tb_action_btns[key] = btn
 
     # ── 左側控制面板 ────────────────────────────────────────────
     def _build_left_panel(self):
+        # ── 語言對照 Registry（供 _apply_language 批次更新） ──
+        self._sec_map  = {}   # {LabelFrame: key}
+        self._lbl_map  = {}   # {Label: key}
+        self._btn_map  = {}   # {Button/ttk.Button: key}
+
         lp = self.left_panel
 
-        # 捲軸容器
         wrap_canvas = tk.Canvas(lp, bg=P["panel"], highlightthickness=0)
         vsb = ttk.Scrollbar(lp, orient="vertical", command=wrap_canvas.yview)
         wrap_canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         wrap_canvas.pack(side="left", fill="both", expand=True)
 
-        inner = tk.Frame(wrap_canvas, bg=P["panel"])
+        inner  = tk.Frame(wrap_canvas, bg=P["panel"])
         win_id = wrap_canvas.create_window((0, 0), window=inner, anchor="nw")
 
         def _cfg_scroll(e):
@@ -444,58 +630,70 @@ class DinoLiteApp:
 
         def _on_wheel(e):
             wrap_canvas.yview_scroll(-1 if e.delta > 0 else 1, "units")
-        wrap_canvas.bind_all("<MouseWheel>", _on_wheel)
 
-        # ── § 共用樣式 helper ──────────────────────────────────
-        def sec(title):
-            return self._section(inner, title)
+        # ★ 使用 bind（非 bind_all），並配合 Enter/Leave 動態掛載/卸載，
+        #   確保滾輪只在滑鼠進入左側面板時才作用，
+        #   不影響使用說明視窗或其他元件的捲動。
+        def _on_enter(e):
+            wrap_canvas.bind_all("<MouseWheel>", _on_wheel)
+        def _on_leave(e):
+            wrap_canvas.unbind_all("<MouseWheel>")
 
-        def row(**kw):
-            f = tk.Frame(inner, bg=P["panel"])
-            f.pack(fill="x", padx=8, pady=3, **kw)
-            return f
+        wrap_canvas.bind("<Enter>", _on_enter)
+        wrap_canvas.bind("<Leave>", _on_leave)
+        inner.bind("<Enter>", _on_enter)
+        inner.bind("<Leave>", _on_leave)
+
+        def sec(title, key=""):
+            return self._section(inner, title, key)
+
+        pad  = dict(padx=8, pady=3, fill="x")
+        pad2 = dict(padx=8, pady=2, fill="x")
 
         def hline():
             tk.Frame(inner, bg=P["divider"], height=1).pack(
                 fill="x", padx=8, pady=4)
 
-        pad  = dict(padx=8, pady=3, fill="x")
-        pad2 = dict(padx=8, pady=2, fill="x")
-
         # ══════════════════════════════════════════════════════
         #  § 1  攝影機管理
         # ══════════════════════════════════════════════════════
-        f1 = sec("① 攝影機管理")
+        f1 = sec("① 攝影機管理", "sec1")
 
-        self._btn(f1, "🔍  偵測所有攝影機",
-                  self._detect_cameras, "Accent").pack(**pad)
+        _detect_btn = self._btn(f1, "🔍  偵測所有攝影機",
+                  self._detect_cameras, "Accent")
+        _detect_btn.pack(**pad)
+        self._btn_map[_detect_btn] = "detect"
 
-        tk.Label(f1, text="選擇鏡頭：",
-                 bg=P["panel"], fg=P["text_body"], font=F(9)).pack(
-                     padx=8, pady=(4, 0), anchor="w")
+        self._cam_sel_lbl = tk.Label(f1, text="選擇鏡頭：",
+                 bg=P["panel"], fg=P["text_body"], font=F(11))
+        self._cam_sel_lbl.pack(padx=8, pady=(4, 0), anchor="w")
+        self._lbl_map[self._cam_sel_lbl] = "cam_sel"
         self.camera_list_var = tk.StringVar()
         self.camera_combo = ttk.Combobox(f1, textvariable=self.camera_list_var,
-                                         state="readonly", font=F(10))
+                                         state="readonly", font=F(12))
         self.camera_combo.pack(**pad2)
 
         btn_r1 = tk.Frame(f1, bg=P["panel"])
         btn_r1.pack(**pad2)
-        self._btn(btn_r1, "▶  開啟", self._open_selected_camera,
-                  "Green").pack(side="left", expand=True, fill="x", padx=(0, 4))
-        self._btn(btn_r1, "■  關閉", self._close_selected_camera,
-                  "Red").pack(side="left", expand=True, fill="x")
+        _open_btn = self._btn(btn_r1, "▶  開啟", self._open_selected_camera, "Green")
+        _open_btn.pack(side="left", expand=True, fill="x", padx=(0, 4))
+        self._btn_map[_open_btn] = "open"
+        _close_btn = self._btn(btn_r1, "■  關閉", self._close_selected_camera, "Red")
+        _close_btn.pack(side="left", expand=True, fill="x")
+        self._btn_map[_close_btn] = "close"
 
         self.cam_status_label = tk.Label(
             f1, text="● 無啟用鏡頭",
-            bg=P["panel"], fg=P["red"], font=F(9, bold=True))
+            bg=P["panel"], fg=P["red"], font=F(11, bold=True))
         self.cam_status_label.pack(padx=8, pady=2, anchor="w")
 
-        tk.Label(f1, text="操作目標鏡頭：",
-                 bg=P["panel"], fg=P["text_body"], font=F(9)).pack(
-                     padx=8, pady=(4, 0), anchor="w")
+        self._active_lbl = tk.Label(f1, text="操作目標鏡頭：",
+                 bg=P["panel"], fg=P["text_body"], font=F(11))
+        self._active_lbl.pack(padx=8, pady=(4, 0), anchor="w")
+        self._lbl_map[self._active_lbl] = "active"
         self.active_cam_var = tk.StringVar()
         self.active_cam_combo = ttk.Combobox(f1, textvariable=self.active_cam_var,
-                                             state="readonly", font=F(10))
+                                             state="readonly", font=F(12))
         self.active_cam_combo.pack(**pad2)
         self.active_cam_combo.bind("<<ComboboxSelected>>",
                                    self._on_active_cam_changed)
@@ -503,68 +701,156 @@ class DinoLiteApp:
         hline()
 
         # ══════════════════════════════════════════════════════
-        #  § 2  顯微鏡設定
+        #  § 2  鏡頭設定
         # ══════════════════════════════════════════════════════
-        f2 = sec("② 顯微鏡設定")
+        f2 = sec("② 鏡頭設定", "sec2")
 
-        mf = tk.Frame(f2, bg=P["panel"])
-        mf.pack(**pad2)
-        tk.Label(mf, text="倍率：",
-                 bg=P["panel"], fg=P["text_h2"], font=F(10)).pack(side="left")
-        self.mag_var = tk.StringVar(value="50")
-        ttk.Combobox(mf, textvariable=self.mag_var,
-                     values=["20","30","50","70","100","150","200"],
-                     width=7, state="readonly", font=F(10)).pack(
-                         side="left", padx=6)
-        self.mag_var.trace_add("write", lambda *_: self._update_mag())
+        # ── 曝光控制區塊 ─────────────────────────────────────
+        tk.Frame(f2, bg=P["divider"], height=1).pack(
+            fill="x", padx=8, pady=(6, 4))
 
-        self.pixel_lbl = tk.Label(
-            f2, text="像素尺寸：— μm",
-            bg=P["panel"], fg=P["accent_glow"], font=F(9, bold=True))
-        self.pixel_lbl.pack(padx=8, anchor="w")
+        self._exp_title_lbl = tk.Label(f2,
+                 text="📷 畫面曝光控制",
+                 bg=P["panel"], fg=P["yellow"], font=F(11, bold=True))
+        self._exp_title_lbl.pack(padx=8, anchor="w")
+        self._lbl_map[self._exp_title_lbl] = "exp_title"
 
-        # LED 亮度（預設 100%，強制開啟）
-        lf2 = tk.Frame(f2, bg=P["panel"])
-        lf2.pack(**pad2)
-        tk.Label(lf2, text="💡 LED 亮度：",
-                 bg=P["panel"], fg=P["led_on"], font=F(10, bold=True)).pack(
-                     side="left")
-        self.led_val_lbl = tk.Label(
-            lf2, text="100%",
-            bg=P["panel"], fg=P["led_on"], font=F(10, bold=True))
-        self.led_val_lbl.pack(side="right")
+        # ★ 模式切換：一般攝影機 / 顯微鏡
+        mode_row = tk.Frame(f2, bg=P["panel"])
+        mode_row.pack(padx=8, pady=(2, 4), fill="x")
+        self.cam_mode_var = tk.IntVar(value=0)
 
-        self.led_var = tk.IntVar(value=100)   # ★ 預設 100
-        self.led_scale = ttk.Scale(f2, from_=0, to=100, orient="horizontal",
-                                   variable=self.led_var,
-                                   command=lambda v: self._adjust_led(float(v)))
-        self.led_scale.pack(padx=8, pady=2, fill="x")
+        self._rb_normal = tk.Radiobutton(
+            mode_row, text="一般攝影機",
+            variable=self.cam_mode_var, value=0,
+            command=self._on_cam_mode_changed,
+            bg=P["panel"], fg=P["text_h2"],
+            selectcolor=P["card"],
+            activebackground=P["panel"],
+            activeforeground=P["text_h1"],
+            font=F(11))
+        self._rb_normal.pack(side="left", padx=(0, 8))
 
-        # LED 強制開啟按鈕
-        self._btn(f2, "🔆  LED 強制全亮 (100%)",
-                  self._force_led_on, "Orange").pack(**pad2)
+        self._rb_micro = tk.Radiobutton(
+            mode_row, text="顯微鏡（關閉 AE+AWB）",
+            variable=self.cam_mode_var, value=1,
+            command=self._on_cam_mode_changed,
+            bg=P["panel"], fg=P["yellow"],
+            selectcolor=P["card"],
+            activebackground=P["panel"],
+            activeforeground=P["yellow"],
+            font=F(11))
+        self._rb_micro.pack(side="left")
+
+        self.cam_mode_hint = tk.Label(
+            f2,
+            text="💡 一般攝影機請選「一般」；電子顯微鏡請選「顯微鏡」",
+            bg=P["panel"], fg=P["text_hint"], font=F(10),
+            wraplength=260, justify="left")
+        self.cam_mode_hint.pack(padx=8, anchor="w")
+
+        # 曝光值滑桿  -13（暗）~ -1（亮）
+        ef = tk.Frame(f2, bg=P["panel"])
+        ef.pack(**pad2)
+        self._exp_lbl = tk.Label(ef, text="曝光值：",
+                 bg=P["panel"], fg=P["text_h2"], font=F(11))
+        self._exp_lbl.pack(side="left")
+        self._lbl_map[self._exp_lbl] = "exp_lbl"
+        self.exp_val_lbl = tk.Label(ef, text=str(EXPOSURE_DEFAULT),
+                                    bg=P["panel"], fg=P["accent_glow"],
+                                    font=F(11, bold=True), width=4)
+        self.exp_val_lbl.pack(side="right")
+
+        self.exp_var = tk.IntVar(value=EXPOSURE_DEFAULT)
+        self.exp_scale = ttk.Scale(f2, from_=-13, to=-1, orient="horizontal",
+                                   variable=self.exp_var,
+                                   command=lambda v: self._on_exp_change(v))
+        self.exp_scale.pack(padx=8, pady=2, fill="x")
+
+        self._exp_hint_lbl = tk.Label(f2, text="  ← 暗（-13）          亮（-1）→",
+                 bg=P["panel"], fg=P["text_hint"], font=F(10))
+        self._exp_hint_lbl.pack(padx=8, anchor="w")
+        self._lbl_map[self._exp_hint_lbl] = "exp_hint"
+
+        # 增益滑桿  0 ~ 100
+        gf = tk.Frame(f2, bg=P["panel"])
+        gf.pack(**pad2)
+        self._gain_lbl = tk.Label(gf, text="增益 Gain：",
+                 bg=P["panel"], fg=P["text_h2"], font=F(11))
+        self._gain_lbl.pack(side="left")
+        self._lbl_map[self._gain_lbl] = "gain_lbl"
+        self.gain_val_lbl = tk.Label(gf, text=str(GAIN_DEFAULT),
+                                     bg=P["panel"], fg=P["accent_glow"],
+                                     font=F(11, bold=True), width=4)
+        self.gain_val_lbl.pack(side="right")
+
+        self.gain_var = tk.IntVar(value=GAIN_DEFAULT)
+        self.gain_scale = ttk.Scale(f2, from_=0, to=100, orient="horizontal",
+                                    variable=self.gain_var,
+                                    command=lambda v: self._on_gain_change(v))
+        self.gain_scale.pack(padx=8, pady=2, fill="x")
+
+        # 亮度補償  0 ~ 255
+        bf2 = tk.Frame(f2, bg=P["panel"])
+        bf2.pack(**pad2)
+        self._bright_lbl = tk.Label(bf2, text="亮度補償：",
+                 bg=P["panel"], fg=P["text_h2"], font=F(11))
+        self._bright_lbl.pack(side="left")
+        self._lbl_map[self._bright_lbl] = "bright_lbl"
+        self.bright_val_lbl = tk.Label(bf2, text=str(BRIGHT_DEFAULT),
+                                       bg=P["panel"], fg=P["accent_glow"],
+                                       font=F(11, bold=True), width=4)
+        self.bright_val_lbl.pack(side="right")
+
+        self.bright_var = tk.IntVar(value=BRIGHT_DEFAULT)
+        self.bright_scale = ttk.Scale(f2, from_=0, to=255, orient="horizontal",
+                                      variable=self.bright_var,
+                                      command=lambda v: self._on_bright_change(v))
+        self.bright_scale.pack(padx=8, pady=2, fill="x")
+
+        # 套用按鈕
+        _apply_btn = self._btn(f2, "✅  套用曝光設定至目標鏡頭",
+                  self._apply_exposure_to_active, "Accent")
+        _apply_btn.pack(**pad)
+        self._btn_map[_apply_btn] = "apply_exp"
+
+        self.exp_sliders_note = tk.Label(
+            f2,
+            text="↑ 曝光/增益滑桿僅對「顯微鏡模式」有效",
+            bg=P["panel"], fg=P["text_hint"], font=F(10))
+        self.exp_sliders_note.pack(padx=8, anchor="w")
+        self._lbl_map[self.exp_sliders_note] = "exp_note"
+
+        # 曝光狀態標籤
+        self.exp_status_lbl = tk.Label(
+            f2, text="● 曝光：尚未設定",
+            bg=P["panel"], fg=P["text_dim"], font=F(11))
+        self.exp_status_lbl.pack(padx=8, anchor="w", pady=2)
 
         hline()
 
         # ══════════════════════════════════════════════════════
         #  § 3  校準
         # ══════════════════════════════════════════════════════
-        f3 = sec("③ 校準")
+        f3 = sec("③ 校準", "sec3")
 
         cf = tk.Frame(f3, bg=P["panel"])
         cf.pack(**pad2)
-        tk.Label(cf, text="已知距離(mm)：",
-                 bg=P["panel"], fg=P["text_h2"], font=F(10)).pack(side="left")
-        self.cal_entry = ttk.Entry(cf, width=8, font=F(10))
+        self._cal_dist_lbl = tk.Label(cf, text="已知距離(mm)：",
+                 bg=P["panel"], fg=P["text_h2"], font=F(12))
+        self._cal_dist_lbl.pack(side="left")
+        self._lbl_map[self._cal_dist_lbl] = "cal_dist"
+        self.cal_entry = ttk.Entry(cf, width=8, font=F(12))
         self.cal_entry.insert(0, "1.0")
         self.cal_entry.pack(side="left", padx=4)
 
-        self._btn(f3, "🎯  開始校準（點選兩點）",
-                  self._start_calibration).pack(**pad)
+        _cal_btn = self._btn(f3, "🎯  開始校準（點選兩點）", self._start_calibration)
+        _cal_btn.pack(**pad)
+        self._btn_map[_cal_btn] = "cal_btn"
 
         self.cal_status_lbl = tk.Label(
             f3, text="● 尚未校準",
-            bg=P["panel"], fg=P["orange"], font=F(9, bold=True))
+            bg=P["panel"], fg=P["orange"], font=F(11, bold=True))
         self.cal_status_lbl.pack(padx=8, anchor="w", pady=2)
 
         hline()
@@ -572,28 +858,29 @@ class DinoLiteApp:
         # ══════════════════════════════════════════════════════
         #  § 4  測量工具
         # ══════════════════════════════════════════════════════
-        f4 = sec("④ 測量工具")
+        f4 = sec("④ 測量工具", "sec4")
 
-        for label, mode in [
-            ("📏  距離測量  (2點)", "distance"),
-            ("📐  角度測量  (3點)", "angle"),
-            ("⭕  直徑測量  (3點)", "diameter"),
+        for label, mode, key in [
+            ("📏  距離測量  (2點)", "distance", "m_dist"),
+            ("📐  角度測量  (3點)", "angle",    "m_angle"),
+            ("⭕  直徑測量  (3點)", "diameter", "m_diam"),
         ]:
-            self._btn(f4, label,
-                      lambda m=mode: self._set_mode(m)).pack(**pad)
+            _mb = self._btn(f4, label, lambda m=mode: self._set_mode(m))
+            _mb.pack(**pad)
+            self._btn_map[_mb] = key
 
         ur = tk.Frame(f4, bg=P["panel"])
         ur.pack(**pad2)
-        self._btn(ur, "↩  撤銷上次",
-                  self._undo_last).pack(side="left", expand=True, fill="x",
-                                         padx=(0, 4))
-        self._btn(ur, "🗑  清除全部",
-                  self._clear_all, "Red").pack(side="left", expand=True,
-                                                fill="x")
+        _undo_btn = self._btn(ur, "↩  撤銷上次", self._undo_last)
+        _undo_btn.pack(side="left", expand=True, fill="x", padx=(0, 4))
+        self._btn_map[_undo_btn] = "undo"
+        _clear_btn = self._btn(ur, "🗑  清除全部", self._clear_all, "Red")
+        _clear_btn.pack(side="left", expand=True, fill="x")
+        self._btn_map[_clear_btn] = "clear"
 
         self.mode_lbl = tk.Label(
             f4, text="模式：無",
-            bg=P["panel"], fg=P["text_dim"], font=F(9))
+            bg=P["panel"], fg=P["text_dim"], font=F(11))
         self.mode_lbl.pack(padx=8, anchor="w", pady=2)
 
         hline()
@@ -601,53 +888,60 @@ class DinoLiteApp:
         # ══════════════════════════════════════════════════════
         #  § 5  精度驗證
         # ══════════════════════════════════════════════════════
-        f5 = sec("⑤ 精度驗證")
-        self._btn(f5, "🔁  重複性測試（5次）",
-                  self._start_repeatability).pack(**pad)
-        self._btn(f5, "📖  精度指南",
-                  self._show_accuracy_guide).pack(**pad)
+        f5 = sec("⑤ 精度驗證", "sec5")
+        _rep_btn = self._btn(f5, "🔁  重複性測試（5次）", self._start_repeatability)
+        _rep_btn.pack(**pad)
+        self._btn_map[_rep_btn] = "rep_btn"
+        _acc_btn = self._btn(f5, "📖  精度指南", self._show_accuracy_guide)
+        _acc_btn.pack(**pad)
+        self._btn_map[_acc_btn] = "acc_btn"
 
         hline()
 
         # ══════════════════════════════════════════════════════
         #  § 6  條碼掃描
         # ══════════════════════════════════════════════════════
-        f6 = sec("⑥ 條碼掃描")
+        f6 = sec("⑥ 條碼掃描", "sec6")
 
         if BARCODE_AVAILABLE:
             self.barcode_cam_var  = tk.BooleanVar(value=False)
             self.barcode_hand_var = tk.BooleanVar(value=False)
 
-            ttk.Checkbutton(
+            self._cb_cam_scan = ttk.Checkbutton(
                 f6,
                 text=f"攝影機條碼掃描 ({BARCODE_LIBRARY})",
                 variable=self.barcode_cam_var,
                 command=self._update_scanner_status,
-                style="TCheckbutton").pack(**pad2)
-            ttk.Checkbutton(
+                style="TCheckbutton")
+            self._cb_cam_scan.pack(**pad2)
+
+            self._cb_hand_scan = ttk.Checkbutton(
                 f6,
                 text="手持掃描器輸入",
                 variable=self.barcode_hand_var,
                 command=self._toggle_handheld,
-                style="TCheckbutton").pack(**pad2)
+                style="TCheckbutton")
+            self._cb_hand_scan.pack(**pad2)
 
             self.scanner_status_lbl = tk.Label(
                 f6, text="掃描器：待機",
-                bg=P["panel"], fg=P["text_dim"], font=F(9))
+                bg=P["panel"], fg=P["text_dim"], font=F(11))
             self.scanner_status_lbl.pack(padx=8, anchor="w")
 
-            tk.Label(f6, text="最新條碼：",
-                     bg=P["panel"], fg=P["text_body"], font=F(9)).pack(
-                         padx=8, pady=(6, 0), anchor="w")
+            self._bc_latest_lbl = tk.Label(f6, text="最新條碼：",
+                     bg=P["panel"], fg=P["text_body"], font=F(11))
+            self._bc_latest_lbl.pack(padx=8, pady=(6, 0), anchor="w")
+            self._lbl_map[self._bc_latest_lbl] = "bc_latest"
             self.barcode_display_lbl = tk.Label(
                 f6, text="—",
-                bg=P["card"], fg=P["accent_glow"], font=F(10, bold=True),
+                bg=P["card"], fg=P["accent_glow"], font=F(12, bold=True),
                 anchor="w", padx=6, pady=3, relief="flat")
             self.barcode_display_lbl.pack(padx=8, fill="x")
 
-            tk.Label(f6, text="掃描歷史：",
-                     bg=P["panel"], fg=P["text_body"], font=F(9)).pack(
-                         padx=8, pady=(6, 0), anchor="w")
+            self._bc_history_lbl = tk.Label(f6, text="掃描歷史：",
+                     bg=P["panel"], fg=P["text_body"], font=F(11))
+            self._bc_history_lbl.pack(padx=8, pady=(6, 0), anchor="w")
+            self._lbl_map[self._bc_history_lbl] = "bc_history"
 
             bc_f = tk.Frame(f6, bg=P["panel"])
             bc_f.pack(padx=8, pady=2, fill="x")
@@ -663,79 +957,23 @@ class DinoLiteApp:
             self.barcode_listbox.pack(side="left", fill="both", expand=True)
             bc_sb.pack(side="right", fill="y")
 
-            self._btn(f6, "🗑  清除條碼歷史",
-                      self._clear_barcode_history).pack(**pad2)
+            _bcc_btn = self._btn(f6, "🗑  清除條碼歷史",
+                      self._clear_barcode_history)
+            _bcc_btn.pack(**pad2)
+            self._btn_map[_bcc_btn] = "bc_clear"
         else:
             tk.Label(
                 f6,
                 text="⚠ 條碼庫未安裝\npip install zxing-cpp",
-                bg=P["panel"], fg=P["orange"], font=F(9),
+                bg=P["panel"], fg=P["orange"], font=F(11),
                 justify="left").pack(padx=8, pady=6, anchor="w")
 
         hline()
 
         # ══════════════════════════════════════════════════════
-        #  § 7  檔案操作
+        #  § 7  測量日誌  （原§8，檔案操作已移至頂部橫列）
         # ══════════════════════════════════════════════════════
-        f7 = sec("⑦ 檔案操作")
-
-        # 路徑顯示列
-        tk.Label(f7, text="儲存位置：",
-                 bg=P["panel"], fg=P["text_body"], font=F(9)).pack(
-                     padx=8, pady=(4, 0), anchor="w")
-
-        path_row = tk.Frame(f7, bg=P["panel"])
-        path_row.pack(padx=8, pady=2, fill="x")
-
-        self.savedir_lbl = tk.Label(
-            path_row,
-            text=self._short_path(self.save_directory),
-            bg=P["input_bg"], fg=P["accent_glow"],
-            font=F(9), anchor="w",
-            padx=6, pady=4,
-            wraplength=170, justify="left")
-        self.savedir_lbl.pack(side="left", fill="x", expand=True)
-
-        # ★ 明顯的「選擇路徑」按鈕（橙色，絕對看得清楚）
-        tk.Button(
-            path_row,
-            text="📁\n選擇",
-            command=self._select_savedir,
-            bg=P["orange"], fg="#1A0800",
-            font=F(8, bold=True),
-            relief="flat",
-            width=5, pady=2,
-            activebackground=P["yellow"],
-            activeforeground="#1A0800",
-            cursor="hand2", bd=0
-        ).pack(side="right", padx=(4, 0))
-
-        # 功能按鈕列
-        fr7 = tk.Frame(f7, bg=P["panel"])
-        fr7.pack(padx=8, pady=(4, 6), fill="x")
-
-        file_btns = [
-            ("📷\n拍照",  self._capture,        P["green"],   P["green_txt"]),
-            ("💾\n儲存",  self._save_image,      P["accent"],  P["text_h1"]),
-            ("📤\n匯出",  self._export_results,  P["card"],    P["text_h2"]),
-        ]
-        for label, cmd, bg, fg in file_btns:
-            tk.Button(
-                fr7, text=label, command=cmd,
-                bg=bg, fg=fg,
-                font=F(9, bold=True),
-                relief="flat", width=6, pady=4,
-                activebackground=P["accent_glow"],
-                activeforeground=P["bg"],
-                cursor="hand2", bd=0
-            ).pack(side="left", expand=True, fill="x", padx=2)
-
-        hline()
-
-        # ══════════════════════════════════════════════════════
-        #  § 8  測量日誌
-        # ══════════════════════════════════════════════════════
-        f8 = sec("⑧ 測量日誌")
+        f8 = sec("⑦ 測量日誌", "sec7")
 
         log_f = tk.Frame(f8, bg=P["panel"])
         log_f.pack(padx=8, pady=4, fill="x")
@@ -756,24 +994,23 @@ class DinoLiteApp:
     def _build_camera_area(self):
         rp = self.right_panel
 
-        # 工具列
-        tb = tk.Frame(rp, bg=P["card"], height=36)
+        tb = tk.Frame(rp, bg=P["card"], height=42)
         tb.pack(fill="x")
         tb.pack_propagate(False)
 
-        tk.Label(tb, text="影像顯示區",
-                 bg=P["card"], fg=P["text_dim"], font=F(10)).pack(
-                     side="left", padx=10, pady=8)
-        tk.Button(tb, text="⏸  全部暫停 / 恢復",
+        self._img_area_lbl = tk.Label(tb, text="影像顯示區",
+                 bg=P["card"], fg=P["text_dim"], font=F(12))
+        self._img_area_lbl.pack(side="left", padx=10, pady=8)
+
+        self._pause_btn = tk.Button(tb, text="⏸  全部暫停 / 恢復",
                   command=self._toggle_all_cameras,
                   bg=P["card"], fg=P["text_h2"],
-                  font=F(10), relief="flat",
+                  font=F(12), relief="flat",
                   activebackground=P["accent"],
                   activeforeground=P["text_h1"],
-                  cursor="hand2", padx=10, bd=0).pack(
-                      side="right", padx=10, pady=5)
+                  cursor="hand2", padx=10, bd=0)
+        self._pause_btn.pack(side="right", padx=10, pady=5)
 
-        # 畫布格線容器
         self.canvas_container = tk.Frame(rp, bg=P["bg"])
         self.canvas_container.pack(fill="both", expand=True, pady=2)
 
@@ -803,7 +1040,7 @@ class DinoLiteApp:
             tk.Label(holder,
                      text="請先偵測攝影機後點選「▶ 開啟」",
                      bg=P["canvas_bg"], fg=P["text_hint"],
-                     font=F(13)).place(relx=.5, rely=.5, anchor="center")
+                     font=F(15)).place(relx=.5, rely=.5, anchor="center")
             return
 
         for i, sess in enumerate(self.sessions):
@@ -820,25 +1057,21 @@ class DinoLiteApp:
                          bg=brd_col, bd=2, relief="flat")
         outer.grid(row=row, column=col, sticky="nsew", padx=4, pady=4)
 
-        # 標題列
-        hdr = tk.Frame(outer, bg=P["card"], height=30)
+        hdr = tk.Frame(outer, bg=P["card"], height=34)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
 
         tk.Label(hdr, text=f"  ● Camera {idx}",
                  bg=P["card"], fg=cam_hex,
-                 font=F(10, bold=True)).pack(side="left", padx=6)
+                 font=F(12, bold=True)).pack(side="left", padx=6)
         tk.Label(hdr, text="( 點擊切換操作目標 )",
                  bg=P["card"], fg=P["text_hint"],
-                 font=F(8)).pack(side="left")
+                 font=F(10)).pack(side="left")
 
         hdr.bind("<Button-1>", lambda e, i=idx: self._switch_active_cam(i))
 
-        # 畫布
-        cv = tk.Canvas(outer,
-                       bg=P["canvas_bg"],
-                       highlightthickness=0,
-                       cursor="crosshair")
+        cv = tk.Canvas(outer, bg=P["canvas_bg"],
+                       highlightthickness=0, cursor="crosshair")
         cv.pack(fill="both", expand=True)
         cv.bind("<Button-1>", lambda e, s=sess: self._on_canvas_click(e, s))
         cv.bind("<Motion>",   lambda e, s=sess: self._on_mouse_move(e, s))
@@ -859,75 +1092,178 @@ class DinoLiteApp:
 
     # ── 狀態列 ──────────────────────────────────────────────────
     def _build_statusbar(self):
-        bar = tk.Frame(self.root, bg=P["card"], height=30)
+        bar = tk.Frame(self.root, bg=P["card"], height=34)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
 
-        # 分隔線
         tk.Frame(self.root, bg=P["border"], height=1).pack(
             fill="x", side="bottom")
 
         self.status_lbl = tk.Label(
             bar, text="就緒",
             bg=P["card"], fg=P["text_body"],
-            font=F(9), anchor="w")
+            font=F(11), anchor="w")
         self.status_lbl.pack(side="left", padx=12, fill="x", expand=True)
 
-        # 版本號（顯眼）
-        tk.Label(bar, text=VERSION,
+        self.ver_lbl = tk.Label(bar, text=f"{VERSION}  {VERSION_DATE}",
                  bg=P["card"], fg=P["accent_glow"],
-                 font=F(10, bold=True)).pack(side="right", padx=14)
-
-        # 分隔點
+                 font=F(11, bold=True))
+        self.ver_lbl.pack(side="right", padx=14)
         tk.Label(bar, text="│",
                  bg=P["card"], fg=P["text_hint"],
-                 font=F(10)).pack(side="right")
+                 font=F(12)).pack(side="right")
 
-        # PIL 狀態
         pil_txt = "PIL ✓" if PIL_AVAILABLE else "PIL ✗"
         pil_col = P["green"] if PIL_AVAILABLE else P["red"]
         tk.Label(bar, text=pil_txt,
                  bg=P["card"], fg=pil_col,
-                 font=F(9)).pack(side="right", padx=8)
+                 font=F(11)).pack(side="right", padx=8)
 
-        # 條碼庫狀態
         bc_txt = f"Barcode ✓ {BARCODE_LIBRARY}" if BARCODE_AVAILABLE else "Barcode ✗"
         bc_col = P["green"] if BARCODE_AVAILABLE else P["text_hint"]
         tk.Label(bar, text=bc_txt,
                  bg=P["card"], fg=bc_col,
-                 font=F(9)).pack(side="right", padx=8)
+                 font=F(11)).pack(side="right", padx=8)
 
     # ══════════════════════════════════════════════════════════
     #  Helper Widgets
     # ══════════════════════════════════════════════════════════
     def _btn(self, parent, text: str, cmd,
-             style: str = "Normal") -> ttk.Button:
-        """建立統一樣式的 ttk.Button"""
-        styles = {
-            "Accent" : "Accent.TButton",
-            "Green"  : "Green.TButton",
-            "Red"    : "Red.TButton",
-            "Orange" : "Orange.TButton",
-            "Normal" : "TButton",
+             style: str = "Normal") -> RoundButton:
+        """建立圓角按鈕，顏色依 style 參數對應"""
+        style_map = {
+            "Accent": (P["accent"],  P["text_h1"],  P["accent_glow"], P["accent_dk"]),
+            "Green":  (P["green"],   P["green_txt"],P["green_dk"],    "#1A7A48"),
+            "Red":    (P["red"],     P["red_txt"],  P["red_dk"],      "#A01010"),
+            "Orange": (P["orange"],  "#1A0A00",     P["yellow"],      "#C07010"),
+            "Normal": (P["card"],    P["text_h2"],  P["card_hover"],  P["accent_dk"]),
         }
-        return ttk.Button(parent, text=text, command=cmd,
-                          style=styles.get(style, "TButton"))
+        bg, fg, hbg, pbg = style_map.get(style, style_map["Normal"])
+        return RoundButton(parent, text=text, command=cmd,
+                           bg=bg, fg=fg,
+                           hover_bg=hbg, press_bg=pbg,
+                           font=F(12, bold=True),
+                           padx=10, pady=5,
+                           radius=8)
 
-    def _section(self, parent, title: str) -> tk.Frame:
-        """建立帶標題的區塊 LabelFrame (tk 版，可精確控制顏色)"""
+    def _section(self, parent, title: str, lang_key: str = "") -> tk.Frame:
         lf = tk.LabelFrame(parent,
                            text=f"  {title}  ",
                            bg=P["panel"],
                            fg=P["accent_glow"],
-                           font=F(10, bold=True),
-                           bd=1,
-                           relief="groove",
+                           font=F(12, bold=True),
+                           bd=1, relief="groove",
                            labelanchor="nw")
         lf.pack(fill="x", padx=8, pady=4)
+        if lang_key and hasattr(self, "_sec_map"):
+            self._sec_map[lf] = lang_key
         return lf
 
     def _short_path(self, path: str, n: int = 38) -> str:
         return path if len(path) <= n else "…" + path[-(n - 1):]
+
+    # ══════════════════════════════════════════════════════════
+    #  曝光控制
+    # ══════════════════════════════════════════════════════════
+    def _on_cam_mode_changed(self):
+        """模式 Radio 切換：自動對目前操作鏡頭套用對應設定"""
+        sess = self._active_session()
+        if not sess:
+            return
+        if self.cam_mode_var.get() == 1:
+            self._apply_microscope_exposure(sess)
+        else:
+            self._reset_to_auto(sess)
+
+    def _reset_to_auto(self, sess: CameraSession):
+        """
+        一般攝影機模式：恢復自動曝光 + 自動白平衡。
+        解決強制關 AWB 導致的青綠色偏問題。
+        """
+        if not (sess.cap and sess.cap.isOpened()):
+            return
+        cap = sess.cap
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)   # 3=自動
+        cap.set(cv2.CAP_PROP_AUTO_WB, 1)          # 開啟 AWB
+        cap.set(cv2.CAP_PROP_GAIN, -1)            # 交給驅動
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, 128)     # 中間值
+
+        sess.manual_exposure_applied = False
+        sess.microscope_mode         = False
+        self.exp_status_lbl.config(
+            text="● 曝光：自動 AE+AWB（一般模式）",
+            fg=P["text_dim"])
+        self._log(f"[Cam{sess.cam_id}] 恢復自動曝光 + 自動白平衡（一般模式）")
+
+    def _apply_microscope_exposure(self, sess: CameraSession):
+        """
+        顯微鏡模式：關閉 AE + AWB，套用手動曝光值。
+
+        ★ 為什麼要做這件事：
+          電子顯微鏡鏡頭視野小，AE 將高亮樣品誤判為「整體過亮」
+          並自動壓暗，造成畫面暗沉。鎖定手動曝光可完全消除此問題。
+
+        ⚠ 一般攝影機請勿在此模式下使用，關 AWB 會造成色偏。
+        """
+        if not (sess.cap and sess.cap.isOpened()):
+            return
+
+        cap  = sess.cap
+        exp  = self.exp_var.get()
+        gain = self.gain_var.get()
+        bri  = self.bright_var.get()
+        results = []
+
+        ae_ok   = cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)    # 1=手動
+        results.append(f"AE關閉={'✓' if ae_ok else '△'}")
+
+        exp_ok  = cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+        results.append(f"EXP={exp}({'✓' if exp_ok else '△'})")
+
+        awb_ok  = cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+        results.append(f"AWB關閉={'✓' if awb_ok else '△'}")
+
+        gain_ok = cap.set(cv2.CAP_PROP_GAIN, gain)
+        results.append(f"Gain={gain}({'✓' if gain_ok else '△'})")
+
+        bri_ok  = cap.set(cv2.CAP_PROP_BRIGHTNESS, bri)
+        results.append(f"Bright={bri}({'✓' if bri_ok else '△'})")
+
+        sess.manual_exposure_applied = True
+        sess.microscope_mode         = True
+        self._log(f"[Cam{sess.cam_id}] 顯微鏡曝光套用：{'  '.join(results)}")
+
+        ok_count = sum(1 for r in [ae_ok, exp_ok, gain_ok] if r)
+        txt = (f"● 曝光：顯微鏡手動 EXP={exp}  Gain={gain}"
+               if ok_count >= 2
+               else "● 曝光：顯微鏡模式（部分設定 △）")
+        self.exp_status_lbl.config(
+            text=txt,
+            fg=P["green"] if ok_count >= 2 else P["orange"])
+
+    def _apply_exposure_to_active(self):
+        """UI 套用按鈕：依目前模式 Radio 對目標鏡頭套用設定"""
+        sess = self._active_session()
+        if not sess:
+            messagebox.showwarning("提示", "請先開啟攝影機")
+            return
+        if self.cam_mode_var.get() == 1:
+            self._apply_microscope_exposure(sess)
+        else:
+            self._reset_to_auto(sess)
+        self._set_status(f"[Camera {sess.cam_id}] 曝光設定已更新")
+
+    def _on_exp_change(self, v):
+        val = int(float(v))
+        self.exp_val_lbl.config(text=str(val))
+
+    def _on_gain_change(self, v):
+        val = int(float(v))
+        self.gain_val_lbl.config(text=str(val))
+
+    def _on_bright_change(self, v):
+        val = int(float(v))
+        self.bright_val_lbl.config(text=str(val))
 
     # ══════════════════════════════════════════════════════════
     #  鍵盤綁定（手持掃描器）
@@ -1030,16 +1366,11 @@ class DinoLiteApp:
             return
 
         sess.running = True
-        sess.magnification = float(self.mag_var.get())
-        sess.pixel_size_um = self._calc_pixel_size(sess.magnification)
         self.sessions.append(sess)
 
-        # ★ 偵測是否有內建 LED，有才嘗試啟用，不影響一般 Webcam 畫面
-        led_ok = self._try_enable_led(sess)
-        if led_ok:
-            self._log(f"Camera {cam_id} 偵測到內建 LED，已自動開啟")
-        else:
-            self._log(f"Camera {cam_id} 無內建 LED 或不支援，畫面保持原始")
+        # ★ v2.6：開啟時不自動套用任何曝光設定，由使用者依裝置類型選擇模式
+        #   顯微鏡 → 選「顯微鏡模式」再點套用（關 AE+AWB）
+        #   一般攝影機 → 保持預設 Auto（AWB 正常，不會色偏）
 
         names = [f"Camera {s.cam_id}" for s in self.sessions]
         self.active_cam_combo["values"] = names
@@ -1049,7 +1380,7 @@ class DinoLiteApp:
 
         self._refresh_canvas_layout()
         self._update_cam_status()
-        self._log(f"Camera {cam_id} 已啟動（LED 已強制全亮）")
+        self._log(f"Camera {cam_id} 已啟動 ─ 請在§2選擇「一般攝影機」或「顯微鏡」模式")
         self._schedule_update()
 
     def _close_selected_camera(self):
@@ -1109,7 +1440,6 @@ class DinoLiteApp:
             sess.current_frame = frame.copy()
             sess.display_frame = frame.copy()
 
-            # 條碼掃描
             if (BARCODE_AVAILABLE
                     and hasattr(self, "barcode_cam_var")
                     and self.barcode_cam_var.get()):
@@ -1139,10 +1469,10 @@ class DinoLiteApp:
             ch = cv_widget.winfo_height()
             if cw < 2 or ch < 2:
                 return
-            rgb = cv2.cvtColor(sess.display_frame, cv2.COLOR_BGR2RGB)
-            h, w = rgb.shape[:2]
-            scale  = min(cw / w, ch / h)
-            nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+            rgb     = cv2.cvtColor(sess.display_frame, cv2.COLOR_BGR2RGB)
+            h, w    = rgb.shape[:2]
+            scale   = min(cw / w, ch / h)
+            nw, nh  = max(1, int(w * scale)), max(1, int(h * scale))
             resized = cv2.resize(rgb, (nw, nh), interpolation=cv2.INTER_LINEAR)
             photo   = ImageTk.PhotoImage(Image.fromarray(resized))
 
@@ -1152,16 +1482,14 @@ class DinoLiteApp:
             cv_widget.delete("all")
             cv_widget.create_image(*sess.display_offset,
                                    anchor="nw", image=photo)
-            cv_widget.image = photo  # 防 GC
+            cv_widget.image = photo
 
-            # 十字游標
             if sess.crosshair_visible and sess.measurement_mode != "none":
                 x, y = sess.crosshair_x, sess.crosshair_y
                 cv_widget.create_line(x, 0, x, ch,
                                       fill="#FF5050", width=1, dash=(5, 3))
                 cv_widget.create_line(0, y, cw, y,
                                       fill="#FF5050", width=1, dash=(5, 3))
-                # 中心圓
                 r = 6
                 cv_widget.create_oval(x-r, y-r, x+r, y+r,
                                       outline="#FF5050", width=1)
@@ -1215,7 +1543,7 @@ class DinoLiteApp:
         labels = {"distance": "距離測量（2點）",
                   "angle":    "角度測量（3點）",
                   "diameter": "直徑測量（3點）",
-                  "calibration": "校準模式（2點）",
+                  "calibration":   "校準模式（2點）",
                   "repeatability": "重複性測試"}
         txt = labels.get(mode, mode)
         self.mode_lbl.config(text=f"模式：{txt}", fg=P["yellow"])
@@ -1225,16 +1553,16 @@ class DinoLiteApp:
         mode = sess.measurement_mode
         pts  = sess.pending_points
         try:
-            if   mode == "distance"     and len(pts) >= 2:
+            if   mode == "distance"      and len(pts) >= 2:
                 self._measure_distance(sess, pts[-2], pts[-1])
                 sess.pending_points.clear()
-            elif mode == "angle"        and len(pts) >= 3:
+            elif mode == "angle"         and len(pts) >= 3:
                 self._measure_angle(sess, pts[-3], pts[-2], pts[-1])
                 sess.pending_points.clear()
-            elif mode == "diameter"     and len(pts) >= 3:
+            elif mode == "diameter"      and len(pts) >= 3:
                 self._measure_diameter(sess, pts[-3], pts[-2], pts[-1])
                 sess.pending_points.clear()
-            elif mode == "calibration"  and len(pts) >= 2:
+            elif mode == "calibration"   and len(pts) >= 2:
                 self._complete_calibration(sess, pts[-2], pts[-1])
                 sess.pending_points.clear()
             elif mode == "repeatability" and len(pts) >= 2:
@@ -1246,11 +1574,11 @@ class DinoLiteApp:
     def _px_to_mm(self, sess: CameraSession, pixels: float) -> float:
         if sess.is_calibrated:
             return pixels * sess.scale_factor
-        return pixels * sess.pixel_size_um / 1000.0
+        return pixels * 0.005  # 未校準時使用預設估算值 5μm/px
 
     def _measure_distance(self, sess: CameraSession, p1, p2):
-        d  = math.dist(p1, p2)
-        mm = self._px_to_mm(sess, d)
+        d   = math.dist(p1, p2)
+        mm  = self._px_to_mm(sess, d)
         tag = "校準值" if sess.is_calibrated else "估算值"
         result = f"距離：{mm:.4f} mm  [{tag}]"
         self._add_meas(sess, {"type":"distance","p1":p1,"p2":p2,
@@ -1262,8 +1590,8 @@ class DinoLiteApp:
         v2 = (p3[0]-p2[0], p3[1]-p2[1])
         m1, m2 = math.hypot(*v1), math.hypot(*v2)
         if m1 > 0 and m2 > 0:
-            cos_a = max(-1.0, min(1.0,
-                        (v1[0]*v2[0]+v1[1]*v2[1]) / (m1*m2)))
+            cos_a  = max(-1.0, min(1.0,
+                         (v1[0]*v2[0]+v1[1]*v2[1]) / (m1*m2)))
             angle  = math.degrees(math.acos(cos_a))
             result = f"角度：{angle:.2f}°"
             self._add_meas(sess, {"type":"angle",
@@ -1330,8 +1658,8 @@ class DinoLiteApp:
     def _complete_calibration(self, sess: CameraSession, p1, p2):
         d = math.dist(p1, p2)
         if d > 0:
-            sess.scale_factor  = sess.calibration_distance / d
-            sess.is_calibrated = True
+            sess.scale_factor     = sess.calibration_distance / d
+            sess.is_calibrated    = True
             sess.measurement_mode = "none"
             self.cal_status_lbl.config(
                 text=f"● 已校準  {sess.scale_factor:.6f} mm/px",
@@ -1403,7 +1731,6 @@ class DinoLiteApp:
             col = self._MEAS_COLORS[i % len(self._MEAS_COLORS)]
             self._draw_one(df, m, col)
 
-        # 當前尚未完成的點
         for j, pt in enumerate(sess.pending_points):
             self._cross(df, pt, (0, 230, 255), 8, 2)
             cv2.putText(df, str(j+1),
@@ -1411,13 +1738,17 @@ class DinoLiteApp:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                         (255, 255, 255), 1)
 
-        # 計數器（左上角）
-        n, mx = len(sess.measurement_results), sess.max_measurements
-        bar_bg = (40, 44, 70)
-        cv2.rectangle(df, (6, 6), (170, 28), bar_bg, -1)
+        n, mx   = len(sess.measurement_results), sess.max_measurements
+        bar_bg  = (40, 44, 70)
+        cv2.rectangle(df, (6, 6), (210, 28), bar_bg, -1)
         col_cnt = (80, 240, 140) if n < mx else (255, 100, 80)
-        cv2.putText(df, f" Cam{sess.cam_id}  {n}/{mx} 筆測量",
-                    (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+
+        if sess.microscope_mode:
+            mode_tag = f"EXP={self.exp_var.get()}"
+        else:
+            mode_tag = "Auto"
+        cv2.putText(df, f" Cam{sess.cam_id}  {n}/{mx}  [{mode_tag}]",
+                    (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
                     col_cnt, 1)
 
     def _draw_one(self, df, m: dict, col: tuple):
@@ -1457,10 +1788,10 @@ class DinoLiteApp:
     @staticmethod
     def _put_txt(img, text: str, pos: tuple, col: tuple):
         font, sc, th = cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1
-        sz = cv2.getTextSize(text, font, sc, th)[0]
+        sz  = cv2.getTextSize(text, font, sc, th)[0]
         h0, w0 = img.shape[:2]
-        x  = max(2, min(pos[0], w0 - sz[0] - 2))
-        y  = max(sz[1]+2, min(pos[1], h0 - 2))
+        x   = max(2, min(pos[0], w0 - sz[0] - 2))
+        y   = max(sz[1]+2, min(pos[1], h0 - 2))
         cv2.rectangle(img, (x-2, y-sz[1]-3), (x+sz[0]+2, y+3),
                       (15, 17, 30), -1)
         cv2.putText(img, text, (x, y), font, sc, (240, 240, 255), th)
@@ -1485,8 +1816,7 @@ class DinoLiteApp:
             pass
         return None
 
-    def _process_barcode(self, data: dict,
-                          sess: CameraSession | None):
+    def _process_barcode(self, data: dict, sess: CameraSession | None):
         if not data or not data.get("text"):
             return
         now  = time.time()
@@ -1520,13 +1850,20 @@ class DinoLiteApp:
     def _draw_barcode_overlay(self, sess: CameraSession):
         if not sess.current_barcode or sess.display_frame is None:
             return
-        text = f"BC: {sess.current_barcode[:30]}"
-        tw   = len(text) * 8 + 12
-        cv2.rectangle(sess.display_frame, (6, 30), (6+tw, 52),
-                      (15, 40, 30), -1)
-        cv2.putText(sess.display_frame, text, (10, 47),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (80, 255, 180), 1)
+        text  = f"BC: {sess.current_barcode[:26]}"
+        font  = cv2.FONT_HERSHEY_SIMPLEX
+        scale = 1.1          # ★ 原 0.5 → 放大至 1.1
+        thick = 2
+        (tw, th), baseline = cv2.getTextSize(text, font, scale, thick)
+        x, y = 8, 38 + th    # 文字基線 y 座標
+        # 背景框（依實際文字尺寸計算）
+        cv2.rectangle(sess.display_frame,
+                      (x - 6, y - th - 8),
+                      (x + tw + 6, y + baseline + 4),
+                      (10, 35, 25), -1)
+        cv2.putText(sess.display_frame, text,
+                    (x, y), font, scale,
+                    (80, 255, 180), thick, cv2.LINE_AA)
 
     def _update_scanner_status(self):
         if not hasattr(self, "scanner_status_lbl"):
@@ -1556,75 +1893,12 @@ class DinoLiteApp:
         self._log("條碼歷史已清除")
 
     # ══════════════════════════════════════════════════════════
-    #  LED & 倍率
-    # ══════════════════════════════════════════════════════════
-    def _calc_pixel_size(self, mag: float) -> float:
-        """AM3111 感光面 6.4mm / 640px → μm/px"""
-        return (6.4 / mag * 1000.0) / 640.0
-
-    def _update_mag(self):
-        try:
-            mag   = float(self.mag_var.get())
-            px_um = self._calc_pixel_size(mag)
-            self.pixel_lbl.config(text=f"像素尺寸：{px_um:.3f} μm  ({int(mag)}×)")
-            sess = self._active_session()
-            if sess:
-                sess.magnification = mag
-                sess.pixel_size_um = px_um
-        except Exception:
-            pass
-
-    # ── LED 相關 ─────────────────────────────────────────────────
-    @staticmethod
-    def _probe_led_support(cap) -> bool:
-        """偵測是否有 UVC Backlight 控制（Dino-Lite 內建 LED 指標）"""
-        try:
-            bl = cap.get(cv2.CAP_PROP_BACKLIGHT)
-            if bl >= 0:
-                return cap.set(cv2.CAP_PROP_BACKLIGHT, bl)
-        except Exception:
-            pass
-        return False
-
-    def _adjust_led(self, value: float):
-        """
-        LED 滑桿回呼：★ 僅更新 UI 顯示，完全不碰攝影機任何參數。
-        CAP_PROP_BRIGHTNESS 直接影響曝光，不能拿來控 LED，已移除。
-        """
-        v = int(value)
-        self.led_val_lbl.config(text=f"{v}%")
-        col = P["led_on"] if v > 10 else P["led_off"]
-        self.led_val_lbl.config(fg=col)
-
-    def _try_enable_led(self, sess: "CameraSession") -> bool:
-        """只對有內建 LED（CAP_PROP_BACKLIGHT 支援）的設備寫入，一般 Webcam 完全跳過"""
-        if not (sess.cap and sess.cap.isOpened()):
-            return False
-        if not self._probe_led_support(sess.cap):
-            return False
-        try:
-            return sess.cap.set(cv2.CAP_PROP_BACKLIGHT, 1)
-        except Exception:
-            return False
-
-    def _force_led_on(self):
-        """對所有 Session 嘗試啟用 LED；無支援的設備靜默跳過"""
-        self.led_var.set(100)
-        self._adjust_led(100.0)
-        for sess in self.sessions:
-            ok = self._try_enable_led(sess)
-            self._log(
-                f"Cam{sess.cam_id} LED {'已開啟（內建LED）' if ok else '跳過（無內建LED，畫面不受影響）'}"
-            )
-
-    # ══════════════════════════════════════════════════════════
     #  操作目標切換
     # ══════════════════════════════════════════════════════════
     def _on_active_cam_changed(self, event=None):
         sel = self.active_cam_combo.current()
         if 0 <= sel < len(self.sessions):
             self._switch_active_cam(self.sessions[sel].cam_id)
-            self._update_mag()
 
     # ══════════════════════════════════════════════════════════
     #  檔案操作
@@ -1637,19 +1911,165 @@ class DinoLiteApp:
             self.savedir_lbl.config(text=self._short_path(d))
             self._log(f"保存路徑已更新：{d}")
 
+    def _update_capture_mode_label(self):
+        """更新拍照模式提示標籤文字"""
+        if not hasattr(self, "_cap_mode_lbl"):
+            return
+        if self._lang == "jp":
+            labels = {
+                "single":         "▸ 現在のレンズ",
+                "all_merged":     "▸ 全レンズ（合成）",
+                "all_individual": "▸ 全レンズ（個別）",
+            }
+        else:
+            labels = {
+                "single":         "▸ 目前鏡頭",
+                "all_merged":     "▸ 全部（合併）",
+                "all_individual": "▸ 全部（個別）",
+            }
+        self._cap_mode_lbl.config(text=labels.get(self._capture_mode, ""))
+
+    def _show_capture_menu(self):
+        """▼ 按鈕：選擇拍照模式（不立即拍攝，設定後按主按鈕才拍）"""
+        menu = tk.Menu(self.root, tearoff=0,
+                       bg=P["card"], fg=P["text_h2"],
+                       activebackground=P["accent"],
+                       activeforeground=P["text_h1"],
+                       font=F(11),
+                       bd=0, relief="flat")
+
+        def _set(mode):
+            self._capture_mode = mode
+            self._update_capture_mode_label()
+
+        if self._lang == "jp":
+            menu.add_command(
+                label="📷  現在のレンズ",
+                command=lambda: _set("single"))
+            menu.add_separator()
+            menu.add_command(
+                label="🖼  全レンズ 合成して1枚",
+                command=lambda: _set("all_merged"))
+            menu.add_command(
+                label="📂  全レンズ 個別に保存",
+                command=lambda: _set("all_individual"))
+        else:
+            menu.add_command(
+                label="📷  拍攝目前鏡頭",
+                command=lambda: _set("single"))
+            menu.add_separator()
+            menu.add_command(
+                label="🖼  全部鏡頭（合併為一張）",
+                command=lambda: _set("all_merged"))
+            menu.add_command(
+                label="📂  全部鏡頭（分別儲存）",
+                command=lambda: _set("all_individual"))
+
+        hint = ("※ 選択後「📷 拍照」ボタンで撮影" if self._lang == "jp"
+                else "※ 選擇後按「📷 拍照」執行拍攝")
+        menu.add_separator()
+        menu.add_command(label=hint, state="disabled")
+
+        btn = self._cap_arrow_btn
+        x = btn.winfo_rootx()
+        y = btn.winfo_rooty() + btn.winfo_height()
+        menu.tk_popup(x, y)
+
+    def _do_capture(self):
+        """主拍照按鈕：依目前 _capture_mode 執行對應拍攝動作"""
+        if self._capture_mode == "all_merged":
+            self._capture_all_merged()
+        elif self._capture_mode == "all_individual":
+            self._capture_all_individual()
+        else:
+            self._capture()
+
     def _capture(self):
+        """拍攝目前操作鏡頭"""
         sess = self._active_session()
         if not sess or sess.display_frame is None:
-            messagebox.showwarning("提示", "請先開啟攝影機")
+            msg = "カメラを先に起動してください" if self._lang == "jp" else "請先開啟攝影機"
+            messagebox.showwarning("⚠", msg)
             return
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fn = f"dino_cam{sess.cam_id}_{ts}.jpg"
+        fn = f"cam{sess.cam_id}_{ts}.jpg"
         fp = os.path.join(self.save_directory, fn)
         cv2.imwrite(fp, sess.display_frame)
         self._save_meta(sess, ts, fn)
-        messagebox.showinfo("拍照成功 ✓",
-                            f"檔案已儲存至：\n{fp}")
+        ok_msg = f"保存：\n{fp}" if self._lang == "jp" else f"檔案已儲存至：\n{fp}"
+        messagebox.showinfo("✓", ok_msg)
         self._log(f"拍照：{fn}")
+
+    def _capture_all_merged(self):
+        """
+        拍攝全部鏡頭，橫向拼接成一張大圖後儲存。
+        各鏡頭高度統一為最小高度，橫向排列，之間留 4px 黑色分隔線。
+        """
+        active_sessions = [s for s in self.sessions
+                           if s.display_frame is not None]
+        if not active_sessions:
+            msg = "カメラが起動していません" if self._lang == "jp" else "目前沒有已啟動的鏡頭"
+            messagebox.showwarning("⚠", msg)
+            return
+
+        # 統一高度（取最小高度）
+        min_h = min(s.display_frame.shape[0] for s in active_sessions)
+        frames = []
+        for s in active_sessions:
+            f = s.display_frame
+            h, w = f.shape[:2]
+            if h != min_h:
+                scale = min_h / h
+                f = cv2.resize(f, (max(1, int(w * scale)), min_h))
+            frames.append(f)
+
+        # 加 4px 黑色分隔線
+        sep = np.zeros((min_h, 4, 3), dtype=np.uint8)
+        merged_parts = []
+        for i, f in enumerate(frames):
+            merged_parts.append(f)
+            if i < len(frames) - 1:
+                merged_parts.append(sep)
+        merged = np.hstack(merged_parts)
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fn = f"all_cams_merged_{ts}.jpg"
+        fp = os.path.join(self.save_directory, fn)
+        cv2.imwrite(fp, merged)
+
+        cam_ids = "+".join(str(s.cam_id) for s in active_sessions)
+        ok_msg = (f"全カメラ合成保存完了 (Cam {cam_ids})\n{fp}"
+                  if self._lang == "jp"
+                  else f"全部鏡頭合併儲存完成 (Cam {cam_ids})\n{fp}")
+        messagebox.showinfo("✓", ok_msg)
+        self._log(f"全部拍照（合併）：{fn}  [{cam_ids}]")
+
+    def _capture_all_individual(self):
+        """
+        拍攝全部鏡頭，每個鏡頭各存一個獨立檔案。
+        """
+        active_sessions = [s for s in self.sessions
+                           if s.display_frame is not None]
+        if not active_sessions:
+            msg = "カメラが起動していません" if self._lang == "jp" else "目前沒有已啟動的鏡頭"
+            messagebox.showwarning("⚠", msg)
+            return
+
+        ts  = datetime.now().strftime("%Y%m%d_%H%M%S")
+        saved = []
+        for s in active_sessions:
+            fn = f"cam{s.cam_id}_{ts}.jpg"
+            fp = os.path.join(self.save_directory, fn)
+            cv2.imwrite(fp, s.display_frame)
+            self._save_meta(s, ts, fn)
+            saved.append(fn)
+            self._log(f"拍照（個別）：{fn}")
+
+        names = "\n".join(saved)
+        ok_msg = (f"全カメラ個別保存完了：\n{names}"
+                  if self._lang == "jp"
+                  else f"全部鏡頭已分別儲存：\n{names}")
+        messagebox.showinfo("✓", ok_msg)
 
     def _save_image(self):
         sess = self._active_session()
@@ -1682,15 +2102,15 @@ class DinoLiteApp:
         if not fp:
             return
         data = {
-            "export_time" : datetime.now().isoformat(),
-            "camera_id"   : sess.cam_id,
-            "magnification": sess.magnification,
-            "calibrated"  : sess.is_calibrated,
-            "scale_mm_per_px": sess.scale_factor if sess.is_calibrated else None,
-            "pixel_size_um": sess.pixel_size_um,
-            "barcode"     : sess.current_barcode,
-            "barcode_history": sess.barcode_history,
-            "measurements": [
+            "export_time"     : datetime.now().isoformat(),
+            "camera_id"       : sess.cam_id,
+            "calibrated"      : sess.is_calibrated,
+            "scale_mm_per_px" : sess.scale_factor if sess.is_calibrated else None,
+            "exposure_value"  : self.exp_var.get(),
+            "gain"            : self.gain_var.get(),
+            "barcode"         : sess.current_barcode,
+            "barcode_history" : sess.barcode_history,
+            "measurements"    : [
                 {k: v for k, v in m.items()
                  if k not in ("points","p1","p2","center")}
                 for m in sess.measurement_results
@@ -1734,67 +2154,344 @@ class DinoLiteApp:
         except ImportError:
             messagebox.showwarning("提示", "需安裝 psutil：\npip install psutil")
 
+    # ══════════════════════════════════════════════════════════
+    #  語言切換
+    # ══════════════════════════════════════════════════════════
+    _ZH = {
+        "title":"  多鏡頭測量系統","help_btn":"❓  使用說明",
+        "lang_btn":"🇯🇵  日語切換","close_other_btn":"⚙   關閉其他程式",
+        "tb_sel":"選擇路徑","tb_cap":"📷  拍照","tb_save":"💾  儲存","tb_export":"📤  匯出",
+        "sec1":"① 攝影機管理","detect":"🔍  偵測所有攝影機","cam_sel":"選擇鏡頭：",
+        "open":"▶  開啟","close":"■  關閉","no_cam":"● 無啟用鏡頭","active":"操作目標鏡頭：",
+        "sec2":"② 鏡頭設定","exp_title":"📷 畫面曝光控制",
+        "mode_normal":"一般攝影機","mode_micro":"顯微鏡（關閉 AE+AWB）",
+        "mode_hint":"💡 一般攝影機請選「一般」；電子顯微鏡請選「顯微鏡」",
+        "exp_lbl":"曝光值：","exp_hint":"  ← 暗（-13）          亮（-1）→",
+        "gain_lbl":"增益 Gain：","bright_lbl":"亮度補償：",
+        "apply_exp":"✅  套用曝光設定至目標鏡頭",
+        "exp_note":"↑ 曝光/增益滑桿僅對「顯微鏡模式」有效","exp_none":"● 曝光：尚未設定",
+        "sec3":"③ 校準","cal_dist":"已知距離(mm)：","cal_btn":"🎯  開始校準（點選兩點）",
+        "cal_none":"● 尚未校準",
+        "sec4":"④ 測量工具","m_dist":"📏  距離測量  (2點)",
+        "m_angle":"📐  角度測量  (3點)","m_diam":"⭕  直徑測量  (3點)",
+        "undo":"↩  撤銷上次","clear":"🗑  清除全部","mode_none":"模式：無",
+        "sec5":"⑤ 精度驗證","rep_btn":"🔁  重複性測試（5次）","acc_btn":"📖  精度指南",
+        "sec6":"⑥ 條碼掃描","bc_cam":"攝影機條碼掃描","bc_hand":"手持掃描器輸入",
+        "bc_status":"掃描器：待機","bc_latest":"最新條碼：","bc_history":"掃描歷史：",
+        "bc_clear":"🗑  清除條碼歷史",
+        "sec7":"⑦ 測量日誌",
+        "ready":"就緒","img_area":"影像顯示區","pause_all":"⏸  全部暫停 / 恢復",
+    }
+    _JP = {
+        "title":"  多眼鏡測定システム","help_btn":"❓  使い方",
+        "lang_btn":"🇹🇼  中文切替","close_other_btn":"⚙   他プログラムを終了",
+        "tb_sel":"保存先選択","tb_cap":"📷  撮影","tb_save":"💾  保存","tb_export":"📤  出力",
+        "sec1":"① カメラ管理","detect":"🔍  カメラを検出","cam_sel":"レンズ選択：",
+        "open":"▶  開く","close":"■  閉じる","no_cam":"● カメラなし","active":"操作対象レンズ：",
+        "sec2":"② レンズ設定","exp_title":"📷 露出制御",
+        "mode_normal":"通常カメラ","mode_micro":"顕微鏡（AE+AWB無効）",
+        "mode_hint":"💡 通常カメラ→「通常」；顕微鏡→「顕微鏡」を選択",
+        "exp_lbl":"露出値：","exp_hint":"  ← 暗（-13）          明（-1）→",
+        "gain_lbl":"ゲイン Gain：","bright_lbl":"輝度補正：",
+        "apply_exp":"✅  露出設定を対象レンズに適用",
+        "exp_note":"↑ 露出/ゲインは「顕微鏡モード」のみ有効","exp_none":"● 露出：未設定",
+        "sec3":"③ キャリブレーション","cal_dist":"既知距離(mm)：",
+        "cal_btn":"🎯  キャリブ開始（2点選択）","cal_none":"● 未キャリブ",
+        "sec4":"④ 測定ツール","m_dist":"📏  距離測定  (2点)",
+        "m_angle":"📐  角度測定  (3点)","m_diam":"⭕  直径測定  (3点)",
+        "undo":"↩  元に戻す","clear":"🗑  全消去","mode_none":"モード：なし",
+        "sec5":"⑤ 精度検証","rep_btn":"🔁  繰り返しテスト（5回）","acc_btn":"📖  精度ガイド",
+        "sec6":"⑥ バーコードスキャン","bc_cam":"カメラスキャン","bc_hand":"ハンドスキャナ入力",
+        "bc_status":"スキャナ：待機中","bc_latest":"最新バーコード：","bc_history":"スキャン履歴：",
+        "bc_clear":"🗑  バーコード履歴削除",
+        "sec7":"⑦ 測定ログ",
+        "ready":"準備完了","img_area":"映像表示エリア","pause_all":"⏸  全カメラ 一時停止 / 再開",
+    }
+
+    def _T(self, key: str) -> str:
+        d = self._JP if self._lang == "jp" else self._ZH
+        return d.get(key, self._ZH.get(key, key))
+
+    def _toggle_language(self):
+        self._lang = "jp" if self._lang == "zh" else "zh"
+        self._apply_language()
+
+    def _apply_language(self):
+        T = self._T
+        # 頂部
+        self.title_lbl.config(text=T("title"))
+        self.help_btn.config(text=T("help_btn"))
+        self.lang_btn.config(text=T("lang_btn"))
+        self.close_other_btn.config(text=T("close_other_btn"))
+        # 工具列
+        self.tb_sel_btn.config(text=T("tb_sel"))
+        if "capture_main" in self._tb_action_btns:
+            self._tb_action_btns["capture_main"].config(text=T("tb_cap"))
+        self._tb_action_btns["save"].config(text=T("tb_save"))
+        self._tb_action_btns["export"].config(text=T("tb_export"))
+        # 狀態列
+        self.status_lbl.config(text=T("ready"))
+        # 影像區
+        if hasattr(self, "_img_area_lbl"):
+            self._img_area_lbl.config(text=T("img_area"))
+        if hasattr(self, "_pause_btn"):
+            self._pause_btn.config(text=T("pause_all"))
+        # Section LabelFrames
+        for sec_widget, key in self._sec_map.items():
+            try:
+                sec_widget.config(text=f"  {T(key)}  ")
+            except Exception:
+                pass
+        # 動態標籤
+        for lbl, key in self._lbl_map.items():
+            try:
+                lbl.config(text=T(key))
+            except Exception:
+                pass
+        # 按鈕
+        for btn, key in self._btn_map.items():
+            try:
+                btn.config(text=T(key))
+            except Exception:
+                pass
+        # Radiobuttons
+        if hasattr(self, "_rb_normal"):
+            self._rb_normal.config(text=T("mode_normal"))
+        if hasattr(self, "_rb_micro"):
+            self._rb_micro.config(text=T("mode_micro"))
+        if hasattr(self, "cam_mode_hint"):
+            self.cam_mode_hint.config(text=T("mode_hint"))
+        # Checkbuttons
+        if hasattr(self, "_cb_cam_scan") and BARCODE_AVAILABLE:
+            lib = BARCODE_LIBRARY or ""
+            self._cb_cam_scan.config(text=f"{T('bc_cam')} ({lib})" if lib else T("bc_cam"))
+        if hasattr(self, "_cb_hand_scan"):
+            self._cb_hand_scan.config(text=T("bc_hand"))
+        # 模式標籤（若為「無」狀態才翻譯，避免覆蓋正在測量的模式名）
+        if hasattr(self, "mode_lbl"):
+            cur = self.mode_lbl.cget("text")
+            if "無" in cur or "なし" in cur or cur.startswith("模式") or cur.startswith("モード"):
+                self.mode_lbl.config(text=T("mode_none"))
+
     def _show_accuracy_guide(self):
-        messagebox.showinfo("AM3111 精度指南", (
-            "校準建議\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "• 使用 1 mm 或 0.5 mm 標準距離\n"
-            "• 確保良好照明、降低反光\n"
-            "• 選擇高對比清晰的測量端點\n\n"
-            "精度評估標準\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  優秀   ✅  CV < 2%\n"
-            "  良好   🟡  CV 2 – 5%\n"
-            "  可接受 🟠  CV 5 – 10%\n"
-            "  需改善 🔴  CV > 10%\n\n"
-            "倍率建議\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  一般量測   50× – 100×\n"
-            "  精密量測  100× – 200×\n\n"
-            "驗證物體\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "• 1 元硬幣（直徑 20 mm）\n"
-            "• 標準尺規刻度\n"
-            "• 電路板線寬（已知值）"
-        ))
+        if self._lang == "jp":
+            messagebox.showinfo("精度ガイド", (
+                "キャリブレーション推奨\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "• 1mm または 0.5mm の標準距離を使用\n"
+                "• 十分な照明を確保し、反射を抑える\n"
+                "• コントラストの高い端点を選択\n\n"
+                "精度評価基準\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  優秀   ✅  CV < 2%\n"
+                "  良好   🟡  CV 2 – 5%\n"
+                "  許容   🟠  CV 5 – 10%\n"
+                "  要改善 🔴  CV > 10%\n\n"
+                "検証対象\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "• 標準ルーラーの目盛り\n"
+                "• 既知の線幅を持つ基板パターン"
+            ))
+        else:
+            messagebox.showinfo("精度指南", (
+                "校準建議\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "• 使用 1 mm 或 0.5 mm 標準距離\n"
+                "• 確保良好照明、降低反光\n"
+                "• 選擇高對比清晰的測量端點\n\n"
+                "精度評估標準\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  優秀   ✅  CV < 2%\n"
+                "  良好   🟡  CV 2 – 5%\n"
+                "  可接受 🟠  CV 5 – 10%\n"
+                "  需改善 🔴  CV > 10%\n\n"
+                "驗證物體\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "• 標準尺規刻度\n"
+                "• 電路板線寬（已知值）"
+            ))
 
     def _show_help(self):
-        messagebox.showinfo("使用說明", (
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  Dino-Lite 多鏡頭精密測量系統\n"
-            "  使用說明   Ver. 2.1\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "【快速開始】\n"
-            "① 點擊「🔍 偵測所有攝影機」\n"
-            "② 從下拉選單選擇鏡頭 → 點「▶ 開啟」\n"
-            "③ 可重複步驟 ② 開啟多個鏡頭\n"
-            "④ 點擊影像上方標題列切換操作目標\n"
-            "   （高亮藍色邊框 = 目前操作鏡頭）\n\n"
-            "【LED 燈】\n"
-            "• 每次開啟攝影機自動強制 LED 100%\n"
-            "• 可用滑桿手動調整亮度\n"
-            "• 點「🔆 LED 強制全亮」快速還原\n\n"
-            "【校準步驟】\n"
-            "• 在「已知距離」欄輸入實際長度(mm)\n"
-            "• 點「🎯 開始校準」→ 在影像上點選\n"
-            "  兩個端點（已知距離的兩端）\n"
-            "• 校準後測量精度大幅提升\n\n"
-            "【測量工具】\n"
-            "  📏 距離：在影像上點選 2 點\n"
-            "  📐 角度：點選 起點→頂點→終點\n"
-            "  ⭕ 直徑：點選圓弧上任意 3 點\n\n"
-            "【條碼掃描】\n"
-            "• 攝影機掃描：勾選後自動偵測\n"
-            "• 手持掃描器：勾選後直接用掃描器掃\n"
-            "  （請保持應用程式視窗焦點）\n\n"
-            "【拍照 / 匯出】\n"
-            "• 先點「📁 保存路徑」設定儲存位置\n"
-            "• 「📷 拍照」：儲存含測量標記的截圖\n"
-            "• 「📤 匯出」：輸出 JSON 測量報告\n\n"
-            "【快捷操作】\n"
-            "  ↩ 撤銷  → 移除最後一筆測量\n"
-            "  🗑 清除  → 刪除該鏡頭所有標記\n"
-        ))
+        """使用說明：以自訂視窗呈現，字體放大、可捲動"""
+        win = tk.Toplevel(self.root)
+        win.title("使い方" if self._lang == "jp" else "使用說明")
+        win.geometry("780x640")
+        win.minsize(640, 480)
+        win.configure(bg=P["bg"])
+        win.grab_set()   # modal
+
+        # ── 標題列 ──────────────────────────────────────────
+        hdr = tk.Frame(win, bg=P["card"], height=52)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        tk.Label(hdr,
+                 text="📖  " + ("使い方" if self._lang == "jp" else "使用說明"),
+                 bg=P["card"], fg=P["text_h1"],
+                 font=F(16, bold=True)).pack(side="left", padx=16, pady=12)
+        tk.Label(hdr,
+                 text=f"{VERSION}  {VERSION_DATE}",
+                 bg=P["card"], fg=P["accent_glow"],
+                 font=F(11)).pack(side="right", padx=16)
+
+        # ── 捲動內容區 ───────────────────────────────────────
+        body = tk.Frame(win, bg=P["bg"])
+        body.pack(fill="both", expand=True, padx=16, pady=12)
+
+        sb = ttk.Scrollbar(body, orient="vertical")
+        sb.pack(side="right", fill="y")
+
+        txt = tk.Text(body,
+                      bg=P["input_bg"], fg=P["text_h2"],
+                      font=F(13),
+                      wrap="word",
+                      padx=18, pady=14,
+                      spacing1=4, spacing2=2, spacing3=6,
+                      relief="flat",
+                      borderwidth=0,
+                      yscrollcommand=sb.set,
+                      state="normal",
+                      cursor="arrow")
+        txt.pack(side="left", fill="both", expand=True)
+        sb.config(command=txt.yview)
+
+        # 使用說明視窗滾輪：進入 Text 時接管，離開時釋放
+        def _help_wheel(e):
+            txt.yview_scroll(-1 if e.delta > 0 else 1, "units")
+            return "break"
+        def _help_enter(e):
+            txt.bind_all("<MouseWheel>", _help_wheel)
+        def _help_leave(e):
+            txt.unbind_all("<MouseWheel>")
+        txt.bind("<Enter>", _help_enter)
+        txt.bind("<Leave>", _help_leave)
+
+        # ── tag 樣式 ─────────────────────────────────────────
+        txt.tag_config("h1",   font=F(15, bold=True), foreground=P["accent_glow"],
+                       spacing1=10, spacing3=4)
+        txt.tag_config("step", font=F(13, bold=True), foreground=P["yellow"],
+                       spacing1=8, spacing3=2)
+        txt.tag_config("body", font=F(13),             foreground=P["text_h2"],
+                       spacing1=2)
+        txt.tag_config("note", font=F(12),             foreground=P["text_dim"],
+                       lmargin1=24, lmargin2=24, spacing1=2)
+        txt.tag_config("sep",  font=F(10),             foreground=P["divider"])
+
+        def ins(text, tag="body"):
+            txt.insert(tk.END, text, tag)
+
+        if self._lang == "jp":
+            ins("多眼鏡測定システム  操作ガイド\n", "h1")
+            ins("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", "sep")
+
+            ins("\nSTEP 1　カメラ検出と起動\n", "step")
+            ins("① 左パネル「カメラ管理」→「🔍 カメラを検出」をクリック\n", "body")
+            ins("② ドロップダウンからレンズを選択し「▶ 開く」をクリック\n", "body")
+            ins("③ 複数レンズを使う場合は ② を繰り返す\n", "body")
+            ins("④ 映像上部タイトルバーをクリックして操作対象を切替\n", "body")
+            ins("   （明るい青枠 = 現在の操作対象レンズ）\n", "note")
+
+            ins("\nSTEP 2　露出設定（画面が暗い場合）\n", "step")
+            ins("① 左パネル「レンズ設定」の露出モードを選択\n", "body")
+            ins("   • 通常カメラ  →「通常カメラ」を選択（AWB維持）\n", "note")
+            ins("   • 電子顕微鏡 →「顕微鏡」を選択（AE+AWB無効化）\n", "note")
+            ins("② 顕微鏡モード時は「露出値」スライダーを右に動かして調整\n", "body")
+            ins("③「✅ 露出設定を対象レンズに適用」をクリックして確定\n", "body")
+
+            ins("\nSTEP 3　キャリブレーション（精密測定に必須）\n", "step")
+            ins("① 既知の実寸（mm）を「既知距離」欄に入力\n", "body")
+            ins("②「🎯 キャリブ開始」をクリック\n", "body")
+            ins("③ 映像上でその距離の両端点を 2回クリック\n", "body")
+            ins("④「● キャリブ済」と表示されれば完了\n", "body")
+
+            ins("\nSTEP 4　寸法測定\n", "step")
+            ins("📏 距離測定：映像上の 2点をクリック → 距離が表示\n", "body")
+            ins("📐 角度測定：起点 → 頂点 → 終点 の順に 3点クリック\n", "body")
+            ins("⭕ 直径測定：円弧上の任意の 3点をクリック → 直径を算出\n", "body")
+            ins("↩  「元に戻す」で直前の測定を取消\n", "note")
+            ins("🗑  「全消去」で全マーカーを削除\n", "note")
+
+            ins("\nSTEP 5　バーコードスキャン（オプション）\n", "step")
+            ins("• 「カメラスキャン」にチェック → 自動検出\n", "body")
+            ins("• ハンドスキャナ使用時は「ハンドスキャナ入力」にチェック\n", "body")
+            ins("  （アプリにフォーカスが必要）\n", "note")
+
+            ins("\nSTEP 6　撮影・保存・出力\n", "step")
+            ins("• 上部バー「保存先選択」で保存フォルダを指定\n", "body")
+            ins("• 「📷 拍照」ボタン左部：現在のレンズを撮影\n", "body")
+            ins("• 「📷 ▼」ボタン右部（▼）：撮影メニューを開く\n", "body")
+            ins("     🖼  全レンズ 合成して 1枚保存\n", "note")
+            ins("     📂  全レンズ 個別に保存\n", "note")
+            ins("• 「💾 保存」：名前を指定して保存\n", "body")
+            ins("• 「📤 出力」：測定結果を JSON ファイルで出力\n", "body")
+
+            ins("\nSTEP 7　精度検証（オプション）\n", "step")
+            ins("• 「🔁 繰り返しテスト（5回）」で再現性を確認\n", "body")
+            ins("• CV < 2% → 優秀　　CV < 5% → 良好\n", "body")
+
+        else:
+            ins("多鏡頭測量系統  操作指南\n", "h1")
+            ins("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", "sep")
+
+            ins("\nSTEP 1　偵測鏡頭並啟動\n", "step")
+            ins("① 左側面板「攝影機管理」→ 點「🔍 偵測所有攝影機」\n", "body")
+            ins("② 從下拉選單選擇鏡頭 → 點「▶ 開啟」\n", "body")
+            ins("③ 需使用多個鏡頭時，重複步驟 ② 開啟多個\n", "body")
+            ins("④ 點擊影像上方標題列切換操作目標鏡頭\n", "body")
+            ins("   （亮藍色邊框 = 目前操作中的鏡頭）\n", "note")
+
+            ins("\nSTEP 2　畫面曝光設定（畫面暗沉時）\n", "step")
+            ins("① 左側「鏡頭設定」選擇曝光模式\n", "body")
+            ins("   • 普通攝影機 → 選「一般攝影機」（保留自動白平衡）\n", "note")
+            ins("   • 電子顯微鏡 → 選「顯微鏡」（關閉 AE+AWB）\n", "note")
+            ins("② 顯微鏡模式時，將「曝光值」滑桿向右拉以增加亮度\n", "body")
+            ins("③ 點「✅ 套用曝光設定至目標鏡頭」確認套用\n", "body")
+
+            ins("\nSTEP 3　校準（精密測量必做）\n", "step")
+            ins("① 在「已知距離(mm)」欄位輸入實際距離值\n", "body")
+            ins("②  點「🎯 開始校準」\n", "body")
+            ins("③ 在影像上點選該距離的兩個端點\n", "body")
+            ins("④ 顯示「● 已校準」即完成\n", "body")
+
+            ins("\nSTEP 4　尺寸測量\n", "step")
+            ins("📏 距離測量：在影像上點 2 點 → 自動顯示距離\n", "body")
+            ins("📐 角度測量：依序點 起點 → 頂點 → 終點 共 3 點\n", "body")
+            ins("⭕ 直徑測量：點選圓弧上任意 3 點 → 自動計算直徑\n", "body")
+            ins("↩  「撤銷上次」可移除最後一筆測量\n", "note")
+            ins("🗑  「清除全部」移除所有標記\n", "note")
+
+            ins("\nSTEP 5　條碼掃描（選用）\n", "step")
+            ins("• 勾選「攝影機條碼掃描」→ 自動偵測畫面中的條碼\n", "body")
+            ins("• 使用手持掃描器時勾選「手持掃描器輸入」\n", "body")
+            ins("  （需保持程式視窗為焦點視窗）\n", "note")
+
+            ins("\nSTEP 6　拍照、儲存與匯出\n", "step")
+            ins("• 上方工具列「選擇路徑」先指定儲存資料夾\n", "body")
+            ins("• 「📷 拍照」按鈕左側：拍攝目前鏡頭\n", "body")
+            ins("• 「📷 ▼」按鈕右側（▼）：開啟拍照選單\n", "body")
+            ins("     🖼  拍攝全部鏡頭，合併為一張大圖儲存\n", "note")
+            ins("     📂  拍攝全部鏡頭，每個鏡頭分別儲存\n", "note")
+            ins("• 「💾 儲存」：指定檔名另存影像\n", "body")
+            ins("• 「📤 匯出」：將測量結果輸出為 JSON 報告\n", "body")
+
+            ins("\nSTEP 7　精度驗證（選用）\n", "step")
+            ins("• 點「🔁 重複性測試（5次）」可確認測量再現性\n", "body")
+            ins("• CV < 2% → 優秀　　CV < 5% → 良好\n", "body")
+
+        txt.config(state="disabled")
+
+        # ── 關閉按鈕 ─────────────────────────────────────────
+        bot = tk.Frame(win, bg=P["card"], height=48)
+        bot.pack(fill="x", side="bottom")
+        bot.pack_propagate(False)
+        tk.Button(bot,
+                  text="✕  " + ("閉じる" if self._lang == "jp" else "關閉"),
+                  command=win.destroy,
+                  bg=P["accent"], fg=P["text_h1"],
+                  font=F(12, bold=True), relief="flat",
+                  padx=20, pady=6,
+                  activebackground=P["accent_dk"],
+                  activeforeground=P["text_h1"],
+                  cursor="hand2", bd=0).pack(pady=8)
 
     # ══════════════════════════════════════════════════════════
     #  日誌 & 狀態
@@ -1806,7 +2503,6 @@ class DinoLiteApp:
             self.log_text.config(state="normal")
             self.log_text.insert(tk.END, line)
             self.log_text.see(tk.END)
-            # 限制行數避免記憶體膨脹
             lines = int(self.log_text.index("end-1c").split(".")[0])
             if lines > 500:
                 self.log_text.delete("1.0", "100.0")
@@ -1820,7 +2516,6 @@ class DinoLiteApp:
         except Exception:
             pass
 
-    # ── 關閉清理 ────────────────────────────────────────────
     def cleanup(self):
         if self._update_after_id:
             self.root.after_cancel(self._update_after_id)
@@ -1841,11 +2536,10 @@ def main():
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
-    # 初始化顯示
-    app._update_mag()
-    app._log(f"═══  Dino-Lite 多鏡頭精密測量系統  {VERSION}  啟動  ═══")
+    app._log(f"═══  多鏡頭測量系統  {VERSION}  啟動  ═══")
     app._log(f"字型：{_FONT_PRIMARY}  /  PIL：{'✓' if PIL_AVAILABLE else '✗'}  /  "
              f"條碼庫：{BARCODE_LIBRARY if BARCODE_AVAILABLE else '未安裝'}")
+    app._log("★ v2.6：曝光模式分離─一般攝影機保留 AWB，顯微鏡關閉 AE+AWB")
     if not PIL_AVAILABLE:
         app._log("⚠ 未安裝 Pillow → 影像無法顯示。請執行：pip install pillow")
     if not BARCODE_AVAILABLE:
@@ -1856,7 +2550,7 @@ def main():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print(f"  Dino-Lite AM3111  多鏡頭精密測量系統  {VERSION}")
+    print(f"  多鏡頭測量系統  {VERSION}")
     print("=" * 60)
     print(f"  Python  : {sys.version.split()[0]}")
     print(f"  OpenCV  : {cv2.__version__}")
