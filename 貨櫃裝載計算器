@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.6</title>
+  <title>貨櫃裝載計算器 v1.7</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,6 +11,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <!-- ★ 改用 ExcelJS 來支援圖片、樣式與字體 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <!-- ★ 預載入狀態（由「儲存為HTML」功能寫入）-->
   <script id="preloaded-state">
   window.PRELOADED_STATE = null;
@@ -22,6 +24,9 @@
     .scr::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px}
     .scr::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
     .scr::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+    /* 按鈕列隱藏卷軸 */
+    .hide-scroll::-webkit-scrollbar { display: none; }
+    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
     .hint-overlay{position:absolute;bottom:72px;right:10px;background:rgba(15,23,42,.72);backdrop-filter:blur(6px);color:#e2e8f0;font-size:10px;padding:6px 10px;border-radius:8px;pointer-events:none;z-index:15;line-height:1.8;border:1px solid rgba(255,255,255,.1)}
     .hint-key{display:inline-block;background:rgba(255,255,255,.18);border-radius:3px;padding:0 4px;margin-right:3px;font-family:monospace;font-size:9px}
     @keyframes shine{0%{background-position:-200% center}100%{background-position:200% center}}
@@ -57,7 +62,7 @@ const CARDBOARD_TYPES = {
 
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.6';
+const APP_VER = '1.7';
 const APP_DATE = '2026/03/24';
 
 const T = {
@@ -79,14 +84,15 @@ const T = {
     stratW:'優先以 箱寬(W) 貼合貨櫃深',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
-    vIso:'等角', vTop:'俯視', vFront:'前視', vSide:'側視',
-    play:'裝載順序：', xray:'透視', inner:'最內側', door:'門口',
+    vIso:'等角', vTop:'俯視', vBottom:'仰視', vFront:'前視', vBack:'後視', vLeft:'左視', vRight:'右視',
+    play:'裝載順序：', xray:'透視', perspective:'透視投影', inner:'最內側', door:'門口',
     export:'導出3視圖 (.dxf)',
     saveHtml:'儲存設定',
     saveHtmlTitle:'儲存為HTML檔',
     saveHtmlDesc:'將當前所有輸入設定封裝進HTML檔案，其他人開啟後即可看到相同的設定，無需重新輸入。',
     saveHtmlBtn:'下載 HTML 檔案',
     saveHtmlDone:'已儲存！',
+    reportBtn:'報告書(.xlsx)', reportIng:'產出中...',
     sumTitle:'裝載結果摘要',
     totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
     detail:'各類別裝載數量：', boxU:'箱',
@@ -97,9 +103,10 @@ const T = {
     helpBtn:'使用說明', helpTitle:'操作說明',
     closeBtn:'關閉',
     fixTitle:'v'+APP_VER+' 修正項目',
-    fix1:'修正1：新增紙箱種類設定，可依據AB段/A段/B段/EB段/E段自動加算外寸厚度',
-    fix2:'修正2：輸入區標題變更為「箱體尺寸設定(內寸)」',
-    fix3:'修正3：運算尺寸即時預覽功能升級，結合紙箱加算與公差變化',
+    fix1:'修正1：報告書字體支援、排版優化、並追加「貨櫃設定」資訊',
+    fix2:'修正2：報告書強制全日文輸出，確保客戶端閱讀一致性',
+    fix3:'修正3：3D 視圖新增「透視投影」切換功能（可切換為正交無變形投影）',
+    fix4:'修正4：3D 視角擴充為 6 個基本面 + 等角，全方位自由切換',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
     preloadBanner:'✅ 已載入預存設定',
   },
@@ -121,14 +128,15 @@ const T = {
     stratW:'優先: 箱の幅(W)を奥行に合わせる',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
-    vIso:'等角投影', vTop:'平面図', vFront:'正面図', vSide:'側面図',
-    play:'積載順序：', xray:'透過', inner:'最奥', door:'ドア',
+    vIso:'等角', vTop:'平面', vBottom:'底面', vFront:'正面', vBack:'背面', vLeft:'左側面', vRight:'右側面',
+    play:'積載順序：', xray:'透過', perspective:'透視投影', inner:'最奥', door:'ドア',
     export:'3面図を出力 (.dxf)',
     saveHtml:'設定を保存',
     saveHtmlTitle:'HTMLファイルとして保存',
     saveHtmlDesc:'現在の入力設定をHTMLファイルに埋め込みます。他のユーザーがファイルを開くと、同じ設定が自動的に読み込まれます。',
     saveHtmlBtn:'HTMLファイルをダウンロード',
     saveHtmlDone:'保存完了！',
+    reportBtn:'レポート(.xlsx)', reportIng:'出力中...',
     sumTitle:'積載結果の概要',
     totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
     detail:'各カテゴリ積載数：', boxU:'箱',
@@ -139,9 +147,10 @@ const T = {
     helpBtn:'ヘルプ', helpTitle:'操作ガイド',
     closeBtn:'閉じる',
     fixTitle:'v'+APP_VER+' 修正内容',
-    fix1:'修正1：ダンボール種類設定を追加、AB段/A段などの加算値で外寸を自動計算',
-    fix2:'修正2：入力領域タイトルを「箱寸法設定(内寸)」に変更',
-    fix3:'修正3：計算寸法プレビューをアップグレード',
+    fix1:'修正1：レポートのフォント対応・レイアウト最適化・コンテナ設定情報の追加',
+    fix2:'修正2：レポートを完全日本語出力に強制し、クライアント側の統一性を確保',
+    fix3:'修正3：3Dビューに「透視投影」切替機能を追加（正投影への切替が可能）',
+    fix4:'修正4：3D視点を基本6面＋等角投影に拡張し、全方位の自由な切替を実現',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
     preloadBanner:'✅ 保存された設定を読み込みました',
   }
@@ -166,6 +175,7 @@ const Ico = {
   Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   X:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   Save: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+  Table: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>
 };
 
 // ── 裝載演算法核心 ────────────────────────────────────────────────────────
@@ -461,11 +471,12 @@ function HelpModal({onClose, lang}){
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
       <Btn label="深層優化 (GRASP)" color="bg-indigo-600">執行100次隨機迭代搜尋，尋找更好的排列方式（約5~15秒）。適合多種箱型混裝或追求最高裝載率。</Btn>
+      <Btn label="報告書 (.xlsx)" color="bg-blue-600">自動以「最大」、「最小」、「中間值」三種公差運算一次，並匯出 Excel 格式的裝載數量與間隙比較表。</Btn>
       <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">輸出1:40比例的DXF格式三視圖，可用AutoCAD等CAD軟體開啟。計算完成後才可點擊。</Btn>
       <Btn label="儲存設定 (.html)" color="bg-emerald-600">將當前所有輸入設定（貨櫃種類、預留空間、箱體尺寸等）封裝進一個獨立的HTML檔案，分享給同事後對方打開即可看到相同的設定，不需重新輸入。注意：計算結果不會被儲存。</Btn>
       <Btn label="截圖" color="bg-teal-600">將整個頁面截取為高解析度JPG圖片並自動下載，適合製作報告或傳送客戶確認。</Btn>
-      <Btn label="等角/俯視/前視/側視" color="bg-slate-500">切換3D視圖觀看角度。等角：斜上方立體視角。俯視：從上往下看各層排列。前視：從門口往內看。側視：從側面看深度層次。</Btn>
-      <Btn label="透視 + 裝載順序拉桿" color="bg-slate-500">透視：半透明顯示查看內層堆疊。拉桿：逐步顯示每個箱子的放置順序。滑鼠左鍵旋轉、右鍵平移、滾輪縮放。</Btn>
+      <Btn label="等角/俯/仰/前/後/左/右視" color="bg-slate-500">切換3D視圖觀看角度，支援全方位 6 個正交面與 1 個等角視角快速切換。</Btn>
+      <Btn label="透視 / 透視投影 + 拉桿" color="bg-slate-500">透視：半透明顯示查看內層堆疊。透視投影：切換真實遠近感與正交無變形投影。拉桿：逐步顯示放置順序。滑鼠左鍵旋轉、右鍵平移、滾輪縮放。</Btn>
     </div>,
     <div className="p-5">
       <Info icon="📦" label="總裝載箱數">成功排入貨櫃有效空間內的箱子總數量（所有箱型合計）。</Info>
@@ -514,10 +525,11 @@ function HelpModal({onClose, lang}){
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。単純な箱構成や初回確認に最適。</Btn>
       <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復で最良解を探索（約5~15秒）。複雑な混載に効果的。</Btn>
+      <Btn label="レポート (.xlsx)" color="bg-blue-600">「最大」「最小」「中間値」の3つの公差で自動計算し、積載結果と残りスペースの比較表をExcel形式で出力します。</Btn>
       <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">積載結果を1:40スケールのDXF形式で出力。計算後のみ有効。</Btn>
       <Btn label="設定を保存 (.html)" color="bg-emerald-600">現在の入力設定（コンテナ種類・余白・箱体寸法など）をHTMLファイルに埋め込みます。同僚に送るとそのまま同じ設定で作業を継続できます。計算結果は保存されません。</Btn>
-      <Btn label="撮影・等角/平面/正面/側面" color="bg-teal-600">撮影：高解像度JPG保存。視点ボタン：3D視点の切替。</Btn>
-      <Btn label="透過・積載順序スライダー" color="bg-slate-500">透過：半透明で内部確認。スライダー：積載順序をステップ表示。マウス左：回転、右：移動、ホイール：縮尺。</Btn>
+      <Btn label="撮影・等角/平面/底面/正面..." color="bg-teal-600">撮影：高解像度JPG保存。視点ボタン：全方位6面＋等角投影の視点切替。</Btn>
+      <Btn label="透過 / 透視投影・積載順序" color="bg-slate-500">透過：半透明で内部確認。透視投影：パース付き/平行投影の切替。スライダー：積載順序をステップ表示。</Btn>
     </div>,
     <div className="p-5">
       <Info icon="📦" label="総積載箱数">有効スペースに収まった全箱種の合計数。</Info>
@@ -607,9 +619,11 @@ function App(){
   const [result, setResult] = useState({packed:[], stats:null});
   const [loading, setLoading]   = useState(false);
   const [graspOn, setGraspOn]   = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [step, setStep]         = useState(0);
   const [xray, setXray]         = useState(false);
+  const [isPerspective, setIsPerspective] = useState(true); // 透視投影切換
   const [helpOpen, setHelpOpen] = useState(false);
   const [fixOpen,  setFixOpen]  = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -627,26 +641,17 @@ function App(){
   const dimRef      = useRef(null);
   const camRef      = useRef(null);
   const ctrlRef     = useRef(null);
+  const sceneRef    = useRef(null);
+  const rendererRef = useRef(null);
 
   // ── 儲存為HTML ───────────────────────────────────────────────────────
   const doSaveHtml = useCallback(() => {
-    // 收集當前狀態
-    const state = {
-      lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes
-    };
+    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes };
     const stateJson = JSON.stringify(state);
-
-    // 取得當前HTML全文
     const htmlSource = document.documentElement.outerHTML;
-
-    // 替換 preloaded-state script 內容
     const newScript = `<script id="preloaded-state">\n  window.PRELOADED_STATE = ${stateJson};\n  <\/script>`;
-    const updatedHtml = htmlSource.replace(
-      /<script id="preloaded-state">[\s\S]*?<\/script>/,
-      newScript
-    );
+    const updatedHtml = htmlSource.replace(/<script id="preloaded-state">[\s\S]*?<\/script>/, newScript);
 
-    // 下載
     const blob = new Blob(['<!DOCTYPE html>\n' + updatedHtml], {type:'text/html;charset=utf-8'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -665,6 +670,240 @@ function App(){
       window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#f8fafc',pixelRatio:2})
         .then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
     }
+  };
+
+  // ── Excel 報告自動運算與匯出 (透過 ExcelJS，全日文輸出) ─────────────
+  const doReport = async () => {
+    if (!window.ExcelJS) {
+      alert(lang === 'zh' ? '尚未載入 Excel 套件，請稍後再試！' : 'Excelモジュールが読み込まれていません。後でお試しください。');
+      return;
+    }
+    setIsReporting(true);
+    
+    setTimeout(async () => {
+      try {
+        const c = CONTAINERS[ctnType];
+        const maxX = Math.max(0, c.w - rightGap);
+        const maxY = Math.max(0, c.h - topGap);
+        const maxZ = Math.max(0, c.d - doorGap);
+        const thr = suppPct / 100;
+
+        // 取得當前 3D 畫面截圖
+        let imgBase64 = null;
+        let rawImgW = 800;
+        let rawImgH = 500;
+        if (rendererRef.current && sceneRef.current && camRef.current) {
+          rendererRef.current.render(sceneRef.current, camRef.current);
+          const canvasEl = rendererRef.current.domElement;
+          imgBase64 = canvasEl.toDataURL("image/jpeg", 0.95);
+          rawImgW = canvasEl.width;
+          rawImgH = canvasEl.height;
+        }
+
+        // 定義執行模擬的輔助函式
+        const runModeForReport = (mode) => {
+          const testBoxes = boxes.map(b => ({ ...b, calcMode: mode }));
+          let best = [], bestVol = -1;
+          const tryIt = (arr) => {
+            const v = arr.reduce((s, p) => s + p.w * p.h * p.d, 0);
+            if (v > bestVol) { bestVol = v; best = arr; }
+          };
+
+          if (strat === 'auto') {
+            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, 'length', thr, false));
+            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, 'width', thr, false));
+          } else {
+            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, strat, thr, false));
+          }
+
+          let vol = 0; const counts = {};
+          best.forEach(p => { vol += p.w * p.h * p.d; counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
+          const rem = {
+            w: getGaps(best, c, 'X', maxX),
+            h: getGaps(best, c, 'Y', maxY),
+            d: getGaps(best, c, 'Z', maxZ)
+          };
+          return { total: best.length, counts, rem, testBoxes };
+        };
+
+        const resMax = runModeForReport('max');
+        const resMid = runModeForReport('mid');
+        const resMin = runModeForReport('min');
+
+        // 建立 Workbook
+        const wb = new window.ExcelJS.Workbook();
+        const ws = wb.addWorksheet('分析レポート');
+
+        // 字體定義
+        const fontBase = { name: 'BIZ UDPゴシック', size: 11 };
+        const fontBold = { name: 'BIZ UDPゴシック', size: 11, bold: true };
+        const fontTitle = { name: 'BIZ UDPゴシック', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+
+        // 輔助函式：套用儲存格樣式
+        const setCell = (cell, value, font, fill, align, border) => {
+          cell.value = value;
+          if (font) cell.font = font;
+          if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+          cell.alignment = align || { vertical: 'middle', horizontal: 'center' };
+          if (border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        };
+
+        // 【大標題】
+        ws.mergeCells('A1:G1');
+        setCell(ws.getCell('A1'), 'コンテナ積載分析レポート', fontTitle, 'FF2563EB', { vertical: 'middle', horizontal: 'center' }, false);
+        ws.getRow(1).height = 30;
+        ws.addRow([]);
+
+        // 區塊一：コンテナ設定 (貨櫃設定)
+        const ctnStartRow = 3;
+        ws.getCell(`A${ctnStartRow}`).value = '【コンテナ設定】';
+        ws.getCell(`A${ctnStartRow}`).font = fontBold;
+        
+        const ctnHeader = ['コンテナ種類', '支持面積しきい値', '最奥部余白', 'ドア側余白', '右側余白', '上部余白'];
+        const rowCtnHead = ws.addRow(ctnHeader);
+        rowCtnHead.eachCell(c => setCell(c, c.value, fontBold, 'FFE2EFDA', null, true));
+        
+        let ctnName = ctnType === '20GP' ? "20フィート標準 (20' GP)" : (ctnType === '40GP' ? "40フィート標準 (40' GP)" : "40フィートHQ (40' HQ)");
+        const rowCtnVal = ws.addRow([ctnName, suppPct + '%', innerGap + ' mm', doorGap + ' mm', rightGap + ' mm', topGap + ' mm']);
+        rowCtnVal.eachCell(c => setCell(c, c.value, fontBase, null, null, true));
+
+        ws.addRow([]); 
+
+        // 區塊二：箱体寸法設定 (內外寸與公差對照)
+        const boxStartRow = ws.rowCount + 1;
+        ws.getCell(`A${boxStartRow}`).value = '【箱寸法設定 (mm)】';
+        ws.getCell(`A${boxStartRow}`).font = fontBold;
+        
+        const boxHeader = ['箱の名前', 'ダンボール種類', '内寸 (L x W x H)', '外寸: 最大 (正公差)', '外寸: 中間値', '外寸: 最小 (負公差)'];
+        const rowBoxHead = ws.addRow(boxHeader);
+        rowBoxHead.eachCell(c => setCell(c, c.value, fontBold, 'FFE2EFDA', null, true));
+
+        boxes.forEach(b => {
+          const inner = `${b.L} x ${b.W} x ${b.H}`;
+          const cbName = b.cbType === 'none' ? 'なし' : b.cbType + '段';
+          const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
+          const bL = b.L + cb.L, bW = b.W + cb.W, bH = b.H + cb.H;
+          
+          const calcModeSize = (mode) => {
+              let finL = bL, finW = bW, finH = bH;
+              if(mode==='max'){finL+=b.tolPlus;finW+=b.tolPlus;finH+=b.tolPlus;}
+              else if(mode==='min'){finL-=b.tolMinus;finW-=b.tolMinus;finH-=b.tolMinus;}
+              else if(mode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;finL+=d;finW+=d;finH+=d;}
+              return `${finL} x ${finW} x ${finH}`;
+          };
+
+          const r = ws.addRow([b.name, cbName, inner, calcModeSize('max'), calcModeSize('mid'), calcModeSize('min')]);
+          r.eachCell(c => setCell(c, c.value, fontBase, null, null, true));
+        });
+
+        ws.addRow([]);
+        
+        // 區塊三：裝載結果比較
+        const resultStartRow = ws.rowCount + 1;
+        ws.getCell(`A${resultStartRow}`).value = '【積載と残りスペース比較】';
+        ws.getCell(`A${resultStartRow}`).font = fontBold;
+
+        const header = [
+          '計算基準',
+          ...boxes.map(b => b.name + '\n(積載数量)'),
+          '総積載箱数',
+          '奥行(Z)\n(実隙間/余白含)',
+          '幅(X)\n(実隙間/余白含)',
+          '高さ(Y)\n(実隙間/余白含)'
+        ];
+        
+        const rowResHead = ws.addRow(header);
+        rowResHead.eachCell(c => setCell(c, c.value, fontBold, 'FFD9E1F2', { vertical: 'middle', horizontal: 'center', wrapText: true }, true));
+        rowResHead.height = 30;
+
+        const formatGaps = (gaps, gapVal) => {
+            if (!gaps || gaps.length === 0) return '0 mm\n(0 mm)';
+            // 改為只有單一換行，避免高度過大
+            return gaps.map(g => `${g} mm\n(${g + gapVal} mm)`).join('\n');
+        };
+
+        const modes = [
+            { key: 'max', text: '最大(正公差)', data: resMax, color: 'FFFFE6E6' },
+            { key: 'mid', text: '中間値', data: resMid, color: 'FFFFF9E6' },
+            { key: 'min', text: '最小(負公差)', data: resMin, color: 'FFE6F9EE' }
+        ];
+
+        const boxUnit = ' 箱';
+
+        modes.forEach(m => {
+          const row = ws.addRow([
+            m.text,
+            ...boxes.map(b => (m.data.counts[b.id] || 0) + boxUnit),
+            m.data.total + boxUnit,
+            formatGaps(m.data.rem.d, doorGap),
+            formatGaps(m.data.rem.w, rightGap),
+            formatGaps(m.data.rem.h, topGap)
+          ]);
+          row.eachCell(c => setCell(c, c.value, fontBase, m.color, { vertical: 'middle', horizontal: 'center', wrapText: true }, true));
+          
+          const maxLines = Math.max(m.data.rem.d.length * 2, m.data.rem.w.length * 2, m.data.rem.h.length * 2, 2);
+          row.height = maxLines * 15 + 10; // 調整行高
+        });
+
+        // 儲存格需要略過的標題列 Set
+        const skipRows = new Set([1, ctnStartRow, boxStartRow, resultStartRow]);
+        let imgStartRow = -1;
+
+        // 插入 3D 圖片
+        if (imgBase64) {
+            const imgId = wb.addImage({
+                base64: imgBase64,
+                extension: 'jpeg',
+            });
+            imgStartRow = ws.rowCount + 2;
+            skipRows.add(imgStartRow);
+            
+            ws.getCell(`A${imgStartRow}`).value = '【3D 積載参考図 (現在の視点)】';
+            ws.getCell(`A${imgStartRow}`).font = fontBold;
+
+            // 保持原始 3D 截圖的長寬比例
+            const targetWidth = 800;
+            const targetHeight = targetWidth * (rawImgH / rawImgW);
+
+            ws.addImage(imgId, {
+                tl: { col: 0, row: imgStartRow },
+                ext: { width: targetWidth, height: targetHeight }
+            });
+        }
+
+        // 自動調整欄位寬度
+        ws.columns.forEach((col, i) => {
+          let maxLen = 0;
+          col.eachCell({ includeEmpty: true }, cell => {
+            if (skipRows.has(cell.row)) return; 
+            const val = cell.value ? cell.value.toString() : '';
+            const lines = val.split('\n');
+            lines.forEach(l => {
+                let len = 0;
+                // 日文與全形字元佔寬較大
+                for(let j=0; j<l.length; j++) len += l.charCodeAt(j) > 255 ? 2.2 : 1.2;
+                if (len > maxLen) maxLen = len;
+            });
+          });
+          col.width = Math.min(Math.max(maxLen + 2, 12), 40);
+        });
+
+        // 下載檔案
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Report_${ctnType}_${Date.now()}.xlsx`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+      } catch (err) {
+        console.error(err);
+        alert(lang === 'zh' ? '產生報告書時發生錯誤！' : 'エラーが発生しました！');
+      } finally {
+        setIsReporting(false);
+      }
+    }, 50);
   };
 
   const doCalc = (deep) => {
@@ -726,16 +965,32 @@ function App(){
     canvasRef.current.innerHTML='';
     meshesRef.current=[];
     const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
+    
     const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
-    const camera=new THREE.PerspectiveCamera(45,W/H,1,100000); camRef.current=camera;
+    sceneRef.current = scene; // 供截圖使用
+    
+    // 依據 isPerspective 決定建立哪一種攝影機
+    const aspect = W/H;
+    const c=CONTAINERS[ctnType];
+    let camera;
+    if (isPerspective) {
+        camera=new THREE.PerspectiveCamera(45, aspect, 1, 100000);
+    } else {
+        // 正交攝影機，範圍涵蓋貨櫃尺寸
+        const frustumSize = Math.max(c.w, c.d, c.h) * 1.3;
+        camera=new THREE.OrthographicCamera(-frustumSize*aspect/2, frustumSize*aspect/2, frustumSize/2, -frustumSize/2, 1, 100000);
+    }
+    camRef.current=camera;
+    
     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+    rendererRef.current = renderer; 
+    
     renderer.setSize(W,H); canvasRef.current.appendChild(renderer.domElement);
     const controls=new THREE.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=true; ctrlRef.current=controls;
     scene.add(new THREE.AmbientLight(0xffffff,.6));
     const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(10000,20000,10000); scene.add(dl);
 
-    const c=CONTAINERS[ctnType];
     scene.add(new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),
       new THREE.LineBasicMaterial({color:0x334155,linewidth:2})
@@ -805,9 +1060,30 @@ function App(){
         const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
         const cv=document.createElement('canvas'); cv.width=1536; cv.height=150;
         const ctx=cv.getContext('2d');
-        ctx.fillStyle=col; ctx.font='bold 55px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.strokeStyle='white'; ctx.lineWidth=8;
-        ctx.strokeText(txt,768,75); ctx.fillText(txt,768,75);
+        
+        ctx.font='bold 60px sans-serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        const tw = ctx.measureText(txt).width;
+        const px = 768 - tw/2 - 30, py = 75 - 45, pw = tw + 60, ph = 90, r = 20;
+        
+        // 繪製半透明白色圓角標籤背景
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(px+r, py);
+        ctx.lineTo(px+pw-r, py); ctx.quadraticCurveTo(px+pw, py, px+pw, py+r);
+        ctx.lineTo(px+pw, py+ph-r); ctx.quadraticCurveTo(px+pw, py+ph, px+pw-r, py+ph);
+        ctx.lineTo(px+r, py+ph); ctx.quadraticCurveTo(px, py+ph, px, py+ph-r);
+        ctx.lineTo(px, py+r); ctx.quadraticCurveTo(px, py, px+r, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = col;
+        ctx.stroke();
+
+        // 繪製文字
+        ctx.fillStyle=col;
+        ctx.fillText(txt,768,75);
+        
         const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
         sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
       };
@@ -860,7 +1136,7 @@ function App(){
     };
     window.addEventListener('resize',onResize);
     return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
-  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang]);
+  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang,isPerspective]); // 加入 isPerspective 依賴
 
   useEffect(()=>{
     meshesRef.current.forEach((m,i)=>{
@@ -876,10 +1152,16 @@ function App(){
     const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
     if(!cam||!ctrl) return;
     ctrl.target.set(0,0,0);
-    if(v==='iso')   cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
-    if(v==='top')   cam.position.set(0,Math.max(c.w,c.d)*1.5,.1);
-    if(v==='front') cam.position.set(0,0,c.d*1.8);
-    if(v==='side')  cam.position.set(c.d*1.8,0,0);
+    const dist = Math.max(c.w, c.d) * 1.5;
+    
+    if(v==='iso')   cam.position.set(c.w*1.8, c.h*1.8, c.d*1.5);
+    if(v==='top')   cam.position.set(0, dist, 0);
+    if(v==='bottom')cam.position.set(0, -dist, 0);
+    if(v==='front') cam.position.set(0, 0, dist);
+    if(v==='back')  cam.position.set(0, 0, -dist);
+    if(v==='left')  cam.position.set(-dist, 0, 0);
+    if(v==='right') cam.position.set(dist, 0, 0);
+    
     ctrl.update();
   };
 
@@ -937,7 +1219,7 @@ function App(){
       {fixOpen && (
         <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
           <div className="p-4 space-y-3">
-            {[t.fix1,t.fix2,t.fix3].map((f,i)=>(
+            {[t.fix1,t.fix2,t.fix3,t.fix4].map((f,i)=>(
               <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
                 <span className="text-sm text-slate-700">{f}</span>
@@ -958,8 +1240,8 @@ function App(){
 
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
-          <div className="flex items-center gap-3">
+        <header className="flex flex-col md:flex-row items-start md:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <Ico.Pkg c="w-8 h-8 text-blue-600"/>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2 flex-wrap">
               {t.title}
@@ -968,20 +1250,25 @@ function App(){
               </button>
             </h1>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={doExport} disabled={!hasPacked} className={'flex items-center px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
+          {/* 按鈕區塊單排滑動 */}
+          <div className="flex flex-row flex-nowrap items-center gap-1.5 overflow-x-auto w-full md:w-auto hide-scroll pb-1 md:pb-0" style={{WebkitOverflowScrolling: 'touch'}}>
+            <button onClick={doReport} disabled={isReporting || boxes.length === 0} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap ' + (isReporting ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white')}>
+              {isReporting ? <Ico.Spin c="w-4 h-4 mr-1.5 animate-spin"/> : <Ico.Table c="w-4 h-4 mr-1.5"/>}
+              {isReporting ? t.reportIng : t.reportBtn}
+            </button>
+            <button onClick={doExport} disabled={!hasPacked} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
               <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
             </button>
-            <button onClick={()=>setSaveOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+            <button onClick={()=>setSaveOpen(true)} className="shrink-0 flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
               <Ico.Save c="w-4 h-4 mr-1.5"/>{t.saveHtml}
             </button>
-            <button onClick={doShot} className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+            <button onClick={doShot} className="shrink-0 flex items-center bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
               <Ico.Cam c="w-4 h-4 mr-1.5"/>{t.shot}
             </button>
-            <button onClick={()=>setHelpOpen(true)} className="flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg text-sm shadow-sm font-medium transition-colors">
+            <button onClick={()=>setHelpOpen(true)} className="shrink-0 flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-2.5 py-1.5 rounded-lg text-sm shadow-sm font-medium transition-colors whitespace-nowrap">
               <Ico.Book c="w-4 h-4 mr-1.5"/>{t.helpBtn}
             </button>
-            <button onClick={()=>setLang(l=>l==='zh'?'ja':'zh')} className="flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+            <button onClick={()=>setLang(l=>l==='zh'?'ja':'zh')} className="shrink-0 flex items-center bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
               <Ico.Glob c="w-4 h-4 mr-1.5"/>{t.lang}
             </button>
           </div>
@@ -1165,12 +1452,14 @@ function App(){
                   </div>
                 )}
               </div>
-              {/* 視角ボタン */}
-              <div className="absolute top-3 right-3 z-10 flex gap-1.5">
-                {[['iso',t.vIso],['top',t.vTop],['front',t.vFront],['side',t.vSide]].map(([v,lbl])=>(
+              
+              {/* ★ 新增：視角按鈕擴充為 6 面 + 等角 */}
+              <div className="absolute top-3 right-3 z-10 flex flex-wrap gap-1.5 justify-end max-w-[280px]">
+                {[['iso',t.vIso],['top',t.vTop],['bottom',t.vBottom],['front',t.vFront],['back',t.vBack],['left',t.vLeft],['right',t.vRight]].map(([v,lbl])=>(
                   <button key={v} onClick={()=>changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2 py-1 rounded border border-slate-200 text-[11px] font-medium shadow-sm">{lbl}</button>
                 ))}
               </div>
+              
               {/* キャンバス */}
               <div ref={canvasRef} className="rounded-lg cursor-move touch-none bg-slate-100" style={{position:'absolute',top:'8px',left:'8px',right:'8px',bottom:'8px'}}></div>
               {/* 操作ヒント */}
@@ -1190,6 +1479,12 @@ function App(){
                       <input type="checkbox" checked={xray} onChange={e=>setXray(e.target.checked)} className="w-3 h-3 rounded accent-blue-600"/>
                       <Ico.Eye c="w-3.5 h-3.5 text-slate-500"/>
                       <span className="text-slate-700">{t.xray}</span>
+                    </label>
+                    {/* ★ 新增：透視投影切換 */}
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs transition-colors">
+                      <input type="checkbox" checked={isPerspective} onChange={e=>setIsPerspective(e.target.checked)} className="w-3 h-3 rounded accent-blue-600"/>
+                      <Ico.Cam c="w-3.5 h-3.5 text-slate-500"/>
+                      <span className="text-slate-700">{t.perspective}</span>
                     </label>
                   </div>
                   <div className="flex-grow flex items-center gap-2 w-full">
