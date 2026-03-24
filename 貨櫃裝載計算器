@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.42</title>
+  <title>貨櫃裝載計算器 v1.5</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,6 +11,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <!-- ★ 預載入狀態（由「儲存為HTML」功能寫入）-->
+  <script id="preloaded-state">
+  window.PRELOADED_STATE = null;
+  </script>10:36 2026/03/24
   <style>
     .touch-none{touch-action:none}
     input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:16px;width:16px;border-radius:50%;background:#2563eb;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.3)}
@@ -24,12 +28,14 @@
     .prog-bar{background:linear-gradient(90deg,#4f46e5 0%,#818cf8 40%,#4f46e5 60%,#4f46e5 100%);background-size:200% auto;animation:shine 1.5s linear infinite;transition:width .3s ease;height:100%;border-radius:9999px}
     @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     .modal-in{animation:fadeUp .22s ease-out}
+    @keyframes savePop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+    .save-pop{animation:savePop .25s ease-out}
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 const EPS = 0.5;
 
@@ -40,8 +46,8 @@ const CONTAINERS = {
 };
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.42';
-const APP_DATE = '2026/03/10';
+const APP_VER = '1.5';
+const APP_DATE = '2026/03/24';
 
 const T = {
   zh:{
@@ -63,7 +69,13 @@ const T = {
     graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
     vIso:'等角', vTop:'俯視', vFront:'前視', vSide:'側視',
     play:'裝載順序：', xray:'透視', inner:'最內側', door:'門口',
-    export:'導出3視圖 (.dxf)', sumTitle:'裝載結果摘要',
+    export:'導出3視圖 (.dxf)',
+    saveHtml:'儲存設定',
+    saveHtmlTitle:'儲存為HTML檔',
+    saveHtmlDesc:'將當前所有輸入設定封裝進HTML檔案，其他人開啟後即可看到相同的設定，無需重新輸入。',
+    saveHtmlBtn:'下載 HTML 檔案',
+    saveHtmlDone:'已儲存！',
+    sumTitle:'裝載結果摘要',
     totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
     detail:'各類別裝載數量：', boxU:'箱',
     warnTitle:'部分箱體未能完全裝入！', wShort:'短缺', wReq:'需求', wPack:'實裝',
@@ -79,7 +91,9 @@ const T = {
     fix4:'修正4：深層優化流光進度條',
     fix5:'修正5：3D畫布右下角常駐操作提示',
     fix6:'修正6：高度(Y)標註線改往門口前方延伸，解決文字沉入地面被遮擋問題',
+    fix7:'修正7：新增「儲存設定」按鈕，可將當前輸入封裝為獨立HTML檔案分享',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
+    preloadBanner:'✅ 已載入預存設定',
   },
   ja:{
     title:'コンテナ積載計算ツール', lang:'中文切替', shot:'撮影', by:'作成：分室',
@@ -100,7 +114,13 @@ const T = {
     graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
     vIso:'等角投影', vTop:'平面図', vFront:'正面図', vSide:'側面図',
     play:'積載順序：', xray:'透過', inner:'最奥', door:'ドア',
-    export:'3面図を出力 (.dxf)', sumTitle:'積載結果の概要',
+    export:'3面図を出力 (.dxf)',
+    saveHtml:'設定を保存',
+    saveHtmlTitle:'HTMLファイルとして保存',
+    saveHtmlDesc:'現在の入力設定をHTMLファイルに埋め込みます。他のユーザーがファイルを開くと、同じ設定が自動的に読み込まれます。',
+    saveHtmlBtn:'HTMLファイルをダウンロード',
+    saveHtmlDone:'保存完了！',
+    sumTitle:'積載結果の概要',
     totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
     detail:'各カテゴリ積載数：', boxU:'箱',
     warnTitle:'一部の箱が積載されませんでした！', wShort:'不足', wReq:'要求', wPack:'実積載',
@@ -116,7 +136,9 @@ const T = {
     fix4:'修正4：深層最適化プログレスバー（流光アニメ）',
     fix5:'修正5：3Dキャンバス右下に常駐操作ヒント',
     fix6:'修正6：高さ(Y)寸法線をドア前方へ延伸、文字が床面に沈む問題を修正',
+    fix7:'修正7：「設定を保存」ボタン追加。現在の入力をHTMLファイルに埋め込んで共有可能',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
+    preloadBanner:'✅ 保存された設定を読み込みました',
   }
 };
 
@@ -138,6 +160,7 @@ const Ico = {
   Chk:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   X:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Save: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
 };
 
 // ── 裝載演算法核心 ────────────────────────────────────────────────────────
@@ -295,6 +318,64 @@ function Modal({onClose, title, children, wide}){
   );
 }
 
+// ── 儲存為HTML Modal ─────────────────────────────────────────────────────
+function SaveHtmlModal({onClose, onSave, lang, t}){
+  const [saved, setSaved] = useState(false);
+  const handleSave = () => {
+    onSave();
+    setSaved(true);
+    setTimeout(()=>setSaved(false), 2500);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
+      <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Ico.Save c="w-5 h-5 text-emerald-600"/>
+            <h2 className="text-base font-bold text-slate-800">{t.saveHtmlTitle}</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
+            <Ico.X c="w-5 h-5"/>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <p className="text-sm text-emerald-800 leading-relaxed">{t.saveHtmlDesc}</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{lang==='zh'?'將會儲存的設定':'保存される設定'}</p>
+            <ul className="text-xs text-slate-600 space-y-1">
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'貨櫃種類與預留空間設定':'コンテナ種類と余白設定'}</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'所有箱體尺寸、數量、公差設定':'全箱体の寸法・数量・公差設定'}</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'支撐閾值與裝載方向策略':'支持しきい値と積載方向戦略'}</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'介面語言設定':'インターフェース言語設定'}</li>
+            </ul>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-xs text-amber-700">
+              {lang==='zh'
+                ? '⚠️ 計算結果（3D圖形）不會被儲存。收到檔案的人需要再點一次「標準計算」或「深層優化」來重新計算。'
+                : '⚠️ 計算結果（3D図形）は保存されません。ファイルを受け取った方は「標準計算」または「深層最適化」を再実行してください。'}
+            </p>
+          </div>
+        </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg text-sm transition-colors">{t.closeBtn}</button>
+          <button
+            onClick={handleSave}
+            className={'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all '+(saved?'bg-emerald-500 text-white':'bg-emerald-600 hover:bg-emerald-700 text-white')+(saved?' save-pop':'')}
+          >
+            {saved
+              ? <><Ico.Chk c="w-4 h-4"/>{t.saveHtmlDone}</>
+              : <><Ico.Dl c="w-4 h-4"/>{t.saveHtmlBtn}</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 說明視窗 ──────────────────────────────────────────────────────────────
 function HelpModal({onClose, lang}){
   const [tab, setTab] = useState(0);
@@ -368,6 +449,7 @@ function HelpModal({onClose, lang}){
       <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
       <Btn label="深層優化 (GRASP)" color="bg-indigo-600">執行100次隨機迭代搜尋，尋找更好的排列方式（約5~15秒）。適合多種箱型混裝或追求最高裝載率。</Btn>
       <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">輸出1:40比例的DXF格式三視圖，可用AutoCAD等CAD軟體開啟。計算完成後才可點擊。</Btn>
+      <Btn label="儲存設定 (.html)" color="bg-emerald-600">將當前所有輸入設定（貨櫃種類、預留空間、箱體尺寸等）封裝進一個獨立的HTML檔案，分享給同事後對方打開即可看到相同的設定，不需重新輸入。注意：計算結果不會被儲存。</Btn>
       <Btn label="截圖" color="bg-teal-600">將整個頁面截取為高解析度JPG圖片並自動下載，適合製作報告或傳送客戶確認。</Btn>
       <Btn label="等角/俯視/前視/側視" color="bg-slate-500">切換3D視圖觀看角度。等角：斜上方立體視角。俯視：從上往下看各層排列。前視：從門口往內看。側視：從側面看深度層次。</Btn>
       <Btn label="透視 + 裝載順序拉桿" color="bg-slate-500">透視：半透明顯示查看內層堆疊。拉桿：逐步顯示每個箱子的放置順序。滑鼠左鍵旋轉、右鍵平移、滾輪縮放。</Btn>
@@ -387,9 +469,9 @@ function HelpModal({onClose, lang}){
         ['深層優化跑完後，結果沒有比標準計算好，正常嗎？','正常。深層優化的 100 次迭代帶有隨機性，不保證每次都能找到更好的解。如果箱型結構比較單純（例如只有一種箱型），標準計算通常已經接近最優解。'],
         ['箱子的 L/W/H 到底哪個方向是哪個？','系統預設 L（長）為對應貨櫃「深度」方向，W（寬）為對應「左右寬度」方向，H（高）固定為垂直方向。水平擺放時 L 和 W 可以互換（這就是裝載方向策略在控制的事）。'],
         ['設備不能翻轉，系統有考慮這個嗎？','有。系統只允許箱體繞垂直軸（Y軸）旋轉，也就是 L 和 W 可以互換，但 H（高度）永遠是垂直方向，不會讓設備側放或倒置。'],
-        ['公差功能什麼時候需要用到？','當您的箱子是由工廠外包製作，實際尺寸可能與圖面有出入時使用。例如：標稱 600mm，但允許 ±2mm 誤差，則填正公差 2、負公差 2，再選「最大」計算模式，確保最大的箱子也裝得進去。'],
         ['空間利用率怎麼提高？','① 縮小各方向預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（如改為 30~40%）→ ④ 若有多種箱型，考慮混裝（數量都設為 0，讓系統自動填滿）。'],
         ['DXF 檔案輸出後在 CAD 裡看不到圖形？','DXF 比例為 1:40，實際圖形可能很小。請在 CAD 中使用「全部縮放」（ZOOM → ALL）或「範圍縮放」（ZOOM → EXTENT）指令讓所有圖形顯示在視窗內。'],
+        ['「儲存設定」和「截圖」有什麼不同？','截圖：把當前畫面（含3D圖）存成JPG圖片，僅供檢視。儲存設定：把輸入數據封裝進HTML檔，收到的人可以繼續互動操作、重新計算，就像從未關閉視窗一樣。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
@@ -420,6 +502,7 @@ function HelpModal({onClose, lang}){
       <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。単純な箱構成や初回確認に最適。</Btn>
       <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復で最良解を探索（約5~15秒）。複雑な混載に効果的。</Btn>
       <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">積載結果を1:40スケールのDXF形式で出力。計算後のみ有効。</Btn>
+      <Btn label="設定を保存 (.html)" color="bg-emerald-600">現在の入力設定（コンテナ種類・余白・箱体寸法など）をHTMLファイルに埋め込みます。同僚に送るとそのまま同じ設定で作業を継続できます。計算結果は保存されません。</Btn>
       <Btn label="撮影・等角/平面/正面/側面" color="bg-teal-600">撮影：高解像度JPG保存。視点ボタン：3D視点の切替。</Btn>
       <Btn label="透過・積載順序スライダー" color="bg-slate-500">透過：半透明で内部確認。スライダー：積載順序をステップ表示。マウス左：回転、右：移動、ホイール：縮尺。</Btn>
     </div>,
@@ -436,6 +519,7 @@ function HelpModal({onClose, lang}){
         ['深層最適化が標準計算より良くならないことはありますか？','あります。ランダム性があるため、箱種が単純な場合は標準計算がすでに最適解に近いことがほとんどです。'],
         ['公差機能はいつ使いますか？','外注製造の箱で実寸に誤差がある場合に使用。標称600mm±2mmなら、正公差2・負公差2・計算基準「最大」で最悪ケースを検証できます。'],
         ['DXFファイルをCADで開いても図形が見えません。','縮尺1:40のため図形が非常に小さく表示される場合があります。CADで「ZOOM → ALL」または「ZOOM → EXTENT」を実行してください。'],
+        ['「設定を保存」と「撮影」の違いは何ですか？','撮影：現在の画面（3D図を含む）をJPG画像として保存します（閲覧のみ）。設定を保存：入力データをHTMLファイルに埋め込みます。受け取った人は同じ設定で操作・再計算を続けられます。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
@@ -489,21 +573,25 @@ function HelpModal({onClose, lang}){
 
 // ── メインアプリ ──────────────────────────────────────────────────────────
 function App(){
-  const [lang, setLang] = useState('zh');
+  // ── 載入預存狀態（如果有） ────────────────────────────────────────────
+  const PS = window.PRELOADED_STATE;
+
+  const [lang, setLang] = useState(PS?.lang || 'zh');
   const t = T[lang];
 
-  const [ctnType,  setCtnType]  = useState('20GP');
-  const [doorGap,  setDoorGap]  = useState(248);
-  const [innerGap, setInnerGap] = useState(20);
-  const [rightGap, setRightGap] = useState(10);
-  const [topGap,   setTopGap]   = useState(50);
-  const [suppPct,  setSuppPct]  = useState(50);
+  const [ctnType,  setCtnType]  = useState(PS?.ctnType  || '20GP');
+  const [doorGap,  setDoorGap]  = useState(PS?.doorGap  ?? 248);
+  const [innerGap, setInnerGap] = useState(PS?.innerGap ?? 20);
+  const [rightGap, setRightGap] = useState(PS?.rightGap ?? 10);
+  const [topGap,   setTopGap]   = useState(PS?.topGap   ?? 50);
+  const [suppPct,  setSuppPct]  = useState(PS?.suppPct  ?? 50);
+  const [strat,    setStrat]    = useState(PS?.strat    || 'auto');
 
-  const [boxes, setBoxes] = useState([{
+  const [boxes, setBoxes] = useState(PS?.boxes || [{
     id:uid(), name:'紙箱 A', L:600, W:400, H:400,
     color:COLORS[0], qty:0, tolPlus:0, tolMinus:0, calcMode:'nominal'
   }]);
-  const [strat, setStrat]   = useState('auto');
+
   const [result, setResult] = useState({packed:[], stats:null});
   const [loading, setLoading]   = useState(false);
   const [graspOn, setGraspOn]   = useState(false);
@@ -512,12 +600,52 @@ function App(){
   const [xray, setXray]         = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [fixOpen,  setFixOpen]  = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [showPreloadBanner, setShowPreloadBanner] = useState(!!PS);
+
+  useEffect(()=>{
+    if(showPreloadBanner){
+      const t=setTimeout(()=>setShowPreloadBanner(false), 4000);
+      return ()=>clearTimeout(t);
+    }
+  },[showPreloadBanner]);
 
   const canvasRef   = useRef(null);
   const meshesRef   = useRef([]);
   const dimRef      = useRef(null);
   const camRef      = useRef(null);
   const ctrlRef     = useRef(null);
+
+  // ── 儲存為HTML ───────────────────────────────────────────────────────
+  const doSaveHtml = useCallback(() => {
+    // 收集當前狀態
+    const state = {
+      lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes
+    };
+    const stateJson = JSON.stringify(state);
+
+    // 取得當前HTML全文
+    const htmlSource = document.documentElement.outerHTML;
+
+    // 替換 preloaded-state script 內容
+    const newScript = `<script id="preloaded-state">\n  window.PRELOADED_STATE = ${stateJson};\n  <\/script>`;
+    const updatedHtml = htmlSource.replace(
+      /<script id="preloaded-state">[\s\S]*?<\/script>/,
+      newScript
+    );
+
+    // 下載
+    const blob = new Blob(['<!DOCTYPE html>\n' + updatedHtml], {type:'text/html;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const ts   = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    a.href     = url;
+    a.download = `Container_Settings_${ctnType}_${ts}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes]);
 
   const doShot = () => {
     const el=document.getElementById('app-root');
@@ -605,7 +733,6 @@ function App(){
     const eY0=-c.h/2, eY1=eY0+(c.h-topGap);
     const eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
 
-    // 紅色虛線有效裝載區域框
     const corners=[
       new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),
       new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),
@@ -634,7 +761,6 @@ function App(){
       new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})
     ));
 
-    // 箱體 mesh
     const grp=new THREE.Group();
     result.packed.forEach(p=>{
       const mesh=new THREE.Mesh(
@@ -650,7 +776,6 @@ function App(){
     });
     scene.add(grp);
 
-    // ── 剩餘間隙標註 (修正6：高度Y改往Z方向延伸) ──────────────────────
     const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
     if(result.stats?.rem&&result.packed.length>0){
       const {w:gW,h:gH,d:gD}=result.stats.rem;
@@ -675,9 +800,8 @@ function App(){
         sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
       };
 
-      const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0, x0=eX0;
+      const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0;
 
-      // 寬度(X) 藍色 — 往門口前方(Z+)延伸
       gW.forEach((g,i)=>{
         if(g>0){
           const off=400+i*300;
@@ -689,20 +813,17 @@ function App(){
         }
       });
 
-      // ★ 高度(Y) 綠色 — 修正6：改往門口前方(Z+)延伸，避免文字沉入地面
       gH.forEach((g,i)=>{
         if(g>0){
-          const off=600+i*400;   // 比寬度標註更往前，避免重疊
+          const off=600+i*400;
           const p1=new THREE.Vector3(lX, lY-g, lZ+off);
           const p2=new THREE.Vector3(lX, lY,   lZ+off);
           addL(new THREE.Vector3(lX, lY-g, lZ), p1, '#16a34a');
           addL(new THREE.Vector3(lX, lY,   lZ), p2, '#16a34a');
-          // sprite偏移：往右(X+)200 + 往前(Z+)300，確保文字浮在貨櫃右前上方
           addD(p1,p2, t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)', '#16a34a', 200, 0, 300);
         }
       });
 
-      // 深度(Z) 橘色 — 往下(Y-)延伸
       gD.forEach((g,i)=>{
         if(g>0){
           const off=400+i*300;
@@ -750,7 +871,6 @@ function App(){
     ctrl.update();
   };
 
-  // ── DXF エクスポート ──────────────────────────────────────────────────
   const doExport=()=>{
     if(!result.packed.length) return;
     const c=CONTAINERS[ctnType], sc=1/40, gap=1500*sc, eps=1e-4;
@@ -800,11 +920,12 @@ function App(){
     <div id="app-root" className="min-h-screen p-4 md:p-6 bg-slate-50">
 
       {helpOpen && <HelpModal onClose={()=>setHelpOpen(false)} lang={lang}/>}
+      {saveOpen && <SaveHtmlModal onClose={()=>setSaveOpen(false)} onSave={doSaveHtml} lang={lang} t={t}/>}
 
       {fixOpen && (
         <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
           <div className="p-4 space-y-3">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6].map((f,i)=>(
+            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7].map((f,i)=>(
               <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
                 <span className="text-sm text-slate-700">{f}</span>
@@ -812,6 +933,15 @@ function App(){
             ))}
           </div>
         </Modal>
+      )}
+
+      {/* 預載入狀態提示橫幅 */}
+      {showPreloadBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium pointer-events-none"
+          style={{animation:'fadeUp .3s ease-out'}}>
+          <Ico.Chk c="w-4 h-4"/>
+          {t.preloadBanner}
+        </div>
       )}
 
       <div className="max-w-7xl mx-auto space-y-6">
@@ -829,6 +959,10 @@ function App(){
           <div className="flex flex-wrap gap-2">
             <button onClick={doExport} disabled={!hasPacked} className={'flex items-center px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
               <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
+            </button>
+            {/* ★ 新增：儲存設定按鈕 */}
+            <button onClick={()=>setSaveOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
+              <Ico.Save c="w-4 h-4 mr-1.5"/>{t.saveHtml}
             </button>
             <button onClick={doShot} className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
               <Ico.Cam c="w-4 h-4 mr-1.5"/>{t.shot}
