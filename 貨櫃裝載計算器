@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.5</title>
+  <title>貨櫃裝載計算器 v1.6</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,7 +14,7 @@
   <!-- ★ 預載入狀態（由「儲存為HTML」功能寫入）-->
   <script id="preloaded-state">
   window.PRELOADED_STATE = null;
-  </script>10:36 2026/03/24
+  </script>
   <style>
     .touch-none{touch-action:none}
     input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:16px;width:16px;border-radius:50%;background:#2563eb;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.3)}
@@ -44,9 +44,20 @@ const CONTAINERS = {
   '40GP': {id:'40GP', w:2330, h:2350, d:11998},
   '40HQ': {id:'40HQ', w:2330, h:2655, d:11998}
 };
+
+// 紙箱加算值定義 (依據圖表)
+const CARDBOARD_TYPES = {
+  'none': { L:0, W:0, H:0 },
+  'AB': { L:15, W:15, H:30 },
+  'A': { L:10, W:10, H:20 },
+  'B': { L:6, W:6, H:12 },
+  'EB': { L:9, W:9, H:18 },
+  'E': { L:3, W:3, H:6 }
+};
+
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.5';
+const APP_VER = '1.6';
 const APP_DATE = '2026/03/24';
 
 const T = {
@@ -56,11 +67,12 @@ const T = {
     gInner:'最內側預留 (mm)', gDoor:'門口預留 (mm)', gRight:'右側預留 (mm)', gTop:'上方預留 (mm)',
     gSupport:'支撐面積閾值 (%)', gSupportL:'寬鬆(高裝載率)', gSupportR:'嚴格(高穩定性)',
     dimTotal:'內部尺寸 (深×寬×高)', dimD:'有效深度', dimW:'有效寬度', dimH:'有效高度',
-    boxSet:'箱體尺寸設定(外寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱',
+    boxSet:'箱體尺寸設定(內寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱',
+    cbType:'紙箱種類 (自動計算外寸)',
     fL:'長(L) mm', fW:'寬(W) mm', fH:'高(H) mm', fQ:'數量 (0=自動)',
     tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
-    mNom:'標準外寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間值',
-    mLabel:'運算尺寸:',
+    mNom:'標準尺寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間值',
+    mLabel:'實際運算外寸:',
     stratTitle:'裝載方向策略',
     stratAuto:'自動最佳化 (整體數量最多)',
     stratL:'優先以 箱長(L) 貼合貨櫃深',
@@ -85,13 +97,9 @@ const T = {
     helpBtn:'使用說明', helpTitle:'操作說明',
     closeBtn:'關閉',
     fixTitle:'v'+APP_VER+' 修正項目',
-    fix1:'修正1：極端點浮點數容差 EPS=0.5mm，去重量化至1mm格',
-    fix2:'修正2：GRASP 100次迭代、Fisher-Yates洗牌、擾動機率提升',
-    fix3:'修正3：支撐閾值可調 20~80%（預設50%，原固定80%）',
-    fix4:'修正4：深層優化流光進度條',
-    fix5:'修正5：3D畫布右下角常駐操作提示',
-    fix6:'修正6：高度(Y)標註線改往門口前方延伸，解決文字沉入地面被遮擋問題',
-    fix7:'修正7：新增「儲存設定」按鈕，可將當前輸入封裝為獨立HTML檔案分享',
+    fix1:'修正1：新增紙箱種類設定，可依據AB段/A段/B段/EB段/E段自動加算外寸厚度',
+    fix2:'修正2：輸入區標題變更為「箱體尺寸設定(內寸)」',
+    fix3:'修正3：運算尺寸即時預覽功能升級，結合紙箱加算與公差變化',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
     preloadBanner:'✅ 已載入預存設定',
   },
@@ -101,11 +109,12 @@ const T = {
     gInner:'最奥部余白 (mm)', gDoor:'ドア側余白 (mm)', gRight:'右側余白 (mm)', gTop:'上部余白 (mm)',
     gSupport:'支持面積しきい値 (%)', gSupportL:'緩やか(高積載率)', gSupportR:'厳格(高安定性)',
     dimTotal:'内部寸法 (奥行×幅×高)', dimD:'有効奥行', dimW:'有効幅', dimH:'有効高さ',
-    boxSet:'箱寸法設定(外寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール',
+    boxSet:'箱寸法設定(内寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール',
+    cbType:'ダンボール種類 (外寸自動計算)',
     fL:'長さ(L) mm', fW:'幅(W) mm', fH:'高さ(H) mm', fQ:'数量 (0=自動)',
     tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
-    mNom:'標準外寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間値',
-    mLabel:'計算寸法:',
+    mNom:'標準寸法', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間値',
+    mLabel:'実際の計算外寸:',
     stratTitle:'積載方向の戦略',
     stratAuto:'自動最適化 (全体数量最大)',
     stratL:'優先: 箱の長さ(L)を奥行に合わせる',
@@ -130,13 +139,9 @@ const T = {
     helpBtn:'ヘルプ', helpTitle:'操作ガイド',
     closeBtn:'閉じる',
     fixTitle:'v'+APP_VER+' 修正内容',
-    fix1:'修正1：極端点の浮動小数点許容差 EPS=0.5mm、1mm格子で重複除去',
-    fix2:'修正2：GRASP 100回反復、Fisher-Yatesシャッフル、摂動確率向上',
-    fix3:'修正3：支持しきい値を20~80%で調整可能（デフォルト50%、旧80%）',
-    fix4:'修正4：深層最適化プログレスバー（流光アニメ）',
-    fix5:'修正5：3Dキャンバス右下に常駐操作ヒント',
-    fix6:'修正6：高さ(Y)寸法線をドア前方へ延伸、文字が床面に沈む問題を修正',
-    fix7:'修正7：「設定を保存」ボタン追加。現在の入力をHTMLファイルに埋め込んで共有可能',
+    fix1:'修正1：ダンボール種類設定を追加、AB段/A段などの加算値で外寸を自動計算',
+    fix2:'修正2：入力領域タイトルを「箱寸法設定(内寸)」に変更',
+    fix3:'修正3：計算寸法プレビューをアップグレード',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
     preloadBanner:'✅ 保存された設定を読み込みました',
   }
@@ -158,7 +163,7 @@ const Ico = {
   Book: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
   Star: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
   Chk:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   X:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   Save: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
 };
@@ -217,10 +222,17 @@ function simulate(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize
   let pts=[{x:0,y:0,z:innerGap}], packed=[];
   const finInv=[], infInv=[];
   boxTypes.forEach(b=>{
-    let aL=b.L, aW=b.W, aH=b.H;
+    // 套用紙箱加算值
+    const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
+    let aL = b.L + cb.L;
+    let aW = b.W + cb.W;
+    let aH = b.H + cb.H;
+
+    // 套用公差
     if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
     else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
     else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
+
     const item={...b,w:aW,h:aH,d:aL};
     if(b.qty>0){item.remaining=b.qty;finInv.push(item);}
     else{item.remaining=Infinity;infInv.push(item);}
@@ -346,7 +358,7 @@ function SaveHtmlModal({onClose, onSave, lang, t}){
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{lang==='zh'?'將會儲存的設定':'保存される設定'}</p>
             <ul className="text-xs text-slate-600 space-y-1">
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'貨櫃種類與預留空間設定':'コンテナ種類と余白設定'}</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'所有箱體尺寸、數量、公差設定':'全箱体の寸法・数量・公差設定'}</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'所有箱體尺寸、數量、公差與種類設定':'全箱体の寸法・数量・公差・種類設定'}</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'支撐閾值與裝載方向策略':'支持しきい値と積載方向戦略'}</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'介面語言設定':'インターフェース言語設定'}</li>
             </ul>
@@ -430,7 +442,7 @@ function HelpModal({onClose, lang}){
       <p className="text-sm text-slate-500 mb-4">按照以下 5 個步驟，即可完成貨櫃裝載試算：</p>
       <Step n="1" title="選擇貨櫃種類">在左上方的下拉選單中，選擇您要使用的貨櫃規格（20呎、40呎 或 40呎高櫃）。系統會自動帶入該規格的標準最小內部尺寸。</Step>
       <Step n="2" title="設定預留空間">輸入貨櫃四個方向的預留空間（單位：mm）：最內側（車頭方向）、門口（裝卸方向）、右側、上方。預留空間是指固定架、綑綁帶、緩衝材料等所需的空間。</Step>
-      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，輸入箱子的外箱長(L)×寬(W)×高(H)尺寸（單位：mm）與數量。數量輸入 0 表示「盡可能塞滿貨櫃」。</Step>
+      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，選擇紙箱種類（如AB段）並輸入箱子的內寸(L/W/H)與數量。系統會自動幫您加上紙箱厚度變成外寸。</Step>
       <Step n="4" title="選擇計算策略並執行">選擇「裝載方向策略」後，點擊「標準計算」按鈕。幾秒內即可看到右側的 3D 裝載示意圖與結果摘要。</Step>
       <Step n="5" title="查看結果、必要時深層優化">查看右側的總裝載箱數與空間利用率。若希望進一步提升裝載率，可點擊「深層優化 (GRASP)」進行更精密的搜尋。</Step>
       <Tip>第一次使用建議先用「標準計算」確認基本結果，再視情況使用深層優化。</Tip>
@@ -440,10 +452,11 @@ function HelpModal({onClose, lang}){
       <Field name="貨櫃種類" type="下拉選單"><strong>20' GP</strong>：內部深度約 5867mm。<strong>40' GP</strong>：內部深度約 11998mm，最常見規格。<strong>40' HQ</strong>：與 40' GP 同長，高度多約 305mm。※尺寸採用 JIS/ISO 最小內部尺寸。</Field>
       <Field name="各方向預留空間" type="數值 mm">最內側：車頭側緩衝/固定架空間。門口：門板開關/拉條固定空間。右側：固定帶穿繞/通道空間。上方：頂部固定帶/隔熱墊空間。</Field>
       <Field name="支撐面積閾值 (%)" type="滑桿 20~80%"><strong>50%（預設）</strong>：底部至少一半面積有支撐，適合一般紙箱。<strong>20~30%（寬鬆）</strong>：裝載率更高但穩定性較低。<strong>70~80%（嚴格）</strong>：適合重型設備或精密儀器。</Field>
-      <Field name="長(L) / 寬(W) / 高(H)" type="數值 mm">輸入外箱實際尺寸。H固定為垂直方向（不可翻轉）。L和W可水平旋轉互換。</Field>
+      <Field name="紙箱種類" type="下拉選單">若選擇如「AB段」等選項，輸入的尺寸將被視為「內寸」，系統會自動加上紙箱厚度（例如 AB段長寬+15/高+30）來計算。若選「無(直接輸入外寸)」，則不加算厚度。</Field>
+      <Field name="長(L) / 寬(W) / 高(H)" type="數值 mm">輸入箱體實際尺寸。H固定為垂直方向（不可翻轉）。L和W可水平旋轉互換。</Field>
       <Field name="數量" type="數值"><strong>輸入 0</strong>：自動計算最多能裝入幾個。<strong>輸入具體數字</strong>：優先嘗試裝入該數量，若裝不下會顯示短缺警告。</Field>
       <Field name="正公差(+) / 負公差(-)" type="數值 mm">箱體製造尺寸允許誤差範圍。搭配「計算基準」可模擬最壞/最好情況。</Field>
-      <Field name="計算基準" type="下拉選單"><strong>標準外寸</strong>：以標稱尺寸計算。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設每個箱子都是最小狀態。<strong>中間值</strong>：取正負公差中間值。</Field>
+      <Field name="計算基準" type="下拉選單"><strong>標準尺寸</strong>：以標稱尺寸計算。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設每個箱子都是最小狀態。<strong>中間值</strong>：取正負公差中間值。</Field>
     </div>,
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
@@ -465,13 +478,12 @@ function HelpModal({onClose, lang}){
     </div>,
     <div className="p-5 space-y-4">
       {[
+        ['紙箱種類有什麼作用？','選擇紙箱種類（如AB段）時，系統會認定您輸入的L/W/H是「內寸」，並在運算時自動加上紙箱的厚度轉換成「外寸」堆疊。若您的貨物不是紙箱或已經量好外寸，請選擇「無(直接輸入外寸)」。'],
         ['為什麼選「自動」策略有時和手動選 L 或 W 結果一樣？','「自動」會同時跑 L優先 和 W優先 兩個方向，取其中裝載量較多的結果。如果兩個方向結果相同，就會看起來一樣。'],
         ['深層優化跑完後，結果沒有比標準計算好，正常嗎？','正常。深層優化的 100 次迭代帶有隨機性，不保證每次都能找到更好的解。如果箱型結構比較單純（例如只有一種箱型），標準計算通常已經接近最優解。'],
         ['箱子的 L/W/H 到底哪個方向是哪個？','系統預設 L（長）為對應貨櫃「深度」方向，W（寬）為對應「左右寬度」方向，H（高）固定為垂直方向。水平擺放時 L 和 W 可以互換（這就是裝載方向策略在控制的事）。'],
         ['設備不能翻轉，系統有考慮這個嗎？','有。系統只允許箱體繞垂直軸（Y軸）旋轉，也就是 L 和 W 可以互換，但 H（高度）永遠是垂直方向，不會讓設備側放或倒置。'],
         ['空間利用率怎麼提高？','① 縮小各方向預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（如改為 30~40%）→ ④ 若有多種箱型，考慮混裝（數量都設為 0，讓系統自動填滿）。'],
-        ['DXF 檔案輸出後在 CAD 裡看不到圖形？','DXF 比例為 1:40，實際圖形可能很小。請在 CAD 中使用「全部縮放」（ZOOM → ALL）或「範圍縮放」（ZOOM → EXTENT）指令讓所有圖形顯示在視窗內。'],
-        ['「儲存設定」和「截圖」有什麼不同？','截圖：把當前畫面（含3D圖）存成JPG圖片，僅供檢視。儲存設定：把輸入數據封裝進HTML檔，收到的人可以繼續互動操作、重新計算，就像從未關閉視窗一樣。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
@@ -486,7 +498,7 @@ function HelpModal({onClose, lang}){
       <p className="text-sm text-slate-500 mb-4">以下の 5 ステップで積載試算を完了できます：</p>
       <Step n="1" title="コンテナ種類を選択">左上のドロップダウンから使用するコンテナ規格を選択してください。</Step>
       <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します。固定金具やバンド・緩衝材のスペースを考慮してください。</Step>
-      <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、外寸 L×W×H（mm）と数量を入力します。数量 0 は「できる限り詰める」を意味します。</Step>
+      <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、ダンボール種類と内寸 L×W×H（mm）、数量を入力します。数量 0 は「できる限り詰める」を意味します。</Step>
       <Step n="4" title="戦略を選択して計算">積載方向戦略を選んでから「標準計算」をクリック。数秒で 3D 積載図と結果概要が表示されます。</Step>
       <Step n="5" title="結果確認・深層最適化">総積載数と空間利用率を確認します。さらに利用率を上げたい場合は「深層最適化 (GRASP)」を使用してください。</Step>
       <Tip>初めての方はまず「標準計算」で基本結果を確認し、必要に応じて深層最適化を使用することをお勧めします。</Tip>
@@ -495,7 +507,8 @@ function HelpModal({onClose, lang}){
       <Field name="コンテナ種類" type="ドロップダウン">20' GP：奥行約5867mm。40' GP：奥行約11998mm（最一般的）。40' HQ：40' GPより高さが約305mm増加。</Field>
       <Field name="各方向余白" type="数値 mm">最奥部・ドア側・右側・上部それぞれの余白を設定。固定金具・ドア開閉・バンド通し・頂部断熱材のスペースです。</Field>
       <Field name="支持面積しきい値 (%)" type="スライダー 20~80%">50%（デフォルト）：底面の半分以上が支持されれば配置可能。20~30%：緩やか設定で積載率向上。70~80%：精密機器向け厳格設定。</Field>
-      <Field name="長(L) / 幅(W) / 高さ(H)" type="数値 mm">外箱の実寸を入力。H は垂直固定（上下反転不可）。L と W は水平回転で入れ替え可能。</Field>
+      <Field name="ダンボール種類" type="ドロップダウン">AB段などを選択すると入力値を「内寸」と見なし、厚みを自動加算して計算します。「なし」を選ぶと入力値がそのまま外寸になります。</Field>
+      <Field name="長(L) / 幅(W) / 高さ(H)" type="数値 mm">箱の寸法を入力。H は垂直固定（上下反転不可）。L と W は水平回転で入れ替え可能。</Field>
       <Field name="数量・公差・計算基準" type="数値 + ドロップダウン">数量 0 で自動最大充填。公差と計算基準の組み合わせで最悪・最良・平均ケースをシミュレーション。</Field>
     </div>,
     <div className="p-5">
@@ -519,7 +532,6 @@ function HelpModal({onClose, lang}){
         ['深層最適化が標準計算より良くならないことはありますか？','あります。ランダム性があるため、箱種が単純な場合は標準計算がすでに最適解に近いことがほとんどです。'],
         ['公差機能はいつ使いますか？','外注製造の箱で実寸に誤差がある場合に使用。標称600mm±2mmなら、正公差2・負公差2・計算基準「最大」で最悪ケースを検証できます。'],
         ['DXFファイルをCADで開いても図形が見えません。','縮尺1:40のため図形が非常に小さく表示される場合があります。CADで「ZOOM → ALL」または「ZOOM → EXTENT」を実行してください。'],
-        ['「設定を保存」と「撮影」の違いは何ですか？','撮影：現在の画面（3D図を含む）をJPG画像として保存します（閲覧のみ）。設定を保存：入力データをHTMLファイルに埋め込みます。受け取った人は同じ設定で操作・再計算を続けられます。'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
@@ -588,7 +600,7 @@ function App(){
   const [strat,    setStrat]    = useState(PS?.strat    || 'auto');
 
   const [boxes, setBoxes] = useState(PS?.boxes || [{
-    id:uid(), name:'紙箱 A', L:600, W:400, H:400,
+    id:uid(), name:'紙箱 A', cbType:'none', L:600, W:400, H:400,
     color:COLORS[0], qty:0, tolPlus:0, tolMinus:0, calcMode:'nominal'
   }]);
 
@@ -605,8 +617,8 @@ function App(){
 
   useEffect(()=>{
     if(showPreloadBanner){
-      const t=setTimeout(()=>setShowPreloadBanner(false), 4000);
-      return ()=>clearTimeout(t);
+      const tm=setTimeout(()=>setShowPreloadBanner(false), 4000);
+      return ()=>clearTimeout(tm);
     }
   },[showPreloadBanner]);
 
@@ -925,7 +937,7 @@ function App(){
       {fixOpen && (
         <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
           <div className="p-4 space-y-3">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7].map((f,i)=>(
+            {[t.fix1,t.fix2,t.fix3].map((f,i)=>(
               <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
                 <span className="text-sm text-slate-700">{f}</span>
@@ -960,7 +972,6 @@ function App(){
             <button onClick={doExport} disabled={!hasPacked} className={'flex items-center px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
               <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
             </button>
-            {/* ★ 新增：儲存設定按鈕 */}
             <button onClick={()=>setSaveOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm shadow-sm transition-colors">
               <Ico.Save c="w-4 h-4 mr-1.5"/>{t.saveHtml}
             </button>
@@ -1019,54 +1030,82 @@ function App(){
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-base font-semibold flex items-center"><Ico.Pkg c="w-4 h-4 mr-2 text-slate-500"/>{t.boxSet}</h2>
-                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length),L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'nominal'}])} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'nominal'}])} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
                   <Ico.Plus c="w-4 h-4 mr-1"/>{t.addBox}
                 </button>
               </div>
               <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1 scr">
-                {boxes.map(box=>(
-                  <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
-                    <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Ico.Del c="w-4 h-4"/>
-                    </button>
-                    <div className="flex items-center gap-2 mb-3">
-                      <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="w-6 h-6 rounded border-0 p-0 cursor-pointer"/>
-                      <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[['L',t.fL],['W',t.fW],['H',t.fH],['qty',t.fQ]].map(([f,lbl])=>(
-                        <div key={f}>
-                          <label className="block text-[10px] text-slate-500 mb-1">{lbl}</label>
-                          <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-sm bg-white"/>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 mb-1">{t.tPlus}</label>
-                        <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                {boxes.map(box=>{
+                  // 即時預覽計算外寸
+                  const cb = CARDBOARD_TYPES[box.cbType || 'none'] || CARDBOARD_TYPES['none'];
+                  const bL = box.L + cb.L, bW = box.W + cb.W, bH = box.H + cb.H;
+                  let finL = bL, finW = bW, finH = bH;
+                  if(box.calcMode==='max'){finL+=box.tolPlus;finW+=box.tolPlus;finH+=box.tolPlus;}
+                  else if(box.calcMode==='min'){finL-=box.tolMinus;finW-=box.tolMinus;finH-=box.tolMinus;}
+                  else if(box.calcMode==='mid'){const d=(box.tolPlus-box.tolMinus)/2;finL+=d;finW+=d;finH+=d;}
+                  const showLabel = box.calcMode !== 'nominal' || (box.cbType && box.cbType !== 'none');
+
+                  return (
+                    <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
+                      <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Ico.Del c="w-4 h-4"/>
+                      </button>
+                      <div className="flex items-center gap-2 mb-3">
+                        <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="w-6 h-6 rounded border-0 p-0 cursor-pointer"/>
+                        <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-slate-500 mb-1">{t.tMinus}</label>
-                        <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
-                        <select value={box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
-                          <option value="nominal">{t.mNom}</option>
-                          <option value="max">{t.mMax}</option>
-                          <option value="min">{t.mMin}</option>
-                          <option value="mid">{t.mMid}</option>
+                      
+                      {/* 紙箱種類下拉選單 */}
+                      <div className="mb-2">
+                        <label className="block text-[10px] text-slate-500 mb-1">{t.cbType}</label>
+                        <select value={box.cbType || 'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
+                          <option value="none">{lang==='zh'?'無 (直接輸入外寸)':'なし (外寸を直接入力)'}</option>
+                          <option value="AB">AB段 {lang==='zh'?'(長寬+15, 高+30)':'(長幅+15, 高+30)'}</option>
+                          <option value="A">A段 {lang==='zh'?'(長寬+10, 高+20)':'(長幅+10, 高+20)'}</option>
+                          <option value="B">B段 {lang==='zh'?'(長寬+6, 高+12)':'(長幅+6, 高+12)'}</option>
+                          <option value="EB">EB段 {lang==='zh'?'(長寬+9, 高+18)':'(長幅+9, 高+18)'}</option>
+                          <option value="E">E段 {lang==='zh'?'(長寬+3, 高+6)':'(長幅+3, 高+6)'}</option>
                         </select>
                       </div>
-                    </div>
-                    {box.calcMode!=='nominal'&&(
-                      <div className="mt-2 text-[11px] text-blue-700 bg-blue-50 p-1.5 rounded font-medium">
-                        {t.mLabel} {box.calcMode==='max'?(box.L+box.tolPlus)+' x '+(box.W+box.tolPlus)+' x '+(box.H+box.tolPlus):box.calcMode==='min'?(box.L-box.tolMinus)+' x '+(box.W-box.tolMinus)+' x '+(box.H-box.tolMinus):(box.L+(box.tolPlus-box.tolMinus)/2)+' x '+(box.W+(box.tolPlus-box.tolMinus)/2)+' x '+(box.H+(box.tolPlus-box.tolMinus)/2)}
+
+                      <div className="grid grid-cols-4 gap-2">
+                        {[['L',t.fL],['W',t.fW],['H',t.fH],['qty',t.fQ]].map(([f,lbl])=>(
+                          <div key={f}>
+                            <label className="block text-[10px] text-slate-500 mb-1">{lbl}</label>
+                            <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-sm bg-white"/>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200">
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1">{t.tPlus}</label>
+                          <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1">{t.tMinus}</label>
+                          <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
+                          <select value={box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
+                            <option value="nominal">{t.mNom}</option>
+                            <option value="max">{t.mMax}</option>
+                            <option value="min">{t.mMin}</option>
+                            <option value="mid">{t.mMid}</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {/* 顯示加總厚的實際運算外寸 */}
+                      {showLabel && (
+                        <div className="mt-2 text-[11px] text-blue-700 bg-blue-50 p-1.5 rounded font-medium flex justify-between items-center">
+                          <span>{t.mLabel}</span>
+                          <span>{finL} x {finW} x {finH}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">{t.stratTitle}</label>
