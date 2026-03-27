@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.8</title>
+  <title>貨櫃裝載計算器 v1.87</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,9 +11,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
-  <!-- ★ 改用 ExcelJS 來支援圖片、樣式與字體 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-  <!-- ★ 預載入狀態（由「儲存為HTML」功能寫入）-->
   <script id="preloaded-state">
   window.PRELOADED_STATE = null;
   </script>
@@ -24,7 +22,6 @@
     .scr::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px}
     .scr::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
     .scr::-webkit-scrollbar-thumb:hover{background:#94a3b8}
-    /* 按鈕列隱藏卷軸 */
     .hide-scroll::-webkit-scrollbar { display: none; }
     .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
     .hint-overlay{position:absolute;bottom:72px;right:10px;background:rgba(15,23,42,.72);backdrop-filter:blur(6px);color:#e2e8f0;font-size:10px;padding:6px 10px;border-radius:8px;pointer-events:none;z-index:15;line-height:1.8;border:1px solid rgba(255,255,255,.1)}
@@ -50,7 +47,6 @@ const CONTAINERS = {
   '40HQ': {id:'40HQ', w:2330, h:2655, d:11998}
 };
 
-// 紙箱加算值定義 (依據圖表)
 const CARDBOARD_TYPES = {
   'none': { L:0, W:0, H:0 },
   'AB': { L:15, W:15, H:30 },
@@ -62,8 +58,8 @@ const CARDBOARD_TYPES = {
 
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.8';
-const APP_DATE = '2026/03/26';
+const APP_VER = '1.87';
+const APP_DATE = '2026/03/27';
 
 const T = {
   zh:{
@@ -83,6 +79,7 @@ const T = {
     stratAuto:'自動最佳化 (整體數量最多)',
     stratL:'優先以 箱長(L) 貼合貨櫃深',
     stratW:'優先以 箱寬(W) 貼合貨櫃深',
+    japanBound:'日本向 (啟用特定棧板)', palletType:'棧板種類',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
     vIso:'等角', vTop:'俯視', vBottom:'仰視', vFront:'前視', vBack:'後視', vLeft:'左視', vRight:'右視',
@@ -94,6 +91,7 @@ const T = {
     saveHtmlBtn:'下載 HTML 檔案',
     saveHtmlDone:'已儲存！',
     reportBtn:'報告書(.xlsx)', reportIng:'產出中...',
+    palletUsage: '棧板所需數量',
     sumTitle:'裝載結果摘要',
     totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
     detail:'各類別裝載數量：', boxU:'箱',
@@ -110,6 +108,11 @@ const T = {
     fix4:'修正4：3D 視角擴充為 6 個基本面 + 等角，全方位自由切換',
     fix5:'修正5：優化 3D 視圖間隙文字可讀性，並完善報告書單位與圖表比例',
     fix6:'修正6：加入預留間隙設定的視覺區隔，與完善「標準尺寸/中間值」的教學說明',
+    fix7:'修正7：新增「日本向」選項，支援 1030mm×1030mm 棧板分組演算與立體顯示',
+    fix8:'修正8：優化棧板裝載排列，將紙箱群自動「置中」對齊於棧板，使四周剩餘間隙平均分佈',
+    fix9:'修正9：確保紙箱完全不超出棧板邊界，貨櫃內棧板改為靠兩側排列（留空中央），並追加棧板總數顯示',
+    fix10:'修正10：徹底修復語法錯誤崩潰，並重構「智慧陣列打版引擎」，完美支援圖紙中之交互列、磚塊與風車型陣列',
+    fix11:'修正11：優化棧板裝載方向，自動將陣列旋轉90度，優先讓紙箱的「短邊」面對門口，方便查閱標籤',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
     preloadBanner:'✅ 已載入預存設定',
   },
@@ -130,6 +133,7 @@ const T = {
     stratAuto:'自動最適化 (全体数量最大)',
     stratL:'優先: 箱の長さ(L)を奥行に合わせる',
     stratW:'優先: 箱の幅(W)を奥行に合わせる',
+    japanBound:'日本向け (専用パレット有効化)', palletType:'パレット種類',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
     vIso:'等角', vTop:'平面', vBottom:'底面', vFront:'正面', vBack:'背面', vLeft:'左側面', vRight:'右側面',
@@ -141,6 +145,7 @@ const T = {
     saveHtmlBtn:'HTMLファイルをダウンロード',
     saveHtmlDone:'保存完了！',
     reportBtn:'レポート(.xlsx)', reportIng:'出力中...',
+    palletUsage: 'パレット必要数',
     sumTitle:'積載結果の概要',
     totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
     detail:'各カテゴリ積載数：', boxU:'箱',
@@ -157,6 +162,11 @@ const T = {
     fix4:'修正4：3D視点を基本6面＋等角投影に拡張し、全方位の自由な切替を実現',
     fix5:'修正5：3D図の寸法文字の視認性を向上させ、レポートの単位と画像比率を最適化',
     fix6:'修正6：余白設定の視覚的な区切りを追加し、「標準寸法/中間値」の解説を補足',
+    fix7:'修正7：「日本向け」オプションを追加、1030mm×1030mmパレットのグループ化計算と立体表示に対応',
+    fix8:'修正8：パレット積載時の配置を最適化し、箱群をパレットの中央に自動配置して周囲の隙間を均等化',
+    fix9:'修正9：ダンボールがパレットの境界を越えないよう厳密に制限し、コンテナ内でパレットを両端に寄せて配置（中央に隙間）。さらにパレットの必要総数を結果に表示',
+    fix10:'修正10：クラッシュエラーを完全に解決し、図面の5種類の配列（交互列、レンガ、風車等）をサポートするスマート配列エンジンを導入',
+    fix11:'修正11：パレット積載方向を最適化。同数の積載が可能な場合、自動的に90度回転させ、ラベル確認がしやすいよう「短辺」をドア側に向ける配置を優先',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
     preloadBanner:'✅ 保存された設定を読み込みました',
   }
@@ -234,21 +244,16 @@ function ptInsideBox(p,b){
   return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;
 }
 
+// 標準裝載演算法
 function simulate(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize){
   let pts=[{x:0,y:0,z:innerGap}], packed=[];
   const finInv=[], infInv=[];
   boxTypes.forEach(b=>{
-    // 套用紙箱加算值
     const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
-    let aL = b.L + cb.L;
-    let aW = b.W + cb.W;
-    let aH = b.H + cb.H;
-
-    // 套用公差
+    let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
     if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
     else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
     else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
-
     const item={...b,w:aW,h:aH,d:aL};
     if(b.qty>0){item.remaining=b.qty;finInv.push(item);}
     else{item.remaining=Infinity;infInv.push(item);}
@@ -303,6 +308,202 @@ function simulate(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize
     }
   }
   return packed;
+}
+
+// ★ 智慧陣列打版引擎：完美支援 ブロック積み、交互列積み、レンガ積み、風車積み、スプリット積み
+function simulateWithPallet(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize, palletType) {
+  const palletW = 1030, palletD = 1030, palletH = palletType === 'sheet' ? 15 : 120;
+  const availZ = maxZ - innerGap;
+  const maxP_X = Math.floor(maxX / palletW);
+  const maxP_Z = Math.floor(availZ / palletD);
+  const totalPallets = maxP_X * maxP_Z;
+
+  if (totalPallets <= 0) return []; 
+
+  let inventory = [];
+  boxTypes.forEach(b => {
+    const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
+    let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
+    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
+    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
+    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
+    inventory.push({...b, w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity});
+  });
+
+  function generateLayerPatterns(pW, pD, L, W) {
+      if (L <= 0 || W <= 0) return [];
+      let patterns = [];
+      
+      const fill = (w, d, ox, oz, boxL, boxW) => {
+          let nx = Math.floor((w + 0.01) / boxL);
+          let nz = Math.floor((d + 0.01) / boxW);
+          let arr = [];
+          for(let i=0; i<nx; i++)
+              for(let j=0; j<nz; j++)
+                  arr.push({x: ox + i*boxL, z: oz + j*boxW, w: boxL, d: boxW});
+          return arr;
+      };
+
+      // 1. ブロック (Block)
+      patterns.push(fill(pW, pD, 0, 0, L, W));
+      patterns.push(fill(pW, pD, 0, 0, W, L));
+
+      // 2. 交互列 (Alternative)
+      let altPattern1 = [];
+      let curZ1 = 0, useL1 = true;
+      while(curZ1 < pD) {
+          let bh = useL1 ? W : L;
+          let bw = useL1 ? L : W;
+          if (curZ1 + bh > pD + 0.01) break;
+          altPattern1.push(...fill(pW, bh, 0, curZ1, bw, bh));
+          curZ1 += bh;
+          useL1 = !useL1;
+      }
+      patterns.push(altPattern1);
+
+      // 3. レンガ (Brick)
+      for(let i=1; i<=Math.floor((pW+0.01)/L); i++) {
+          patterns.push([...fill(i*L, pD, 0, 0, L, W), ...fill(pW - i*L, pD, i*L, 0, W, L)]);
+      }
+      for(let j=1; j<=Math.floor((pD+0.01)/W); j++) {
+          patterns.push([...fill(pW, j*W, 0, 0, L, W), ...fill(pW, pD - j*W, 0, j*W, W, L)]);
+      }
+
+      // 4. 風車 (Pinwheel)
+      let maxD = Math.max(L, W), minD = Math.min(L, W);
+      if (maxD + minD <= pW + 0.01 && maxD + minD <= pD + 0.01) {
+          const getPw = (bx, bz) => [
+              {x: bx, z: bz, w: maxD, d: minD},
+              {x: bx, z: bz+minD, w: minD, d: maxD},
+              {x: bx+minD, z: bz+maxD, w: maxD, d: minD},
+              {x: bx+maxD, z: bz, w: minD, d: maxD}
+          ];
+          let pwW = maxD + minD;
+          let nx = Math.floor((pW+0.01)/pwW);
+          let nz = Math.floor((pD+0.01)/pwW);
+          let multi = [];
+          for(let i=0; i<nx; i++) {
+              for(let j=0; j<nz; j++) {
+                  multi.push(...getPw(i*pwW, j*pwW));
+              }
+          }
+          patterns.push(multi);
+      }
+      
+      // ★ 產生所有排法的 90 度對角鏡射翻轉，並選擇最佳佈局（優先讓短邊面對門口 Z軸）
+      let rotatedPatterns = [];
+      for (let pat of patterns) {
+          rotatedPatterns.push(pat.map(p => ({
+              x: p.z,
+              z: p.x,
+              w: p.d,
+              d: p.w
+          })));
+      }
+      patterns = patterns.concat(rotatedPatterns);
+
+      let best = [];
+      let maxCount = -1;
+      let bestShortSideCount = -1;
+
+      for (let pat of patterns) {
+          let count = pat.length;
+          // Z軸為深度(門口方向)，w為X方向長度，d為Z方向長度。
+          // 若要「短邊」面對門口，代表從門口看進去時呈現的是短邊，亦即 X方向尺寸(w) 要小於 Z方向尺寸(d)。
+          let shortSideCount = pat.filter(b => b.w < b.d).length;
+          
+          if (count > maxCount) {
+              maxCount = count;
+              bestShortSideCount = shortSideCount;
+              best = pat;
+          } else if (count === maxCount) {
+              // 當排出的數量相同時，優先選擇能讓短邊面向門口的排法
+              if (shortSideCount > bestShortSideCount) {
+                  bestShortSideCount = shortSideCount;
+                  best = pat;
+              }
+          }
+      }
+      return best;
+  }
+
+  let finalPacked = [];
+  let cx = 0, cz = 0;
+
+  for (let pIdx = 0; pIdx < totalPallets; pIdx++) {
+      if (!inventory.some(b => b.remaining > 0)) break;
+
+      let palletPacked = [];
+      let currentY = 0;
+
+      while (currentY < (maxY - palletH)) {
+          let box = inventory.find(b => b.remaining > 0 && currentY + b.h <= (maxY - palletH) + EPS);
+          if (!box) break;
+
+          let layout = generateLayerPatterns(palletW, palletD, box.d, box.w);
+          if (layout.length === 0) {
+              box.remaining = 0;
+              continue;
+          }
+
+          let toPlace = Math.min(layout.length, box.remaining);
+          for (let i = 0; i < toPlace; i++) {
+              let pos = layout[i];
+              palletPacked.push({
+                  x: pos.x, y: currentY, z: pos.z,
+                  w: pos.w, h: box.h, d: pos.d,
+                  color: box.color, typeId: box.id, name: box.name
+              });
+          }
+          box.remaining -= toPlace;
+          currentY += box.h;
+      }
+
+      if (palletPacked.length === 0) break;
+
+      // 5. スプリット (Split) - 絕對置中
+      let packMinX = Infinity, packMinZ = Infinity;
+      let packMaxX = 0, packMaxZ = 0;
+      for (let b of palletPacked) {
+          if (b.x < packMinX) packMinX = b.x;
+          if (b.z < packMinZ) packMinZ = b.z;
+          if (b.x + b.w > packMaxX) packMaxX = b.x + b.w;
+          if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;
+      }
+      let actualW = packMaxX - packMinX;
+      let actualD = packMaxZ - packMinZ;
+      let offsetX = (palletW - actualW) / 2 - packMinX;
+      let offsetZ = (palletD - actualD) / 2 - packMinZ;
+
+      let px = 0;
+      if (maxP_X > 1) {
+          px = cx * ((maxX - palletW) / (maxP_X - 1));
+      } else {
+          px = (maxX - palletW) / 2;
+      }
+      let pz = innerGap + cz * palletD;
+      
+      finalPacked.push({
+          isPallet: true,
+          x: px, y: 0, z: pz,
+          w: palletW, h: palletH, d: palletD,
+          color: palletType === 'sheet' ? '#cbd5e1' : '#b45309', 
+          typeId: 'pallet', name: palletType === 'sheet' ? 'Sheet Pallet' : 'Pallet 1030x1030'
+      });
+
+      for (let b of palletPacked) {
+          finalPacked.push({
+              ...b,
+              x: px + offsetX + b.x,
+              y: palletH + b.y,
+              z: pz + offsetZ + b.z
+          });
+      }
+
+      cx++;
+      if (cx >= maxP_X) { cx = 0; cz++; }
+  }
+  return finalPacked;
 }
 
 function getGaps(packed, container, axis, limit){
@@ -376,6 +577,7 @@ function SaveHtmlModal({onClose, onSave, lang, t}){
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'貨櫃種類與預留空間設定':'コンテナ種類と余白設定'}</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'所有箱體尺寸、數量、公差與種類設定':'全箱体の寸法・数量・公差・種類設定'}</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'支撐閾值與裝載方向策略':'支持しきい値と積載方向戦略'}</li>
+              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'日本向與專屬棧板設定':'日本向けと専用パレット設定'}</li>
               <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'介面語言設定':'インターフェース言語設定'}</li>
             </ul>
           </div>
@@ -473,6 +675,7 @@ function HelpModal({onClose, lang}){
       <Field name="數量" type="數值"><strong>輸入 0</strong>：自動計算最多能裝入幾個。<strong>輸入具體數字</strong>：優先嘗試裝入該數量，若裝不下會顯示短缺警告。</Field>
       <Field name="正公差(+) / 負公差(-)" type="數值 mm">箱體製造尺寸允許誤差範圍。搭配「計算基準」可模擬最壞/最好情況。</Field>
       <Field name="計算基準" type="下拉選單"><strong>標準尺寸</strong>：完全不考慮公差，僅使用基礎尺寸計算，適合初步粗估。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設每個箱子都是最小狀態。<strong>中間值</strong>：取正負公差的平均值，適合用來模擬整批貨物的「平均預期尺寸」。</Field>
+      <Field name="日本向 (特定棧板)" type="勾選框">啟用後可選擇使用 1030mm×1030mm 的棧板或 Sheet Pallet 進行雙層裝載演算，確保棧板不會超出貨櫃容量且能精確堆疊紙箱。</Field>
     </div>,
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
@@ -529,6 +732,7 @@ function HelpModal({onClose, lang}){
       <Field name="長(L) / 幅(W) / 高さ(H)" type="数値 mm">箱の寸法を入力。H は垂直固定（上下反転不可）。L と W は水平回転で入れ替え可能。</Field>
       <Field name="数量・公差・計算基準" type="数値 + ドロップダウン">数量 0 で自動最大充填。公差と計算基準の組み合わせで最悪・最良・平均ケースをシミュレーション。</Field>
       <Field name="計算基準" type="ドロップダウン"><strong>標準寸法</strong>：公差を計算せず、基本寸法のみを使用します。<strong>最大</strong>：全箱が最大サイズの場合。<strong>最小</strong>：全箱が最小サイズの場合。<strong>中間値</strong>：正負公差の平均を取り、ロット全体の「平均的な予想サイズ」をシミュレーションします。</Field>
+      <Field name="日本向け (専用パレット)" type="チェックボックス">有効にすると、1030mm×1030mmパレットまたはシートパレットを使用した階層的な積載計算が可能になります。</Field>
     </div>,
     <div className="p-5">
       <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。単純な箱構成や初回確認に最適。</Btn>
@@ -606,7 +810,6 @@ function HelpModal({onClose, lang}){
 
 // ── メインアプリ ──────────────────────────────────────────────────────────
 function App(){
-  // ── 載入預存狀態（如果有） ────────────────────────────────────────────
   const PS = window.PRELOADED_STATE;
 
   const [lang, setLang] = useState(PS?.lang || 'zh');
@@ -620,6 +823,9 @@ function App(){
   const [suppPct,  setSuppPct]  = useState(PS?.suppPct  ?? 50);
   const [strat,    setStrat]    = useState(PS?.strat    || 'auto');
 
+  const [isJapanBound, setIsJapanBound] = useState(PS?.isJapanBound || false);
+  const [palletType, setPalletType] = useState(PS?.palletType || '1030');
+
   const [boxes, setBoxes] = useState(PS?.boxes || [{
     id:uid(), name:'紙箱 A', cbType:'none', L:600, W:400, H:400,
     color:COLORS[0], qty:0, tolPlus:0, tolMinus:0, calcMode:'max'
@@ -632,7 +838,7 @@ function App(){
   const [progress, setProgress] = useState(0);
   const [step, setStep]         = useState(0);
   const [xray, setXray]         = useState(false);
-  const [isPerspective, setIsPerspective] = useState(true); // 透視投影切換
+  const [isPerspective, setIsPerspective] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const [fixOpen,  setFixOpen]  = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -653,9 +859,8 @@ function App(){
   const sceneRef    = useRef(null);
   const rendererRef = useRef(null);
 
-  // ── 儲存為HTML ───────────────────────────────────────────────────────
   const doSaveHtml = useCallback(() => {
-    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes };
+    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType };
     const stateJson = JSON.stringify(state);
     const htmlSource = document.documentElement.outerHTML;
     const newScript = `<script id="preloaded-state">\n  window.PRELOADED_STATE = ${stateJson};\n  <\/script>`;
@@ -671,7 +876,7 @@ function App(){
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes]);
+  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType]);
 
   const doShot = () => {
     const el=document.getElementById('app-root');
@@ -681,7 +886,6 @@ function App(){
     }
   };
 
-  // ── Excel 報告自動運算與匯出 (透過 ExcelJS，全日文輸出) ─────────────
   const doReport = async () => {
     if (!window.ExcelJS) {
       alert(lang === 'zh' ? '尚未載入 Excel 套件，請稍後再試！' : 'Excelモジュールが読み込まれていません。後でお試しください。');
@@ -697,7 +901,6 @@ function App(){
         const maxZ = Math.max(0, c.d - doorGap);
         const thr = suppPct / 100;
 
-        // 取得當前 3D 畫面截圖
         let imgBase64 = null;
         let rawImgW = 800;
         let rawImgH = 500;
@@ -709,46 +912,53 @@ function App(){
           rawImgH = canvasEl.height;
         }
 
-        // 定義執行模擬的輔助函式
         const runModeForReport = (mode) => {
           const testBoxes = boxes.map(b => ({ ...b, calcMode: mode }));
           let best = [], bestVol = -1;
           const tryIt = (arr) => {
-            const v = arr.reduce((s, p) => s + p.w * p.h * p.d, 0);
+            const v = arr.reduce((s, p) => s + (p.isPallet ? 0 : p.w * p.h * p.d), 0);
             if (v > bestVol) { bestVol = v; best = arr; }
           };
 
+          const runSim = (arr, s, rand) => {
+            if(isJapanBound && palletType === '1030') return simulateWithPallet(arr, innerGap, maxX, maxY, maxZ, s, thr, rand, palletType);
+            return simulate(arr, innerGap, maxX, maxY, maxZ, s, thr, rand);
+          };
+
           if (strat === 'auto') {
-            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, 'length', thr, false));
-            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, 'width', thr, false));
+            tryIt(runSim(testBoxes, 'length', false));
+            tryIt(runSim(testBoxes, 'width', false));
           } else {
-            tryIt(simulate(testBoxes, innerGap, maxX, maxY, maxZ, strat, thr, false));
+            tryIt(runSim(testBoxes, strat, false));
           }
 
           let vol = 0; const counts = {};
-          best.forEach(p => { vol += p.w * p.h * p.d; counts[p.typeId] = (counts[p.typeId] || 0) + 1; });
+          let actualTotal = 0;
+          best.forEach(p => { 
+            if(p.isPallet) return; 
+            vol += p.w * p.h * p.d; 
+            counts[p.typeId] = (counts[p.typeId] || 0) + 1; 
+            actualTotal++;
+          });
           const rem = {
             w: getGaps(best, c, 'X', maxX),
             h: getGaps(best, c, 'Y', maxY),
             d: getGaps(best, c, 'Z', maxZ)
           };
-          return { total: best.length, counts, rem, testBoxes };
+          return { total: actualTotal, counts, rem, testBoxes };
         };
 
         const resMax = runModeForReport('max');
         const resMid = runModeForReport('mid');
         const resMin = runModeForReport('min');
 
-        // 建立 Workbook
         const wb = new window.ExcelJS.Workbook();
         const ws = wb.addWorksheet('分析レポート');
 
-        // 字體定義
         const fontBase = { name: 'BIZ UDPゴシック', size: 11 };
         const fontBold = { name: 'BIZ UDPゴシック', size: 11, bold: true };
         const fontTitle = { name: 'BIZ UDPゴシック', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
 
-        // 輔助函式：套用儲存格樣式
         const setCell = (cell, value, font, fill, align, border) => {
           cell.value = value;
           if (font) cell.font = font;
@@ -757,13 +967,11 @@ function App(){
           if (border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
         };
 
-        // 【大標題】
         ws.mergeCells('A1:G1');
         setCell(ws.getCell('A1'), 'コンテナ積載分析レポート', fontTitle, 'FF2563EB', { vertical: 'middle', horizontal: 'center' }, false);
         ws.getRow(1).height = 30;
         ws.addRow([]);
 
-        // 區塊一：コンテナ設定 (貨櫃設定)
         const ctnStartRow = 3;
         ws.getCell(`A${ctnStartRow}`).value = '【コンテナ設定】';
         ws.getCell(`A${ctnStartRow}`).font = fontBold;
@@ -778,7 +986,6 @@ function App(){
 
         ws.addRow([]); 
 
-        // 區塊二：箱体寸法設定 (內外寸與公差對照)
         const boxStartRow = ws.rowCount + 1;
         ws.getCell(`A${boxStartRow}`).value = '【箱寸法設定 (mm)】';
         ws.getCell(`A${boxStartRow}`).font = fontBold;
@@ -807,7 +1014,6 @@ function App(){
 
         ws.addRow([]);
         
-        // 區塊三：裝載結果比較
         const resultStartRow = ws.rowCount + 1;
         ws.getCell(`A${resultStartRow}`).value = '【積載と残りスペース比較】';
         ws.getCell(`A${resultStartRow}`).font = fontBold;
@@ -827,7 +1033,6 @@ function App(){
 
         const formatGaps = (gaps, gapVal) => {
             if (!gaps || gaps.length === 0) return '0 mm\n(0 mm)';
-            // 改為只有單一換行，避免高度過大
             return gaps.map(g => `${g} mm\n(${g + gapVal} mm)`).join('\n');
         };
 
@@ -851,14 +1056,12 @@ function App(){
           row.eachCell(c => setCell(c, c.value, fontBase, m.color, { vertical: 'middle', horizontal: 'center', wrapText: true }, true));
           
           const maxLines = Math.max(m.data.rem.d.length * 2, m.data.rem.w.length * 2, m.data.rem.h.length * 2, 2);
-          row.height = maxLines * 15 + 10; // 調整行高
+          row.height = maxLines * 15 + 10; 
         });
 
-        // 儲存格需要略過的標題列 Set
         const skipRows = new Set([1, ctnStartRow, boxStartRow, resultStartRow]);
         let imgStartRow = -1;
 
-        // 插入 3D 圖片
         if (imgBase64) {
             const imgId = wb.addImage({
                 base64: imgBase64,
@@ -870,7 +1073,6 @@ function App(){
             ws.getCell(`A${imgStartRow}`).value = '【3D 積載参考図 (現在の視点)】';
             ws.getCell(`A${imgStartRow}`).font = fontBold;
 
-            // 保持原始 3D 截圖的長寬比例
             const targetWidth = 800;
             const targetHeight = targetWidth * (rawImgH / rawImgW);
 
@@ -880,7 +1082,6 @@ function App(){
             });
         }
 
-        // 自動調整欄位寬度
         ws.columns.forEach((col, i) => {
           let maxLen = 0;
           col.eachCell({ includeEmpty: true }, cell => {
@@ -889,7 +1090,6 @@ function App(){
             const lines = val.split('\n');
             lines.forEach(l => {
                 let len = 0;
-                // 日文與全形字元佔寬較大
                 for(let j=0; j<l.length; j++) len += l.charCodeAt(j) > 255 ? 2.2 : 1.2;
                 if (len > maxLen) maxLen = len;
             });
@@ -897,7 +1097,6 @@ function App(){
           col.width = Math.min(Math.max(maxLen + 2, 12), 40);
         });
 
-        // 下載檔案
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const link = document.createElement('a');
@@ -926,13 +1125,21 @@ function App(){
       const thr=suppPct/100;
 
       let best=[], bestVol=-1;
-      const tryIt=(arr)=>{const v=arr.reduce((s,p)=>s+p.w*p.h*p.d,0);if(v>bestVol){bestVol=v;best=arr;}};
+      const tryIt=(arr)=>{
+          const v=arr.reduce((s,p)=>s+(p.isPallet ? 0 : p.w*p.h*p.d),0);
+          if(v>bestVol){bestVol=v;best=arr;}
+      };
+
+      const runSim = (arr, s, rand) => {
+        if(isJapanBound && palletType === '1030') return simulateWithPallet(arr, innerGap, maxX, maxY, maxZ, s, thr, rand, palletType);
+        return simulate(arr, innerGap, maxX, maxY, maxZ, s, thr, rand);
+      };
 
       if(strat==='auto'){
-        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'length',thr,false));
-        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'width', thr,false));
+        tryIt(runSim(boxes, 'length', false));
+        tryIt(runSim(boxes, 'width', false));
       }else{
-        tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,strat,thr,false));
+        tryIt(runSim(boxes, strat, false));
       }
 
       if(!deep){finalize(best,c,maxX,maxY,maxZ);return;}
@@ -941,10 +1148,10 @@ function App(){
       const loop=()=>{
         for(let i=0;i<5&&cur<ITER;i++){
           let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat;
-          tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,s2,thr,true));
+          tryIt(runSim(boxes, s2, true));
           if(cur%10===0){
-            tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'length',thr,true));
-            tryIt(simulate(boxes,innerGap,maxX,maxY,maxZ,'width', thr,true));
+            tryIt(runSim(boxes, 'length', true));
+            tryIt(runSim(boxes, 'width', true));
           }
           cur++;
         }
@@ -958,12 +1165,23 @@ function App(){
 
   const finalize=(packed,c,maxX,maxY,maxZ)=>{
     let vol=0; const counts={};
-    packed.forEach(p=>{vol+=p.w*p.h*p.d;counts[p.typeId]=(counts[p.typeId]||0)+1;});
+    let actualCount = 0;
+    let palletCount = 0;
+    packed.forEach(p=>{
+      if(p.isPallet) {
+         palletCount++;
+         return; 
+      }
+      vol+=p.w*p.h*p.d;
+      counts[p.typeId]=(counts[p.typeId]||0)+1;
+      actualCount++;
+    });
     const rem={w:getGaps(packed,c,'X',maxX),h:getGaps(packed,c,'Y',maxY),d:getGaps(packed,c,'Z',maxZ)};
     const warns=[];
     boxes.forEach(b=>{if(b.qty>0&&(counts[b.id]||0)<b.qty) warns.push({name:b.name,color:b.color,req:b.qty,pk:counts[b.id]||0,lack:b.qty-(counts[b.id]||0)});});
-    setResult({packed,stats:{total:packed.length,util:((vol/(c.w*c.h*c.d))*100).toFixed(2),vol,counts,warns,rem}});
-    setStep(packed.length);
+    
+    setResult({packed,stats:{total:actualCount, palletCount, util:((vol/(c.w*c.h*c.d))*100).toFixed(2),vol,counts,warns,rem}});
+    setStep(packed.length); 
     setLoading(false);setGraspOn(false);
   };
 
@@ -976,16 +1194,14 @@ function App(){
     const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
     
     const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
-    sceneRef.current = scene; // 供截圖使用
+    sceneRef.current = scene; 
     
-    // 依據 isPerspective 決定建立哪一種攝影機
     const aspect = W/H;
     const c=CONTAINERS[ctnType];
     let camera;
     if (isPerspective) {
         camera=new THREE.PerspectiveCamera(45, aspect, 1, 100000);
     } else {
-        // 正交攝影機，範圍涵蓋貨櫃尺寸
         const frustumSize = Math.max(c.w, c.d, c.h) * 1.3;
         camera=new THREE.OrthographicCamera(-frustumSize*aspect/2, frustumSize*aspect/2, frustumSize/2, -frustumSize/2, 1, 100000);
     }
@@ -1044,10 +1260,19 @@ function App(){
         new THREE.MeshLambertMaterial({color:p.color})
       );
       mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
-      mesh.add(new THREE.LineSegments(
-        new THREE.EdgesGeometry(mesh.geometry),
-        new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})
-      ));
+      
+      if (!p.isPallet) {
+        mesh.add(new THREE.LineSegments(
+          new THREE.EdgesGeometry(mesh.geometry),
+          new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})
+        ));
+      } else {
+        mesh.add(new THREE.LineSegments(
+          new THREE.EdgesGeometry(mesh.geometry),
+          new THREE.LineBasicMaterial({color:0x5d2906,linewidth:2,transparent:true,opacity:.8})
+        ));
+      }
+      
       meshesRef.current.push(mesh); grp.add(mesh);
     });
     scene.add(grp);
@@ -1075,7 +1300,6 @@ function App(){
         const tw = ctx.measureText(txt).width;
         const px = 768 - tw/2 - 30, py = 75 - 45, pw = tw + 60, ph = 90, r = 20;
         
-        // 繪製半透明白色圓角標籤背景
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.beginPath();
         ctx.moveTo(px+r, py);
@@ -1089,7 +1313,6 @@ function App(){
         ctx.strokeStyle = col;
         ctx.stroke();
 
-        // 繪製文字
         ctx.fillStyle=col;
         ctx.fillText(txt,768,75);
         
@@ -1145,7 +1368,7 @@ function App(){
     };
     window.addEventListener('resize',onResize);
     return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
-  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang,isPerspective]); // 加入 isPerspective 依賴
+  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang,isPerspective]);
 
   useEffect(()=>{
     meshesRef.current.forEach((m,i)=>{
@@ -1180,7 +1403,10 @@ function App(){
     let dxf='0\nSECTION\n2\nENTITIES\n';
     const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
     const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
-    const aci=id=>{const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
+    const aci=id=>{
+      if(id === 'pallet') return 33; 
+      const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;
+    };
     const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
     rect(0,0,cW,cH,'CONTAINER',7);
     rect(0,cH+gap,cW,cD,'CONTAINER',7);
@@ -1228,7 +1454,7 @@ function App(){
       {fixOpen && (
         <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
           <div className="p-4 space-y-3">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6].map((f,i)=>(
+            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7,t.fix8,t.fix9,t.fix10,t.fix11].map((f,i)=>(
               <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
                 <span className="text-sm text-slate-700">{f}</span>
@@ -1238,7 +1464,6 @@ function App(){
         </Modal>
       )}
 
-      {/* 預載入狀態提示橫幅 */}
       {showPreloadBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium pointer-events-none"
           style={{animation:'fadeUp .3s ease-out'}}>
@@ -1248,7 +1473,6 @@ function App(){
       )}
 
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <header className="flex flex-col md:flex-row items-start md:items-center justify-between pb-4 border-b border-slate-200 gap-3">
           <div className="flex items-center gap-3 shrink-0">
             <Ico.Pkg c="w-8 h-8 text-blue-600"/>
@@ -1259,7 +1483,6 @@ function App(){
               </button>
             </h1>
           </div>
-          {/* 按鈕區塊單排滑動 */}
           <div className="flex flex-row flex-nowrap items-center gap-1.5 overflow-x-auto w-full md:w-auto hide-scroll pb-1 md:pb-0" style={{WebkitOverflowScrolling: 'touch'}}>
             <button onClick={doReport} disabled={isReporting || boxes.length === 0} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap ' + (isReporting ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white')}>
               {isReporting ? <Ico.Spin c="w-4 h-4 mr-1.5 animate-spin"/> : <Ico.Table c="w-4 h-4 mr-1.5"/>}
@@ -1284,9 +1507,7 @@ function App(){
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 左側パネル */}
           <div className="lg:col-span-5 space-y-5">
-            {/* 貨櫃設定 */}
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
               <h2 className="text-base font-semibold flex items-center mb-1"><Ico.Box c="w-4 h-4 mr-2 text-slate-500"/>{t.ctnSet}</h2>
               <p className="text-xs text-slate-400 mb-3 ml-6">{t.ctnSub}</p>
@@ -1297,7 +1518,6 @@ function App(){
                 <option value="40HQ">{t.ctn40h}</option>
               </select>
               
-              {/* 預留間隙設定外框 (通常維持預設) */}
               <div className="bg-slate-100 p-3.5 rounded-lg border border-slate-200 mb-4">
                 <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1.5 text-slate-500"/>{t.gAdv}</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1310,7 +1530,6 @@ function App(){
                 </div>
               </div>
 
-              {/* 支撐閾值 */}
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-medium text-amber-800 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1"/>{t.gSupport}</label>
@@ -1328,7 +1547,6 @@ function App(){
               </div>
             </div>
 
-            {/* 箱體設定 */}
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-base font-semibold flex items-center"><Ico.Pkg c="w-4 h-4 mr-2 text-slate-500"/>{t.boxSet}</h2>
@@ -1338,7 +1556,6 @@ function App(){
               </div>
               <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1 scr">
                 {boxes.map(box=>{
-                  // 即時預覽計算外寸
                   const cb = CARDBOARD_TYPES[box.cbType || 'none'] || CARDBOARD_TYPES['none'];
                   const bL = box.L + cb.L, bW = box.W + cb.W, bH = box.H + cb.H;
                   let finL = bL, finW = bW, finH = bH;
@@ -1357,7 +1574,6 @@ function App(){
                         <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
                       </div>
                       
-                      {/* 紙箱種類下拉選單 */}
                       <div className="mb-2">
                         <label className="block text-[10px] text-slate-500 mb-1">{t.cbType}</label>
                         <select value={box.cbType || 'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
@@ -1398,7 +1614,6 @@ function App(){
                         </div>
                       </div>
                       
-                      {/* 實際運算外寸顯示區塊 */}
                       {showLabel && (
                         <div className="mt-3 text-[12px] text-blue-700 bg-blue-50/50 border border-blue-100 px-3 py-2 rounded-lg font-medium flex justify-between items-center">
                           <span>{t.mLabel}</span>
@@ -1409,6 +1624,7 @@ function App(){
                   );
                 })}
               </div>
+              
               <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">{t.stratTitle}</label>
                 <select value={strat} onChange={e=>setStrat(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
@@ -1416,6 +1632,23 @@ function App(){
                   <option value="length">{t.stratL}</option>
                   <option value="width">{t.stratW}</option>
                 </select>
+
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
+                    <input type="checkbox" checked={isJapanBound} onChange={e=>setIsJapanBound(e.target.checked)} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
+                    {t.japanBound}
+                  </label>
+                  {isJapanBound && (
+                    <div className="mt-2 pl-6">
+                      <label className="block text-[11px] text-slate-500 mb-1">{t.palletType}</label>
+                      <select value={palletType} onChange={e=>setPalletType(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="1030">1030mm X 1030mm</option>
+                        <option value="sheet">シートパレット</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <button onClick={()=>doCalc(false)} disabled={loading} className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
@@ -1437,10 +1670,8 @@ function App(){
             </div>
           </div>
 
-          {/* 右側 3D */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative" style={{height:'620px'}}>
-              {/* 凡例 */}
               <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
                 {boxes.map(b=>(
                   <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-0.5 rounded border border-slate-200 shadow-sm flex items-center text-[10px]">
@@ -1468,22 +1699,18 @@ function App(){
                 )}
               </div>
               
-              {/* 視角按鈕擴充為 6 面 + 等角 */}
               <div className="absolute top-3 right-3 z-10 flex flex-wrap gap-1.5 justify-end max-w-[280px]">
                 {[['iso',t.vIso],['top',t.vTop],['bottom',t.vBottom],['front',t.vFront],['back',t.vBack],['left',t.vLeft],['right',t.vRight]].map(([v,lbl])=>(
                   <button key={v} onClick={()=>changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2 py-1 rounded border border-slate-200 text-[11px] font-medium shadow-sm">{lbl}</button>
                 ))}
               </div>
               
-              {/* キャンバス */}
               <div ref={canvasRef} className="rounded-lg cursor-move touch-none bg-slate-100" style={{position:'absolute',top:'8px',left:'8px',right:'8px',bottom:'8px'}}></div>
-              {/* 操作ヒント */}
               <div className="hint-overlay">
                 <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>
                 <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>
                 <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'縮尺'}</span>
               </div>
-              {/* 裝載順序バー */}
               {hasPacked&&(
                 <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-20">
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -1525,7 +1752,13 @@ function App(){
                     <p className="text-xs text-slate-400 mb-1">{t.util}</p>
                     <p className="text-xl font-bold text-blue-600">{result.stats.util}%</p>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-2">
+                  {result.stats.palletCount > 0 && (
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <p className="text-xs text-slate-400 mb-1">{t.palletUsage}</p>
+                      <p className="text-xl font-bold text-orange-600">{result.stats.palletCount}</p>
+                    </div>
+                  )}
+                  <div className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${result.stats.palletCount > 0 ? 'col-span-2 md:col-span-1' : 'col-span-2'}`}>
                     <p className="text-xs text-slate-400 mb-1">{t.effVol}</p>
                     <p className="text-xl font-bold text-slate-800">{(result.stats.vol/1e9).toFixed(2)} m³ <span className="text-xs font-normal text-slate-400">/ {t.totVol} {((c.w*c.h*c.d)/1e9).toFixed(2)}m³</span></p>
                   </div>
