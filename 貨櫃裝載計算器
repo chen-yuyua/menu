@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v1.87</title>
+  <title>貨櫃裝載計算器 v2.3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -12,9 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-  <script id="preloaded-state">
-  window.PRELOADED_STATE = null;
-  </script>
+  <script id="preloaded-state">window.PRELOADED_STATE = null;</script>
   <style>
     .touch-none{touch-action:none}
     input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:16px;width:16px;border-radius:50%;background:#2563eb;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.3)}
@@ -22,8 +20,8 @@
     .scr::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px}
     .scr::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
     .scr::-webkit-scrollbar-thumb:hover{background:#94a3b8}
-    .hide-scroll::-webkit-scrollbar { display: none; }
-    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    .hide-scroll::-webkit-scrollbar{display:none}
+    .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
     .hint-overlay{position:absolute;bottom:72px;right:10px;background:rgba(15,23,42,.72);backdrop-filter:blur(6px);color:#e2e8f0;font-size:10px;padding:6px 10px;border-radius:8px;pointer-events:none;z-index:15;line-height:1.8;border:1px solid rgba(255,255,255,.1)}
     .hint-key{display:inline-block;background:rgba(255,255,255,.18);border-radius:3px;padding:0 4px;margin-right:3px;font-family:monospace;font-size:9px}
     @keyframes shine{0%{background-position:-200% center}100%{background-position:200% center}}
@@ -37,8 +35,10 @@
 <body class="bg-slate-50 text-slate-900 font-sans">
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+let _uidCounter = 1;
+const uid = () => 'box_' + (_uidCounter++).toString(36).padStart(4,'0');
 const EPS = 0.5;
 
 const CONTAINERS = {
@@ -49,17 +49,418 @@ const CONTAINERS = {
 
 const CARDBOARD_TYPES = {
   'none': { L:0, W:0, H:0 },
-  'AB': { L:15, W:15, H:30 },
-  'A': { L:10, W:10, H:20 },
-  'B': { L:6, W:6, H:12 },
-  'EB': { L:9, W:9, H:18 },
-  'E': { L:3, W:3, H:6 }
+  'AB':   { L:15, W:15, H:30 },
+  'A':    { L:10, W:10, H:20 },
+  'B':    { L:6,  W:6,  H:12 },
+  'EB':   { L:9,  W:9,  H:18 },
+  'E':    { L:3,  W:3,  H:6  }
 };
 
 const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
-const uid = () => Math.random().toString(36).slice(2,9);
-const APP_VER = '1.87';
-const APP_DATE = '2026/03/27';
+const APP_VER = '2.3';
+const APP_DATE = '2026/03/28';
+
+const WORKER_CODE = `
+const EPS = 0.5;
+const CARDBOARD_TYPES = {
+  'none':{L:0,W:0,H:0},'AB':{L:15,W:15,H:30},'A':{L:10,W:10,H:20},
+  'B':{L:6,W:6,H:12},'EB':{L:9,W:9,H:18},'E':{L:3,W:3,H:6}
+};
+
+function isColliding(x,y,z,w,h,d,packed){
+  for(const b of packed){if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS))return true;}return false;
+}
+function isSupported(x,y,z,w,h,d,packed,thresh){
+  if(y<EPS)return true;let area=0;
+  for(const b of packed){if(Math.abs((b.y+b.h)-y)<EPS){const ix1=Math.max(x,b.x),iz1=Math.max(z,b.z),ix2=Math.min(x+w,b.x+b.w),iz2=Math.min(z+d,b.z+b.d);if(ix1<ix2-EPS&&iz1<iz2-EPS)area+=(ix2-ix1)*(iz2-iz1);}}
+  return area/(w*d)>=thresh;
+}
+function getOrientations(b,strat){
+  const u=new Set(),res=[];
+  for(const p of [[b.w,b.h,b.d],[b.d,b.h,b.w]]){const k=Math.round(p[0])+','+Math.round(p[1])+','+Math.round(p[2]);if(!u.has(k)){u.add(k);let pref=true;if(strat==='length'&&Math.abs(p[2]-b.d)>EPS)pref=false;if(strat==='width'&&Math.abs(p[2]-b.w)>EPS)pref=false;res.push({w:p[0],h:p[1],d:p[2],pref});}}return res;
+}
+function dedupPoints(pts){const s=new Set(),r=[];for(const p of pts){const k=Math.round(p.x)+','+Math.round(p.y)+','+Math.round(p.z);if(!s.has(k)){s.add(k);r.push(p);}}return r;}
+function ptInsideBox(p,b){return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;}
+
+function simulate(boxTypes,innerGap,maxX,maxY,maxZ,strat,thresh,randomize){
+  let pts=[{x:0,y:0,z:innerGap}],packed=[];
+  const finInv=[],infInv=[];
+  boxTypes.forEach(b=>{
+    const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];
+    let aL=b.L+cb.L,aW=b.W+cb.W,aH=b.H+cb.H;
+    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
+    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
+    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
+    const item=Object.assign({},b,{w:aW,h:aH,d:aL});
+    if(b.qty>0){item.remaining=b.qty;finInv.push(item);}else{item.remaining=Infinity;infInv.push(item);}
+  });
+  let count=0;
+  for(const inv of [finInv,infInv]){
+    if(!inv.length)continue;let canPack=true;
+    while(canPack&&count<3000){
+      canPack=false;
+      pts.sort((a,b)=>{if(Math.abs(a.z-b.z)>1)return a.z-b.z;if(randomize&&Math.random()<0.45)return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;});
+      for(const pt of pts){
+        let bIdx=-1,bOri=null,bVol=-1,bFit=-1,bD=-1,bPref=false;
+        let idx=inv.map((_,i)=>i);
+        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));let tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}}
+        for(const i of idx){
+          const box=inv[i];if(box.remaining<=0)continue;
+          let cs=strat;if(randomize&&Math.random()>0.65)cs=Math.random()>0.5?'length':'width';
+          for(const ori of getOrientations(box,cs)){
+            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS)continue;
+            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){
+              const vol=ori.w*ori.h*ori.d,fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);
+              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol,better=false;
+              if(bIdx===-1)better=true;
+              else if(ori.pref&&!bPref)better=true;
+              else if(!ori.pref&&bPref)better=false;
+              else if(ev>bVol)better=true;
+              else if(ev===bVol&&fit>bFit)better=true;
+              else if(ev===bVol&&fit===bFit&&ori.d>bD)better=true;
+              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}
+            }
+          }
+        }
+        if(bIdx!==-1){
+          const bb=inv[bIdx];
+          packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});
+          bb.remaining--;count++;canPack=true;
+          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});
+          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));
+          pts=dedupPoints(pts);break;
+        }
+      }
+    }
+  }
+  return packed;
+}
+
+function simulateJapanPallet(boxTypes, innerGap, maxX, maxY, maxZ, palletType, interlockFirst) {
+    let box = null;
+    for (let b of boxTypes) {
+        const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
+        let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
+        if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
+        else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
+        else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
+        box = Object.assign({},b,{ w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity });
+        break;
+    }
+    if (!box) return [];
+
+    const availZ = maxZ - innerGap;
+    const isSheet = palletType === 'sheet';
+    const basePalletH = isSheet ? 15 : 120;
+    const cornerPadThick = isSheet ? 5 : 0;
+
+    let sheetMaxW = 1160;
+    let numZ = Math.max(1, Math.floor(availZ / sheetMaxW));
+    let sheetMaxD = Math.floor(availZ / numZ);
+
+    let maxPatW = isSheet ? sheetMaxW - cornerPadThick*2 : 1030;
+    let maxPatD = isSheet ? sheetMaxD - cornerPadThick*2 : 1030;
+
+    const effectiveH = maxY - basePalletH;
+    if (effectiveH < box.h) return []; 
+
+    let layersPerUnit = 1;
+    if (isSheet) {
+        let halfH = Math.floor(maxY / 2);
+        let calcLayers = Math.floor((halfH - basePalletH) / box.h);
+        layersPerUnit = Math.max(1, calcLayers);
+    } else {
+        let calcLayers = Math.floor((maxY - basePalletH) / box.h);
+        layersPerUnit = Math.max(1, calcLayers);
+    }
+
+    let unitH_boxes = layersPerUnit * box.h;
+    let unitH_total = unitH_boxes + basePalletH;
+
+    function generateAllPatterns(L, W, maxW, maxD) {
+      if (L <= 0 || W <= 0) return [];
+      const maxArea = maxW * maxD;
+      let patterns = [];
+
+      const addPat = (layout, uW, uD, isInterlock) => {
+          if (uW <= maxW + EPS && uD <= maxD + EPS) patterns.push({layout: layout, uW: uW, uD: uD, isInterlock: isInterlock||false});
+      };
+
+      const fill = (w, d, ox, oz, boxL, boxW) => {
+          let nx = Math.floor((w + EPS) / boxL);
+          let nz = Math.floor((d + EPS) / boxW);
+          let arr = [];
+          for(let i=0; i<nx; i++)
+              for(let j=0; j<nz; j++)
+                  arr.push({x: ox + i*boxL, z: oz + j*boxW, w: boxL, d: boxW});
+          return arr;
+      };
+
+      const maxNX = Math.floor(maxW / Math.min(L, W)) + 1;
+      const maxNZ = Math.floor(maxD / Math.min(L, W)) + 1;
+
+      for(let nx=1; nx<=maxNX && nx*L<=maxW+EPS; nx++) {
+          for(let nz=1; nz<=maxNZ && nz*W<=maxD+EPS; nz++) {
+              if(nx*L * nz*W > maxArea * 1.1) break; 
+              addPat(fill(nx*L, nz*W, 0, 0, L, W), nx*L, nz*W, false);
+          }
+      }
+      for(let nx=1; nx<=maxNX && nx*W<=maxW+EPS; nx++) {
+          for(let nz=1; nz<=maxNZ && nz*L<=maxD+EPS; nz++) {
+              if(nx*W * nz*L > maxArea * 1.1) break;
+              addPat(fill(nx*W, nz*L, 0, 0, W, L), nx*W, nz*L, false);
+          }
+      }
+
+      for(let nz1=1; nz1<=maxNZ && nz1*L<=maxD+EPS; nz1++) {
+          for(let nz2=1; nz2<=maxNZ && nz2*W<=maxD+EPS; nz2++) {
+              if (Math.abs(nz1*L - nz2*W) < EPS) {
+                  let depth = nz1*L;
+                  for(let nx1=1; nx1*W<=maxW+EPS; nx1++) {
+                      for(let nx2=1; nx1*W + nx2*L<=maxW+EPS; nx2++) {
+                          if(depth * (nx1*W + nx2*L) > maxArea * 1.1) break;
+                          let p = fill(nx1*W, depth, 0, 0, W, L).concat(fill(nx2*L, depth, nx1*W, 0, L, W));
+                          addPat(p, nx1*W + nx2*L, depth, true);
+                      }
+                  }
+              }
+          }
+      }
+
+      for(let nx1=1; nx1*W<=maxW+EPS; nx1++) {
+          for(let nx2=1; nx2*L<=maxW+EPS; nx2++) {
+              if (Math.abs(nx1*W - nx2*L) < EPS) {
+                  let width = nx1*W;
+                  for(let nz1=1; nz1*L<=maxD+EPS; nz1++) {
+                      for(let nz2=1; nz1*L + nz2*W<=maxD+EPS; nz2++) {
+                          if(width * (nz1*L + nz2*W) > maxArea * 1.1) break;
+                          let p = fill(width, nz1*L, 0, 0, W, L).concat(fill(width, nz2*W, 0, nz1*L, L, W));
+                          addPat(p, width, nz1*L + nz2*W, true);
+                      }
+                  }
+              }
+          }
+      }
+
+      for (let k = 1; k <= 4; k++) {
+          let L1 = L, W1 = k * W;
+          if (L1 + W1 <= Math.min(maxW, maxD) + EPS) {
+              const pwSize = L1 + W1;
+              for(let nx=1; nx*pwSize<=maxW+EPS; nx++) {
+                  for(let nz=1; nz*pwSize<=maxD+EPS; nz++) {
+                      if(nx*pwSize * nz*pwSize > maxArea * 1.1) break;
+                      let p = [];
+                      for(let i=0;i<nx;i++) {
+                          for(let j=0;j<nz;j++) {
+                              let ox = i*pwSize, oz = j*pwSize;
+                              p.push(...fill(W1, L1, ox, oz, W, L));
+                              p.push(...fill(L1, W1, ox, oz+L1, L, W));
+                              p.push(...fill(W1, L1, ox+L1, oz+W1, W, L));
+                              p.push(...fill(L1, W1, ox+W1, oz, L, W));
+                          }
+                      }
+                      addPat(p, nx*pwSize, nz*pwSize, true);
+                  }
+              }
+          }
+          let L2 = k * L, W2 = W;
+          if (L2 + W2 <= Math.min(maxW, maxD) + EPS) {
+              const pwSize = L2 + W2;
+              for(let nx=1; nx*pwSize<=maxW+EPS; nx++) {
+                  for(let nz=1; nz*pwSize<=maxD+EPS; nz++) {
+                      if(nx*pwSize * nz*pwSize > maxArea * 1.1) break;
+                      let p = [];
+                      for(let i=0;i<nx;i++) {
+                          for(let j=0;j<nz;j++) {
+                              let ox = i*pwSize, oz = j*pwSize;
+                              p.push(...fill(W2, L2, ox, oz, W, L));
+                              p.push(...fill(L2, W2, ox, oz+L2, L, W));
+                              p.push(...fill(W2, L2, ox+L2, oz+W2, W, L));
+                              p.push(...fill(L2, W2, ox+W2, oz, L, W));
+                          }
+                      }
+                      addPat(p, nx*pwSize, nz*pwSize, true);
+                  }
+              }
+          }
+      }
+
+      let rotated = [];
+      for (let pat of patterns) {
+          if (pat.uD <= maxW + EPS && pat.uW <= maxD + EPS) {
+              rotated.push({
+                  layout: pat.layout.map(p=>{ return {x:p.z,z:p.x,w:p.d,d:p.w}; }),
+                  uW: pat.uD, uD: pat.uW,
+                  isInterlock: pat.isInterlock
+              });
+          }
+      }
+      patterns = patterns.concat(rotated);
+
+      let uniquePats = [];
+      let sigs = new Set();
+      for(let pat of patterns) {
+          const layoutSig = pat.layout.map(b=> Math.round(b.x)+','+Math.round(b.z)+','+Math.round(b.w)+','+Math.round(b.d) ).sort().join('|');
+          const sig = Math.round(pat.uW)+'_'+Math.round(pat.uD)+'_'+layoutSig;
+          if (!sigs.has(sig)) {
+              sigs.add(sig);
+              uniquePats.push(pat);
+          }
+      }
+      return uniquePats;
+    }
+
+    let patterns = generateAllPatterns(box.d, box.w, maxPatW, maxPatD);
+    if (!patterns.length) return [];
+
+    let hasInterlock = false;
+    for(let p of patterns) if(p.isInterlock) hasInterlock = true;
+    let requireInterlock = interlockFirst && hasInterlock;
+
+    let maxBoxesPerLayer = 0;
+    for (let pat of patterns) {
+        if (requireInterlock && !pat.isInterlock) continue;
+        if (pat.layout.length > maxBoxesPerLayer) maxBoxesPerLayer = pat.layout.length;
+    }
+
+    let bestPat = null;
+    let bestIsInterlock = false;
+    let maxTotalBoxes = -1;
+    let bestShortSideCount = -1;
+
+    let unitTotalW = isSheet ? sheetMaxW : 1030;
+    let unitTotalD = isSheet ? sheetMaxD : 1030;
+
+    let maxUnitsX = Math.floor((maxX + EPS) / unitTotalW);
+    let maxUnitsZ = Math.floor((availZ + EPS) / unitTotalD);
+    let maxUnitsY = Math.floor((maxY + EPS) / unitH_total);
+
+    if (maxUnitsX <= 0 || maxUnitsZ <= 0 || maxUnitsY <= 0) return [];
+
+    for (let pat of patterns) {
+        if (requireInterlock && !pat.isInterlock) continue;
+        if (pat.layout.length < maxBoxesPerLayer) continue;
+        
+        let totalUnits = maxUnitsX * maxUnitsZ * maxUnitsY;
+        let boxesPerUnit = pat.layout.length * layersPerUnit;
+        let totalBoxes = totalUnits * boxesPerUnit;
+        if (box.remaining !== Infinity && totalBoxes > box.remaining) totalBoxes = box.remaining;
+        
+        let shortSides = 0;
+        for(let b of pat.layout) if(b.w < b.d) shortSides++;
+        shortSides = shortSides * layersPerUnit * totalUnits;
+        
+        let replace = false;
+        if (!bestPat) {
+            replace = true;
+        } else {
+            if (interlockFirst) {
+                if (pat.isInterlock && !bestIsInterlock) replace = true;
+                else if (pat.isInterlock === bestIsInterlock) {
+                    if (totalBoxes > maxTotalBoxes) replace = true;
+                    else if (totalBoxes === maxTotalBoxes && shortSides > bestShortSideCount) replace = true;
+                }
+            } else {
+                if (totalBoxes > maxTotalBoxes) replace = true;
+                else if (totalBoxes === maxTotalBoxes && shortSides > bestShortSideCount) replace = true;
+            }
+        }
+
+        if (replace) {
+            maxTotalBoxes = totalBoxes;
+            bestShortSideCount = shortSides;
+            bestIsInterlock = pat.isInterlock;
+            bestPat = pat;
+        }
+    }
+
+    if (!bestPat) return [];
+
+    const palletDetail = {
+        boxesPerLayer: bestPat.layout.length,
+        layers: layersPerUnit,
+        totalPallets: maxUnitsX * maxUnitsZ * maxUnitsY
+    };
+
+    let finalPacked = [];
+    finalPacked._palletDetail = palletDetail;
+
+    let boxesLeft = box.remaining;
+
+    for (let y = 0; y < maxUnitsY; y++) {
+        for (let z = 0; z < maxUnitsZ; z++) {
+            for (let x = 0; x < maxUnitsX; x++) {
+                if (boxesLeft <= 0) break;
+
+                let px = maxUnitsX > 1 ? x * ((maxX - unitTotalW) / (maxUnitsX - 1)) : (maxX - unitTotalW) / 2;
+                let pz = innerGap + z * unitTotalD;
+                let py = y * unitH_total;
+
+                let packMinX=Infinity, packMinZ=Infinity, packMaxX=0, packMaxZ=0;
+                for (let b of bestPat.layout) {
+                    if (b.x < packMinX) packMinX = b.x;
+                    if (b.z < packMinZ) packMinZ = b.z;
+                    if (b.x + b.w > packMaxX) packMaxX = b.x + b.w;
+                    if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;
+                }
+                let actualW = packMaxX - packMinX;
+                let actualD = packMaxZ - packMinZ;
+                let innerOffsetX = (unitTotalW - actualW) / 2 - packMinX;
+                let innerOffsetZ = (unitTotalD - actualD) / 2 - packMinZ;
+                let bx0 = px + innerOffsetX + packMinX;
+                let bz0 = pz + innerOffsetZ + packMinZ;
+                let bx1 = bx0 + actualW;
+                let bz1 = bz0 + actualD;
+
+                if (isSheet) {
+                    finalPacked.push({isPallet:true,x:bx0-cornerPadThick,y:py,z:bz0-cornerPadThick,w:actualW+cornerPadThick*2,h:basePalletH,d:actualD+cornerPadThick*2,color:'#cbd5e1',typeId:'pallet',name:'Sheet Pallet'});
+                    let padH=unitH_boxes, padC='#94a3b8', pN='Corner Pad', th=cornerPadThick, len=30;
+                    [[bx0-th,py+basePalletH,bz0-th,len,padH,th],[bx0-th,py+basePalletH,bz0-th,th,padH,len],
+                     [bx1+th-len,py+basePalletH,bz0-th,len,padH,th],[bx1,py+basePalletH,bz0-th,th,padH,len],
+                     [bx0-th,py+basePalletH,bz1,len,padH,th],[bx0-th,py+basePalletH,bz1+th-len,th,padH,len],
+                     [bx1+th-len,py+basePalletH,bz1,len,padH,th],[bx1,py+basePalletH,bz1+th-len,th,padH,len]
+                    ].forEach(arr=>finalPacked.push({isPallet:true,isPad:true,x:arr[0],y:arr[1],z:arr[2],w:arr[3],h:arr[4],d:arr[5],color:padC,typeId:'pad',name:pN}));
+                } else {
+                    finalPacked.push({isPallet:true,x:px,y:py,z:pz,w:1030,h:basePalletH,d:1030,color:'#b45309',typeId:'pallet',name:'Pallet 1030x1030'});
+                }
+
+                for (let l = 0; l < layersPerUnit; l++) {
+                    for (let pos of bestPat.layout) {
+                        if (boxesLeft <= 0) break;
+                        finalPacked.push({x:px+innerOffsetX+pos.x,y:py+basePalletH+l*box.h,z:pz+innerOffsetZ+pos.z,w:pos.w,h:box.h,d:pos.d,color:box.color,typeId:box.id,name:box.name});
+                        boxesLeft--;
+                    }
+                }
+            }
+        }
+    }
+    return finalPacked;
+}
+
+self.onmessage = function(e) {
+  const {boxes,innerGap,maxX,maxY,maxZ,strat,thresh,isJapanBound,palletType,interlockFirst,ITER} = e.data;
+  let best=[], bestVol=-1;
+  const tryIt=(arr)=>{const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0);if(v>bestVol){bestVol=v;best=arr;}};
+  const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst):simulate(arr,innerGap,maxX,maxY,maxZ,s,thresh,rand);
+  
+  if(!isJapanBound){
+    if(strat==='auto'){tryIt(runSim(boxes,'length',false));tryIt(runSim(boxes,'width',false));}
+    else tryIt(runSim(boxes,strat,false));
+  } else {
+    tryIt(runSim(boxes,strat,false));
+  }
+  
+  for(let cur=0;cur<ITER;cur++){
+    if(!isJapanBound){
+      let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat;
+      tryIt(runSim(boxes,s2,true));
+      if(cur%10===0){tryIt(runSim(boxes,'length',true));tryIt(runSim(boxes,'width',true));}
+    }
+    if(cur%5===4) self.postMessage({type:'progress',pct:Math.round((cur+1)/ITER*100)});
+  }
+  self.postMessage({type:'done',packed:best});
+};
+`;
 
 const T = {
   zh:{
@@ -69,7 +470,7 @@ const T = {
     gInner:'最內側預留 (mm)', gDoor:'門口預留 (mm)', gRight:'右側預留 (mm)', gTop:'上方預留 (mm)',
     gSupport:'支撐面積閾值 (%)', gSupportL:'寬鬆(高裝載率)', gSupportR:'嚴格(高穩定性)',
     dimTotal:'內部尺寸 (深×寬×高)', dimD:'有效深度', dimW:'有效寬度', dimH:'有效高度',
-    boxSet:'箱體尺寸設定(內寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱',
+    boxSet:'箱體尺寸設定(內寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱', copyBox:'複製',
     cbType:'紙箱種類 (自動計算外寸)',
     fL:'長(L) mm', fW:'寬(W) mm', fH:'高(H) mm', fQ:'數量 (0=自動)',
     tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
@@ -80,6 +481,7 @@ const T = {
     stratL:'優先以 箱長(L) 貼合貨櫃深',
     stratW:'優先以 箱寬(W) 貼合貨櫃深',
     japanBound:'日本向 (啟用特定棧板)', palletType:'棧板種類',
+    interlockFirst:'強制互扣優先 (增強穩定性)',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
     vIso:'等角', vTop:'俯視', vBottom:'仰視', vFront:'前視', vBack:'後視', vLeft:'左視', vRight:'右視',
@@ -91,28 +493,23 @@ const T = {
     saveHtmlBtn:'下載 HTML 檔案',
     saveHtmlDone:'已儲存！',
     reportBtn:'報告書(.xlsx)', reportIng:'產出中...',
-    palletUsage: '棧板所需數量',
+    palletUsage:'棧板所需數量',
+    palletDetail:'棧板層數明細',
+    palletPerUnit:'每棧板',
+    palletLayerFmt:'每層{n}箱 × {l}層',
+    palletCountFmt:'共{c}個棧板',
     sumTitle:'裝載結果摘要',
     totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
     detail:'各類別裝載數量：', boxU:'箱',
     warnTitle:'部分箱體未能完全裝入！', wShort:'短缺', wReq:'需求', wPack:'實裝',
     wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。',
     wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。',
+    staleWarning:'⚠️ 設定已變更，請重新計算',
     remTitle:'整體剩餘間隙', remD:'深度(Z)', remW:'寬度(X)', remH:'高度(Y)', remInc:'含預留',
     helpBtn:'使用說明', helpTitle:'操作說明',
     closeBtn:'關閉',
     fixTitle:'v'+APP_VER+' 修正項目',
-    fix1:'修正1：報告書字體支援、排版優化、並追加「貨櫃設定」資訊',
-    fix2:'修正2：報告書強制全日文輸出，確保客戶端閱讀一致性',
-    fix3:'修正3：3D 視圖新增「透視投影」切換功能（可切換為正交無變形投影）',
-    fix4:'修正4：3D 視角擴充為 6 個基本面 + 等角，全方位自由切換',
-    fix5:'修正5：優化 3D 視圖間隙文字可讀性，並完善報告書單位與圖表比例',
-    fix6:'修正6：加入預留間隙設定的視覺區隔，與完善「標準尺寸/中間值」的教學說明',
-    fix7:'修正7：新增「日本向」選項，支援 1030mm×1030mm 棧板分組演算與立體顯示',
-    fix8:'修正8：優化棧板裝載排列，將紙箱群自動「置中」對齊於棧板，使四周剩餘間隙平均分佈',
-    fix9:'修正9：確保紙箱完全不超出棧板邊界，貨櫃內棧板改為靠兩側排列（留空中央），並追加棧板總數顯示',
-    fix10:'修正10：徹底修復語法錯誤崩潰，並重構「智慧陣列打版引擎」，完美支援圖紙中之交互列、磚塊與風車型陣列',
-    fix11:'修正11：優化棧板裝載方向，自動將陣列旋轉90度，優先讓紙箱的「短邊」面對門口，方便查閱標籤',
+    fix17:'修正17：徹底修復 Worker 迴圈錯誤導致的白屏0箱問題。並升級陣列引擎，完美支援圖紙中「8箱互扣」等進階多箱風車與交錯組合排列。',
     ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
     preloadBanner:'✅ 已載入預存設定',
   },
@@ -123,7 +520,7 @@ const T = {
     gInner:'最奥部余白 (mm)', gDoor:'ドア側余白 (mm)', gRight:'右側余白 (mm)', gTop:'上部余白 (mm)',
     gSupport:'支持面積しきい値 (%)', gSupportL:'緩やか(高積載率)', gSupportR:'厳格(高安定性)',
     dimTotal:'内部寸法 (奥行×幅×高)', dimD:'有効奥行', dimW:'有効幅', dimH:'有効高さ',
-    boxSet:'箱寸法設定(内寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール',
+    boxSet:'箱寸法設定(内寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール', copyBox:'複製',
     cbType:'ダンボール種類 (外寸自動計算)',
     fL:'長さ(L) mm', fW:'幅(W) mm', fH:'高さ(H) mm', fQ:'数量 (0=自動)',
     tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
@@ -133,7 +530,8 @@ const T = {
     stratAuto:'自動最適化 (全体数量最大)',
     stratL:'優先: 箱の長さ(L)を奥行に合わせる',
     stratW:'優先: 箱の幅(W)を奥行に合わせる',
-    japanBound:'日本向け (専用パレット有効化)', palletType:'パレット種類',
+    japanBound:'日本向け (専用パレット)', palletType:'パレット種類',
+    interlockFirst:'インターロック優先 (荷崩れ防止)',
     calcBtn:'標準計算', calcIng:'計算中…',
     graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
     vIso:'等角', vTop:'平面', vBottom:'底面', vFront:'正面', vBack:'背面', vLeft:'左側面', vRight:'右側面',
@@ -145,381 +543,67 @@ const T = {
     saveHtmlBtn:'HTMLファイルをダウンロード',
     saveHtmlDone:'保存完了！',
     reportBtn:'レポート(.xlsx)', reportIng:'出力中...',
-    palletUsage: 'パレット必要数',
+    palletUsage:'パレット必要数',
+    palletDetail:'パレット層数明細',
+    palletPerUnit:'パレット毎',
+    palletLayerFmt:'1層{n}箱 × {l}層',
+    palletCountFmt:'計{c}パレット',
     sumTitle:'積載結果の概要',
     totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
     detail:'各カテゴリ積載数：', boxU:'箱',
     warnTitle:'一部の箱が積載されませんでした！', wShort:'不足', wReq:'要求', wPack:'実積載',
     wAnal:'🔍 原因：残りスペースがデッドスペースに細分化され、箱を収められません。',
     wSug:'💡 提案：深層最適化を試す / 大きなコンテナに変更 / 余白を縮小。',
+    staleWarning:'⚠️ 設定が変更されました。再計算してください',
     remTitle:'残りスペース', remD:'奥行(Z)', remW:'幅(X)', remH:'高さ(Y)', remInc:'余白含',
     helpBtn:'ヘルプ', helpTitle:'操作ガイド',
     closeBtn:'閉じる',
     fixTitle:'v'+APP_VER+' 修正内容',
-    fix1:'修正1：レポートのフォント対応・レイアウト最適化・コンテナ設定情報の追加',
-    fix2:'修正2：レポートを完全日本語出力に強制し、クライアント側の統一性を確保',
-    fix3:'修正3：3Dビューに「透視投影」切替機能を追加（正投影への切替が可能）',
-    fix4:'修正4：3D視点を基本6面＋等角投影に拡張し、全方位の自由な切替を実現',
-    fix5:'修正5：3D図の寸法文字の視認性を向上させ、レポートの単位と画像比率を最適化',
-    fix6:'修正6：余白設定の視覚的な区切りを追加し、「標準寸法/中間値」の解説を補足',
-    fix7:'修正7：「日本向け」オプションを追加、1030mm×1030mmパレットのグループ化計算と立体表示に対応',
-    fix8:'修正8：パレット積載時の配置を最適化し、箱群をパレットの中央に自動配置して周囲の隙間を均等化',
-    fix9:'修正9：ダンボールがパレットの境界を越えないよう厳密に制限し、コンテナ内でパレットを両端に寄せて配置（中央に隙間）。さらにパレットの必要総数を結果に表示',
-    fix10:'修正10：クラッシュエラーを完全に解決し、図面の5種類の配列（交互列、レンガ、風車等）をサポートするスマート配列エンジンを導入',
-    fix11:'修正11：パレット積載方向を最適化。同数の積載が可能な場合、自動的に90度回転させ、ラベル確認がしやすいよう「短辺」をドア側に向ける配置を優先',
+    fix17:'修正17：Workerのループエラーを解決し、0箱バグを完全に修正。また、「8箱風車」など図面にある高度な複数箱インターロック配置に完全対応しました。',
     ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
     preloadBanner:'✅ 保存された設定を読み込みました',
   }
 };
 
 const Ico = {
-  Pkg:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-  Plus: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  Del:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
-  Spin: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
-  Box:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-  Warn: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  Play: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="5 3 19 12 5 21 5 3"/></svg>,
-  Eye:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-  Dl:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-  Glob: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
-  Rule: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"/><line x1="6" y1="18" x2="10.1" y2="13.9"/><line x1="8" y1="20" x2="12.1" y2="15.9"/><line x1="10" y1="22" x2="14.1" y2="17.9"/><line x1="14" y1="20" x2="18.1" y2="15.9"/><line x1="16" y1="18" x2="20.1" y2="13.9"/></svg>,
-  Cam:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
-  Book: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-  Star: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
-  Chk:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Gear: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  X:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  Save: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
-  Table: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>
+  Pkg:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  Plus:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  Copy:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  Del:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+  Spin:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+  Box:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  Warn:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Play:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+  Eye:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  Dl:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Glob:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+  Rule:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"/><line x1="6" y1="18" x2="10.1" y2="13.9"/><line x1="8" y1="20" x2="12.1" y2="15.9"/><line x1="10" y1="22" x2="14.1" y2="17.9"/><line x1="14" y1="20" x2="18.1" y2="15.9"/><line x1="16" y1="18" x2="20.1" y2="13.9"/></svg>,
+  Cam:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+  Book:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  Star:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
+  Chk:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Gear:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  X:     ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Save:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+  Table: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
+  Layers:({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
 };
 
-// ── 裝載演算法核心 ────────────────────────────────────────────────────────
-function isColliding(x,y,z,w,h,d,packed){
-  for(const b of packed){
-    if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS)) return true;
-  }
-  return false;
-}
-
-function isSupported(x,y,z,w,h,d,packed,thresh){
-  if(y<EPS) return true;
-  let area=0;
-  for(const b of packed){
-    if(Math.abs((b.y+b.h)-y)<EPS){
-      const ix1=Math.max(x,b.x), iz1=Math.max(z,b.z);
-      const ix2=Math.min(x+w,b.x+b.w), iz2=Math.min(z+d,b.z+b.d);
-      if(ix1<ix2-EPS&&iz1<iz2-EPS) area+=(ix2-ix1)*(iz2-iz1);
-    }
-  }
-  return area/(w*d)>=thresh;
-}
-
-function getOrientations(b, strat){
-  const u=new Set(), res=[];
-  const perms=[[b.w,b.h,b.d],[b.d,b.h,b.w]];
-  for(const p of perms){
-    const k=`${Math.round(p[0])},${Math.round(p[1])},${Math.round(p[2])}`;
-    if(!u.has(k)){
-      u.add(k);
-      let pref=true;
-      if(strat==='length'&&Math.abs(p[2]-b.d)>EPS) pref=false;
-      if(strat==='width' &&Math.abs(p[2]-b.w)>EPS) pref=false;
-      res.push({w:p[0],h:p[1],d:p[2],pref});
-    }
-  }
-  return res;
-}
-
-function dedupPoints(pts){
-  const s=new Set(), r=[];
-  for(const p of pts){
-    const k=`${Math.round(p.x)},${Math.round(p.y)},${Math.round(p.z)}`;
-    if(!s.has(k)){s.add(k);r.push(p);}
-  }
-  return r;
-}
-
-function ptInsideBox(p,b){
-  return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;
-}
-
-// 標準裝載演算法
-function simulate(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize){
-  let pts=[{x:0,y:0,z:innerGap}], packed=[];
-  const finInv=[], infInv=[];
-  boxTypes.forEach(b=>{
-    const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
-    let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
-    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
-    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
-    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
-    const item={...b,w:aW,h:aH,d:aL};
-    if(b.qty>0){item.remaining=b.qty;finInv.push(item);}
-    else{item.remaining=Infinity;infInv.push(item);}
-  });
-  let count=0;
-  for(const inv of [finInv,infInv]){
-    if(!inv.length) continue;
-    let canPack=true;
-    while(canPack&&count<3000){
-      canPack=false;
-      pts.sort((a,b)=>{
-        if(Math.abs(a.z-b.z)>1) return a.z-b.z;
-        if(randomize&&Math.random()<0.45) return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);
-        return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;
-      });
-      for(const pt of pts){
-        let bIdx=-1, bOri=null, bVol=-1, bFit=-1, bD=-1, bPref=false;
-        let idx=inv.map((_,i)=>i);
-        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]];}}
-        for(const i of idx){
-          const box=inv[i];
-          if(box.remaining<=0) continue;
-          let cs=strat;
-          if(randomize&&Math.random()>0.65) cs=Math.random()>0.5?'length':'width';
-          for(const ori of getOrientations(box,cs)){
-            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS) continue;
-            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){
-              const vol=ori.w*ori.h*ori.d;
-              const fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);
-              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol;
-              let better=false;
-              if(bIdx===-1) better=true;
-              else if(ori.pref&&!bPref) better=true;
-              else if(!ori.pref&&bPref) better=false;
-              else if(ev>bVol) better=true;
-              else if(ev===bVol&&fit>bFit) better=true;
-              else if(ev===bVol&&fit===bFit&&ori.d>bD) better=true;
-              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}
-            }
-          }
-        }
-        if(bIdx!==-1){
-          const bb=inv[bIdx];
-          packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});
-          bb.remaining--;count++;canPack=true;
-          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});
-          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));
-          pts=dedupPoints(pts);
-          break;
-        }
-      }
-    }
-  }
-  return packed;
-}
-
-// ★ 智慧陣列打版引擎：完美支援 ブロック積み、交互列積み、レンガ積み、風車積み、スプリット積み
-function simulateWithPallet(boxTypes, innerGap, maxX, maxY, maxZ, strat, thresh, randomize, palletType) {
-  const palletW = 1030, palletD = 1030, palletH = palletType === 'sheet' ? 15 : 120;
-  const availZ = maxZ - innerGap;
-  const maxP_X = Math.floor(maxX / palletW);
-  const maxP_Z = Math.floor(availZ / palletD);
-  const totalPallets = maxP_X * maxP_Z;
-
-  if (totalPallets <= 0) return []; 
-
-  let inventory = [];
-  boxTypes.forEach(b => {
-    const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
-    let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
-    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
-    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
-    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
-    inventory.push({...b, w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity});
-  });
-
-  function generateLayerPatterns(pW, pD, L, W) {
-      if (L <= 0 || W <= 0) return [];
-      let patterns = [];
-      
-      const fill = (w, d, ox, oz, boxL, boxW) => {
-          let nx = Math.floor((w + 0.01) / boxL);
-          let nz = Math.floor((d + 0.01) / boxW);
-          let arr = [];
-          for(let i=0; i<nx; i++)
-              for(let j=0; j<nz; j++)
-                  arr.push({x: ox + i*boxL, z: oz + j*boxW, w: boxL, d: boxW});
-          return arr;
-      };
-
-      // 1. ブロック (Block)
-      patterns.push(fill(pW, pD, 0, 0, L, W));
-      patterns.push(fill(pW, pD, 0, 0, W, L));
-
-      // 2. 交互列 (Alternative)
-      let altPattern1 = [];
-      let curZ1 = 0, useL1 = true;
-      while(curZ1 < pD) {
-          let bh = useL1 ? W : L;
-          let bw = useL1 ? L : W;
-          if (curZ1 + bh > pD + 0.01) break;
-          altPattern1.push(...fill(pW, bh, 0, curZ1, bw, bh));
-          curZ1 += bh;
-          useL1 = !useL1;
-      }
-      patterns.push(altPattern1);
-
-      // 3. レンガ (Brick)
-      for(let i=1; i<=Math.floor((pW+0.01)/L); i++) {
-          patterns.push([...fill(i*L, pD, 0, 0, L, W), ...fill(pW - i*L, pD, i*L, 0, W, L)]);
-      }
-      for(let j=1; j<=Math.floor((pD+0.01)/W); j++) {
-          patterns.push([...fill(pW, j*W, 0, 0, L, W), ...fill(pW, pD - j*W, 0, j*W, W, L)]);
-      }
-
-      // 4. 風車 (Pinwheel)
-      let maxD = Math.max(L, W), minD = Math.min(L, W);
-      if (maxD + minD <= pW + 0.01 && maxD + minD <= pD + 0.01) {
-          const getPw = (bx, bz) => [
-              {x: bx, z: bz, w: maxD, d: minD},
-              {x: bx, z: bz+minD, w: minD, d: maxD},
-              {x: bx+minD, z: bz+maxD, w: maxD, d: minD},
-              {x: bx+maxD, z: bz, w: minD, d: maxD}
-          ];
-          let pwW = maxD + minD;
-          let nx = Math.floor((pW+0.01)/pwW);
-          let nz = Math.floor((pD+0.01)/pwW);
-          let multi = [];
-          for(let i=0; i<nx; i++) {
-              for(let j=0; j<nz; j++) {
-                  multi.push(...getPw(i*pwW, j*pwW));
-              }
-          }
-          patterns.push(multi);
-      }
-      
-      // ★ 產生所有排法的 90 度對角鏡射翻轉，並選擇最佳佈局（優先讓短邊面對門口 Z軸）
-      let rotatedPatterns = [];
-      for (let pat of patterns) {
-          rotatedPatterns.push(pat.map(p => ({
-              x: p.z,
-              z: p.x,
-              w: p.d,
-              d: p.w
-          })));
-      }
-      patterns = patterns.concat(rotatedPatterns);
-
-      let best = [];
-      let maxCount = -1;
-      let bestShortSideCount = -1;
-
-      for (let pat of patterns) {
-          let count = pat.length;
-          // Z軸為深度(門口方向)，w為X方向長度，d為Z方向長度。
-          // 若要「短邊」面對門口，代表從門口看進去時呈現的是短邊，亦即 X方向尺寸(w) 要小於 Z方向尺寸(d)。
-          let shortSideCount = pat.filter(b => b.w < b.d).length;
-          
-          if (count > maxCount) {
-              maxCount = count;
-              bestShortSideCount = shortSideCount;
-              best = pat;
-          } else if (count === maxCount) {
-              // 當排出的數量相同時，優先選擇能讓短邊面向門口的排法
-              if (shortSideCount > bestShortSideCount) {
-                  bestShortSideCount = shortSideCount;
-                  best = pat;
-              }
-          }
-      }
-      return best;
-  }
-
-  let finalPacked = [];
-  let cx = 0, cz = 0;
-
-  for (let pIdx = 0; pIdx < totalPallets; pIdx++) {
-      if (!inventory.some(b => b.remaining > 0)) break;
-
-      let palletPacked = [];
-      let currentY = 0;
-
-      while (currentY < (maxY - palletH)) {
-          let box = inventory.find(b => b.remaining > 0 && currentY + b.h <= (maxY - palletH) + EPS);
-          if (!box) break;
-
-          let layout = generateLayerPatterns(palletW, palletD, box.d, box.w);
-          if (layout.length === 0) {
-              box.remaining = 0;
-              continue;
-          }
-
-          let toPlace = Math.min(layout.length, box.remaining);
-          for (let i = 0; i < toPlace; i++) {
-              let pos = layout[i];
-              palletPacked.push({
-                  x: pos.x, y: currentY, z: pos.z,
-                  w: pos.w, h: box.h, d: pos.d,
-                  color: box.color, typeId: box.id, name: box.name
-              });
-          }
-          box.remaining -= toPlace;
-          currentY += box.h;
-      }
-
-      if (palletPacked.length === 0) break;
-
-      // 5. スプリット (Split) - 絕對置中
-      let packMinX = Infinity, packMinZ = Infinity;
-      let packMaxX = 0, packMaxZ = 0;
-      for (let b of palletPacked) {
-          if (b.x < packMinX) packMinX = b.x;
-          if (b.z < packMinZ) packMinZ = b.z;
-          if (b.x + b.w > packMaxX) packMaxX = b.x + b.w;
-          if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;
-      }
-      let actualW = packMaxX - packMinX;
-      let actualD = packMaxZ - packMinZ;
-      let offsetX = (palletW - actualW) / 2 - packMinX;
-      let offsetZ = (palletD - actualD) / 2 - packMinZ;
-
-      let px = 0;
-      if (maxP_X > 1) {
-          px = cx * ((maxX - palletW) / (maxP_X - 1));
-      } else {
-          px = (maxX - palletW) / 2;
-      }
-      let pz = innerGap + cz * palletD;
-      
-      finalPacked.push({
-          isPallet: true,
-          x: px, y: 0, z: pz,
-          w: palletW, h: palletH, d: palletD,
-          color: palletType === 'sheet' ? '#cbd5e1' : '#b45309', 
-          typeId: 'pallet', name: palletType === 'sheet' ? 'Sheet Pallet' : 'Pallet 1030x1030'
-      });
-
-      for (let b of palletPacked) {
-          finalPacked.push({
-              ...b,
-              x: px + offsetX + b.x,
-              y: palletH + b.y,
-              z: pz + offsetZ + b.z
-          });
-      }
-
-      cx++;
-      if (cx >= maxP_X) { cx = 0; cz++; }
-  }
-  return finalPacked;
-}
-
 function getGaps(packed, container, axis, limit){
-  if(!packed.length) return [limit];
+  const realPacked = packed.filter(p => !p.isPallet && !p.isPad);
+  if(!realPacked.length) return [0];
   const step=50, vis=new Set();
   if(axis==='X'){
     const dY=Math.ceil(container.h/step),dZ=Math.ceil(container.d/step),g=new Float32Array(dY*dZ).fill(-1);
-    packed.forEach(p=>{const lim=p.x+p.w,sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let y=sy;y<ey&&y<dY;y++)for(let z=sz;z<ez&&z<dZ;z++){const i=y*dZ+z;if(lim>g[i])g[i]=lim;}});
+    realPacked.forEach(p=>{const lim=p.x+p.w,sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let y=sy;y<ey&&y<dY;y++)for(let z=sz;z<ez&&z<dZ;z++){const i=y*dZ+z;if(lim>g[i])g[i]=lim;}});
     g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
   }else if(axis==='Y'){
     const dX=Math.ceil(container.w/step),dZ=Math.ceil(container.d/step),g=new Float32Array(dX*dZ).fill(-1);
-    packed.forEach(p=>{const lim=p.y+p.h,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let x=sx;x<ex&&x<dX;x++)for(let z=sz;z<ez&&z<dZ;z++){const i=x*dZ+z;if(lim>g[i])g[i]=lim;}});
+    realPacked.forEach(p=>{const lim=p.y+p.h,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sz=Math.floor(p.z/step),ez=Math.ceil((p.z+p.d)/step);for(let x=sx;x<ex&&x<dX;x++)for(let z=sz;z<ez&&z<dZ;z++){const i=x*dZ+z;if(lim>g[i])g[i]=lim;}});
     g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
   }else{
     const dX=Math.ceil(container.w/step),dY=Math.ceil(container.h/step),g=new Float32Array(dX*dY).fill(-1);
-    packed.forEach(p=>{const lim=p.z+p.d,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step);for(let x=sx;x<ex&&x<dX;x++)for(let y=sy;y<ey&&y<dY;y++){const i=x*dY+y;if(lim>g[i])g[i]=lim;}});
+    realPacked.forEach(p=>{const lim=p.z+p.d,sx=Math.floor(p.x/step),ex=Math.ceil((p.x+p.w)/step),sy=Math.floor(p.y/step),ey=Math.ceil((p.y+p.h)/step);for(let x=sx;x<ex&&x<dX;x++)for(let y=sy;y<ey&&y<dY;y++){const i=x*dY+y;if(lim>g[i])g[i]=lim;}});
     g.forEach(v=>{if(v>=0)vis.add(Math.round(v));});
   }
   const lims=Array.from(vis).sort((a,b)=>b-a);
@@ -527,16 +611,13 @@ function getGaps(packed, container, axis, limit){
   return gaps.length?gaps.slice(0,3):[0];
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────
 function Modal({onClose, title, children, wide}){
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
       <div className={'modal-in bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden '+(wide?'w-full max-w-4xl max-h-[92vh]':'w-full max-w-2xl max-h-[90vh]')}>
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
           <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
-            <Ico.X c="w-5 h-5"/>
-          </button>
+          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
         </div>
         <div className="flex-1 overflow-y-auto scr">{children}</div>
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
@@ -547,58 +628,26 @@ function Modal({onClose, title, children, wide}){
   );
 }
 
-// ── 儲存為HTML Modal ─────────────────────────────────────────────────────
 function SaveHtmlModal({onClose, onSave, lang, t}){
   const [saved, setSaved] = useState(false);
-  const handleSave = () => {
-    onSave();
-    setSaved(true);
-    setTimeout(()=>setSaved(false), 2500);
-  };
+  const handleSave = () => { onSave(); setSaved(true); setTimeout(()=>setSaved(false), 2500); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
       <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Ico.Save c="w-5 h-5 text-emerald-600"/>
-            <h2 className="text-base font-bold text-slate-800">{t.saveHtmlTitle}</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
-            <Ico.X c="w-5 h-5"/>
-          </button>
+          <div className="flex items-center gap-2"><Ico.Save c="w-5 h-5 text-emerald-600"/><h2 className="text-base font-bold text-slate-800">{t.saveHtmlTitle}</h2></div>
+          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
         </div>
         <div className="p-6 space-y-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="text-sm text-emerald-800 leading-relaxed">{t.saveHtmlDesc}</p>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{lang==='zh'?'將會儲存的設定':'保存される設定'}</p>
-            <ul className="text-xs text-slate-600 space-y-1">
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'貨櫃種類與預留空間設定':'コンテナ種類と余白設定'}</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'所有箱體尺寸、數量、公差與種類設定':'全箱体の寸法・数量・公差・種類設定'}</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'支撐閾值與裝載方向策略':'支持しきい値と積載方向戦略'}</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'日本向與專屬棧板設定':'日本向けと専用パレット設定'}</li>
-              <li className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span>{lang==='zh'?'介面語言設定':'インターフェース言語設定'}</li>
-            </ul>
-          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4"><p className="text-sm text-emerald-800 leading-relaxed">{t.saveHtmlDesc}</p></div>
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-xs text-amber-700">
-              {lang==='zh'
-                ? '⚠️ 計算結果（3D圖形）不會被儲存。收到檔案的人需要再點一次「標準計算」或「深層優化」來重新計算。'
-                : '⚠️ 計算結果（3D図形）は保存されません。ファイルを受け取った方は「標準計算」または「深層最適化」を再実行してください。'}
-            </p>
+            <p className="text-xs text-amber-700">{lang==='zh'?'⚠️ 計算結果不會被儲存，收到檔案後請重新執行計算。':'⚠️ 計算結果は保存されません。ファイルを受け取った方は再計算してください。'}</p>
           </div>
         </div>
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
           <button onClick={onClose} className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg text-sm transition-colors">{t.closeBtn}</button>
-          <button
-            onClick={handleSave}
-            className={'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all '+(saved?'bg-emerald-500 text-white':'bg-emerald-600 hover:bg-emerald-700 text-white')+(saved?' save-pop':'')}
-          >
-            {saved
-              ? <><Ico.Chk c="w-4 h-4"/>{t.saveHtmlDone}</>
-              : <><Ico.Dl c="w-4 h-4"/>{t.saveHtmlBtn}</>
-            }
+          <button onClick={handleSave} className={'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all '+(saved?'bg-emerald-500 text-white save-pop':'bg-emerald-600 hover:bg-emerald-700 text-white')}>
+            {saved?<><Ico.Chk c="w-4 h-4"/>{t.saveHtmlDone}</>:<><Ico.Dl c="w-4 h-4"/>{t.saveHtmlBtn}</>}
           </button>
         </div>
       </div>
@@ -606,249 +655,161 @@ function SaveHtmlModal({onClose, onSave, lang, t}){
   );
 }
 
-// ── 說明視窗 ──────────────────────────────────────────────────────────────
 function HelpModal({onClose, lang}){
   const [tab, setTab] = useState(0);
   const zh = lang==='zh';
+  const tabs = zh ? ['🚀 快速上手','📦 輸入設定','🔘 按鈕功能','📊 結果說明','❓ 常見問題'] : ['🚀 クイックスタート','📦 入力設定','🔘 ボタン機能','📊 結果説明','❓ よくある質問'];
+  const Step=({n,title,children})=><div className="flex gap-3 mb-4"><span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span><div><p className="font-semibold text-slate-800 mb-1">{title}</p><div className="text-slate-600 text-xs leading-relaxed">{children}</div></div></div>;
+  const Field=({name,type,children})=><div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{type}</span><span className="font-semibold text-slate-800 text-sm">{name}</span></div><p className="text-xs text-slate-600 leading-relaxed">{children}</p></div>;
+  const Btn=({label,color,children})=><div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200"><div className="flex items-center gap-2 mb-1.5"><span className={'text-[10px] font-bold px-2 py-0.5 rounded text-white '+color}>{label}</span></div><p className="text-xs text-slate-600 leading-relaxed">{children}</p></div>;
+  const Tip=({children})=><div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3"><p className="text-xs text-emerald-800 leading-relaxed">💡 {children}</p></div>;
+  const Warn=({children})=><div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3"><p className="text-xs text-amber-800 leading-relaxed">⚠️ {children}</p></div>;
 
-  const tabs = zh
-    ? ['🚀 快速上手','📦 輸入設定','🔘 按鈕功能','📊 結果說明','❓ 常見問題']
-    : ['🚀 クイックスタート','📦 入力設定','🔘 ボタン機能','📊 結果説明','❓ よくある質問'];
-
-  const Step = ({n, title, children}) => (
-    <div className="flex gap-3 mb-4">
-      <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span>
-      <div><p className="font-semibold text-slate-800 mb-1">{title}</p><div className="text-slate-600 text-xs leading-relaxed">{children}</div></div>
-    </div>
-  );
-  const Field = ({name, type, children}) => (
-    <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{type}</span>
-        <span className="font-semibold text-slate-800 text-sm">{name}</span>
-      </div>
-      <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
-    </div>
-  );
-  const Btn = ({label, color, children}) => (
-    <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className={'text-[10px] font-bold px-2 py-0.5 rounded text-white '+color}>{label}</span>
-      </div>
-      <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
-    </div>
-  );
-  const Info = ({icon, label, children}) => (
-    <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <p className="font-semibold text-slate-800 text-sm mb-1">{icon} {label}</p>
-      <p className="text-xs text-slate-600 leading-relaxed">{children}</p>
-    </div>
-  );
-  const Warn = ({children}) => (
-    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
-      <p className="text-xs text-amber-800 leading-relaxed">⚠️ {children}</p>
-    </div>
-  );
-  const Tip = ({children}) => (
-    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3">
-      <p className="text-xs text-emerald-800 leading-relaxed">💡 {children}</p>
-    </div>
-  );
-
-  const content_zh = [
+  const content_zh=[
     <div className="p-5 space-y-2">
-      <p className="text-sm text-slate-500 mb-4">按照以下 5 個步驟，即可完成貨櫃裝載試算：</p>
-      <Step n="1" title="選擇貨櫃種類">在左上方的下拉選單中，選擇您要使用的貨櫃規格（20呎、40呎 或 40呎高櫃）。系統會自動帶入該規格的標準最小內部尺寸。</Step>
-      <Step n="2" title="設定預留空間">輸入貨櫃四個方向的預留空間（單位：mm）：最內側（車頭方向）、門口（裝卸方向）、右側、上方。預留空間是指固定架、綑綁帶、緩衝材料等所需的空間。</Step>
-      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，選擇紙箱種類（如AB段）並輸入箱子的內寸(L/W/H)與數量。系統會自動幫您加上紙箱厚度變成外寸。</Step>
-      <Step n="4" title="選擇計算策略並執行">選擇「裝載方向策略」後，點擊「標準計算」按鈕。幾秒內即可看到右側的 3D 裝載示意圖與結果摘要。</Step>
-      <Step n="5" title="查看結果、必要時深層優化">查看右側的總裝載箱數與空間利用率。若希望進一步提升裝載率，可點擊「深層優化 (GRASP)」進行更精密的搜尋。</Step>
+      <Step n="1" title="選擇貨櫃種類">在左上方的下拉選單中，選擇您要使用的貨櫃規格。</Step>
+      <Step n="2" title="設定預留空間">輸入貨櫃四個方向的預留空間（mm）。</Step>
+      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，選擇紙箱種類並輸入內寸與數量。</Step>
+      <Step n="4" title="選擇計算策略並執行">選擇裝載方向策略後，點擊「標準計算」。</Step>
+      <Step n="5" title="查看結果、必要時深層優化">查看右側總裝載箱數與空間利用率。如需進一步提升可使用「深層優化」。</Step>
       <Tip>第一次使用建議先用「標準計算」確認基本結果，再視情況使用深層優化。</Tip>
     </div>,
     <div className="p-5">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">貨櫃設定區</p>
-      <Field name="貨櫃種類" type="下拉選單"><strong>20' GP</strong>：內部深度約 5867mm。<strong>40' GP</strong>：內部深度約 11998mm，最常見規格。<strong>40' HQ</strong>：與 40' GP 同長，高度多約 305mm。※尺寸採用 JIS/ISO 最小內部尺寸。</Field>
-      <Field name="各方向預留空間" type="數值 mm">最內側：車頭側緩衝/固定架空間。門口：門板開關/拉條固定空間。右側：固定帶穿繞/通道空間。上方：頂部固定帶/隔熱墊空間。</Field>
-      <Field name="支撐面積閾值 (%)" type="滑桿 20~80%"><strong>50%（預設）</strong>：底部至少一半面積有支撐，適合一般紙箱。<strong>20~30%（寬鬆）</strong>：裝載率更高但穩定性較低。<strong>70~80%（嚴格）</strong>：適合重型設備或精密儀器。</Field>
-      <Field name="紙箱種類" type="下拉選單">若選擇如「AB段」等選項，輸入的尺寸將被視為「內寸」，系統會自動加上紙箱厚度（例如 AB段長寬+15/高+30）來計算。若選「無(直接輸入外寸)」，則不加算厚度。</Field>
-      <Field name="長(L) / 寬(W) / 高(H)" type="數值 mm">輸入箱體實際尺寸。H固定為垂直方向（不可翻轉）。L和W可水平旋轉互換。</Field>
-      <Field name="數量" type="數值"><strong>輸入 0</strong>：自動計算最多能裝入幾個。<strong>輸入具體數字</strong>：優先嘗試裝入該數量，若裝不下會顯示短缺警告。</Field>
-      <Field name="正公差(+) / 負公差(-)" type="數值 mm">箱體製造尺寸允許誤差範圍。搭配「計算基準」可模擬最壞/最好情況。</Field>
-      <Field name="計算基準" type="下拉選單"><strong>標準尺寸</strong>：完全不考慮公差，僅使用基礎尺寸計算，適合初步粗估。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設每個箱子都是最小狀態。<strong>中間值</strong>：取正負公差的平均值，適合用來模擬整批貨物的「平均預期尺寸」。</Field>
-      <Field name="日本向 (特定棧板)" type="勾選框">啟用後可選擇使用 1030mm×1030mm 的棧板或 Sheet Pallet 進行雙層裝載演算，確保棧板不會超出貨櫃容量且能精確堆疊紙箱。</Field>
+      <Field name="貨櫃種類" type="下拉選單">20' GP：深度約5867mm。40' GP：深度約11998mm。40' HQ：與40'GP同長，高度多約305mm。</Field>
+      <Field name="紙箱種類" type="下拉選單">選擇如「AB段」時，輸入尺寸視為「內寸」，自動加紙箱厚度換算外寸。</Field>
+      <Field name="數量" type="數值">輸入0：自動計算最多能裝幾個。輸入具體數字：優先裝入該數量。</Field>
+      <Field name="日本向 (特定棧板)" type="勾選框">啟用後可選擇1030×1030mm棧板或Sheet Pallet進行雙層裝載演算。</Field>
+      <Field name="強制互扣優先" type="勾選框">以安全為第一考量，犧牲部分裝載極限，強制篩選能互相交錯防倒塌的排法（如風車型）。</Field>
+      <Field name="計算基準" type="下拉選單"><strong>標準尺寸</strong>：不考慮公差，直接用基礎尺寸計算。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設最小狀態。<strong>中間值</strong>：取正負公差平均，模擬整批平均預期尺寸。</Field>
     </div>,
     <div className="p-5">
-      <Btn label="標準計算" color="bg-blue-600">執行一次快速裝載演算（約1秒）。適合快速報價、初步驗證尺寸可行性。</Btn>
-      <Btn label="深層優化 (GRASP)" color="bg-indigo-600">執行100次隨機迭代搜尋，尋找更好的排列方式（約5~15秒）。適合多種箱型混裝或追求最高裝載率。</Btn>
-      <Btn label="報告書 (.xlsx)" color="bg-blue-600">自動以「最大」、「最小」、「中間值」三種公差運算一次，並匯出 Excel 格式的裝載數量與間隙比較表。</Btn>
-      <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">輸出1:40比例的DXF格式三視圖，可用AutoCAD等CAD軟體開啟。計算完成後才可點擊。</Btn>
-      <Btn label="儲存設定 (.html)" color="bg-emerald-600">將當前所有輸入設定（貨櫃種類、預留空間、箱體尺寸等）封裝進一個獨立的HTML檔案，分享給同事後對方打開即可看到相同的設定，不需重新輸入。注意：計算結果不會被儲存。</Btn>
-      <Btn label="截圖" color="bg-teal-600">將整個頁面截取為高解析度JPG圖片並自動下載，適合製作報告或傳送客戶確認。</Btn>
-      <Btn label="等角/俯/仰/前/後/左/右視" color="bg-slate-500">切換3D視圖觀看角度，支援全方位 6 個正交面與 1 個等角視角快速切換。</Btn>
-      <Btn label="透視 / 透視投影 + 拉桿" color="bg-slate-500">透視：半透明顯示查看內層堆疊。透視投影：切換真實遠近感與正交無變形投影。拉桿：逐步顯示放置順序。滑鼠左鍵旋轉、右鍵平移、滾輪縮放。</Btn>
+      <Btn label="標準計算" color="bg-blue-600">快速裝載演算（約1秒）。</Btn>
+      <Btn label="深層優化 (GRASP)" color="bg-indigo-600">100次隨機迭代搜尋最佳排列（約5~15秒），UI不卡頓。</Btn>
+      <Btn label="報告書 (.xlsx)" color="bg-blue-600">三種公差各算一次，輸出Excel比較表，含3D截圖。</Btn>
+      <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">1:40比例DXF三視圖，含尺寸標註線，可在AutoCAD直接讀值。</Btn>
+      <Btn label="複製（箱體）" color="bg-slate-500">快速複製相同規格箱體，省去重複輸入。</Btn>
     </div>,
     <div className="p-5">
-      <Info icon="📦" label="總裝載箱數">成功排入貨櫃有效空間內的箱子總數量（所有箱型合計）。</Info>
-      <Info icon="📊" label="空間利用率 (%)">（所有箱體總體積 ÷ 貨櫃內部總容積）× 100%。含預留空間在分母中，70%以上為良好，80%以上為優秀。</Info>
-      <Info icon="📏" label="整體剩餘間隙">深度(Z)：最後一個箱子到門口邊界的距離。寬度(X)：最寬排到右側邊界的距離。高度(Y)：最高層到頂部邊界的距離。同時顯示「含預留空間」的實際間隙。</Info>
-      <Info icon="📉" label="3D 圖中的紅色虛線框">代表「有效裝載區域」，即扣除所有預留空間後箱體實際可放置的範圍。</Info>
-      <Info icon="⚠️" label="部分箱體未能完全裝入（橘色警告）">當設定了具體數量但系統無法全部裝入時出現。顯示箱體名稱、短缺數量、目標與實際裝入數量。</Info>
-      <Warn>即使空間利用率未達100%，仍可能出現裝不下的情況。原因是剩餘空間被分割成多塊「畸零空間」，每塊的長寬高都不足以容納還未裝入的箱子。</Warn>
-      <Tip>遇到短缺警告時：① 先嘗試「深層優化」→ ② 檢查剩餘間隙，評估是否可縮減預留空間 → ③ 考慮換用 40' HQ 高櫃增加高度空間。</Tip>
+      <Field name="棧板層數明細" type="日本向模式">日本向計算完成後，摘要中會顯示「每層N箱 × L層 × C個棧板」的明細，方便作業員確認。</Field>
+      <Warn>設定變更後，舊結果會顯示半透明遮罩與「設定已變更，請重新計算」警示，避免誤讀舊數據。</Warn>
+      <Tip>遇到短缺警告時：① 先嘗試「深層優化」→ ② 縮減預留空間 → ③ 換用40' HQ高櫃。</Tip>
     </div>,
     <div className="p-5 space-y-4">
-      {[
-        ['「標準尺寸」與「中間值」的差異在哪？何時該用哪個？','【標準尺寸】完全不考慮公差，直接以您輸入的基礎尺寸（若有選紙箱則含紙箱厚度）進行計算。適合用於公差極小，或只需初步粗估的狀況。\n\n【中間值】會取「(正公差 - 負公差) ÷ 2」的數值加到基礎尺寸上。例如正公差為+5，負公差為-1，中間值就是加2。適合用於製造廠的公差範圍不對稱，您想用整批貨物的「平均預期尺寸」來做精準模擬時使用。'],
-        ['紙箱種類有什麼作用？','選擇紙箱種類（如AB段）時，系統會認定您輸入的L/W/H是「內寸」，並在運算時自動加上紙箱的厚度轉換成「外寸」堆疊。若您的貨物不是紙箱或已經量好外寸，請選擇「無(直接輸入外寸)」。'],
-        ['為什麼選「自動」策略有時和手動選 L 或 W 結果一樣？','「自動」會同時跑 L優先 和 W優先 兩個方向，取其中裝載量較多的結果。如果兩個方向結果相同，就會看起來一樣。'],
-        ['深層優化跑完後，結果沒有比標準計算好，正常嗎？','正常。深層優化的 100 次迭代帶有隨機性，不保證每次都能找到更好的解。如果箱型結構比較單純（例如只有一種箱型），標準計算通常已經接近最優解。'],
-        ['箱子的 L/W/H 到底哪個方向是哪個？','系統預設 L（長）為對應貨櫃「深度」方向，W（寬）為對應「左右寬度」方向，H（高）固定為垂直方向。水平擺放時 L 和 W 可以互換（這就是裝載方向策略在控制的事）。'],
-        ['設備不能翻轉，系統有考慮這個嗎？','有。系統只允許箱體繞垂直軸（Y軸）旋轉，也就是 L 和 W 可以互換，但 H（高度）永遠是垂直方向，不會讓設備側放或倒置。'],
-        ['空間利用率怎麼提高？','① 縮小各方向預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（如改為 30~40%）→ ④ 若有多種箱型，考慮混裝（數量都設為 0，讓系統自動填滿）。'],
+      {[['「標準尺寸」與「中間值」差異','標準尺寸不考慮公差。中間值取「(正公差-負公差)÷2」加到基礎尺寸，適合模擬整批平均預期尺寸。'],
+        ['空間利用率怎麼提高？','① 縮小預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（30~40%）'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
-          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2 whitespace-pre-wrap"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
+          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
         </div>
       ))}
     </div>
   ];
 
-  const content_ja = [
+  const content_ja=[
     <div className="p-5 space-y-2">
-      <p className="text-sm text-slate-500 mb-4">以下の 5 ステップで積載試算を完了できます：</p>
       <Step n="1" title="コンテナ種類を選択">左上のドロップダウンから使用するコンテナ規格を選択してください。</Step>
-      <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します。固定金具やバンド・緩衝材のスペースを考慮してください。</Step>
-      <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、ダンボール種類と内寸 L×W×H（mm）、数量を入力します。数量 0 は「できる限り詰める」を意味します。</Step>
-      <Step n="4" title="戦略を選択して計算">積載方向戦略を選んでから「標準計算」をクリック。数秒で 3D 積載図と結果概要が表示されます。</Step>
-      <Step n="5" title="結果確認・深層最適化">総積載数と空間利用率を確認します。さらに利用率を上げたい場合は「深層最適化 (GRASP)」を使用してください。</Step>
-      <Tip>初めての方はまず「標準計算」で基本結果を確認し、必要に応じて深層最適化を使用することをお勧めします。</Tip>
+      <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します。</Step>
+      <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、種類と内寸・数量を入力します。</Step>
+      <Step n="4" title="戦略を選択して計算">積載方向戦略を選んでから「標準計算」をクリック。</Step>
+      <Step n="5" title="結果確認・深層最適化">総積載数と利用率を確認し、必要なら「深層最適化」を使用。</Step>
+      <Tip>初めての方はまず「標準計算」で確認し、必要に応じて深層最適化を使用することをお勧めします。</Tip>
     </div>,
     <div className="p-5">
-      <Field name="コンテナ種類" type="ドロップダウン">20' GP：奥行約5867mm。40' GP：奥行約11998mm（最一般的）。40' HQ：40' GPより高さが約305mm増加。</Field>
-      <Field name="各方向余白" type="数値 mm">最奥部・ドア側・右側・上部それぞれの余白を設定。固定金具・ドア開閉・バンド通し・頂部断熱材のスペースです。</Field>
-      <Field name="支持面積しきい値 (%)" type="スライダー 20~80%">50%（デフォルト）：底面の半分以上が支持されれば配置可能。20~30%：緩やか設定で積載率向上。70~80%：精密機器向け厳格設定。</Field>
-      <Field name="ダンボール種類" type="ドロップダウン">AB段などを選択すると入力値を「内寸」と見なし、厚みを自動加算して計算します。「なし」を選ぶと入力値がそのまま外寸になります。</Field>
-      <Field name="長(L) / 幅(W) / 高さ(H)" type="数値 mm">箱の寸法を入力。H は垂直固定（上下反転不可）。L と W は水平回転で入れ替え可能。</Field>
-      <Field name="数量・公差・計算基準" type="数値 + ドロップダウン">数量 0 で自動最大充填。公差と計算基準の組み合わせで最悪・最良・平均ケースをシミュレーション。</Field>
-      <Field name="計算基準" type="ドロップダウン"><strong>標準寸法</strong>：公差を計算せず、基本寸法のみを使用します。<strong>最大</strong>：全箱が最大サイズの場合。<strong>最小</strong>：全箱が最小サイズの場合。<strong>中間値</strong>：正負公差の平均を取り、ロット全体の「平均的な予想サイズ」をシミュレーションします。</Field>
-      <Field name="日本向け (専用パレット)" type="チェックボックス">有効にすると、1030mm×1030mmパレットまたはシートパレットを使用した階層的な積載計算が可能になります。</Field>
+      <Field name="ダンボール種類" type="ドロップダウン">選択すると入力値を「内寸」と見なし、厚みを自動加算して計算します。</Field>
+      <Field name="数量" type="数値">0で自動最大充填。具体的な数値で指定数を優先して積載。</Field>
+      <Field name="日本向け (専用パレット)" type="チェックボックス">1030×1030mmパレットまたはシートパレットを使用した積載計算が可能です。</Field>
+      <Field name="インターロック優先" type="チェックボックス">荷崩れ防止を最優先し、風車積みやレンガ積みなどのインターロック配置を強制的に選択します。</Field>
+      <Field name="計算基準" type="ドロップダウン"><strong>標準寸法</strong>：公差なし。<strong>最大</strong>：全箱最大サイズ。<strong>最小</strong>：全箱最小サイズ。<strong>中間値</strong>：平均予想サイズのシミュレーション。</Field>
     </div>,
     <div className="p-5">
-      <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。単純な箱構成や初回確認に最適。</Btn>
-      <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復で最良解を探索（約5~15秒）。複雑な混載に効果的。</Btn>
-      <Btn label="レポート (.xlsx)" color="bg-blue-600">「最大」「最小」「中間値」の3つの公差で自動計算し、積載結果と残りスペースの比較表をExcel形式で出力します。</Btn>
-      <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">積載結果を1:40スケールのDXF形式で出力。計算後のみ有効。</Btn>
-      <Btn label="設定を保存 (.html)" color="bg-emerald-600">現在の入力設定（コンテナ種類・余白・箱体寸法など）をHTMLファイルに埋め込みます。同僚に送るとそのまま同じ設定で作業を継続できます。計算結果は保存されません。</Btn>
-      <Btn label="撮影・等角/平面/底面/正面..." color="bg-teal-600">撮影：高解像度JPG保存。視点ボタン：全方位6面＋等角投影の視点切替。</Btn>
-      <Btn label="透過 / 透視投影・積載順序" color="bg-slate-500">透過：半透明で内部確認。透視投影：パース付き/平行投影の切替。スライダー：積載順序をステップ表示。</Btn>
+      <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。</Btn>
+      <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復（約5~15秒）。UIはフリーズしません。</Btn>
+      <Btn label="レポート (.xlsx)" color="bg-blue-600">3種公差で各1回計算し比較表をExcel出力、3Dスクリーンショット付き。</Btn>
+      <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">1:40スケールDXF三面図、寸法線付きでAutoCADで直接読取可能。</Btn>
+      <Btn label="複製（箱体）" color="bg-slate-500">類似サイズの箱を素早く複製、再入力不要。</Btn>
     </div>,
     <div className="p-5">
-      <Info icon="📦" label="総積載箱数">有効スペースに収まった全箱種の合計数。</Info>
-      <Info icon="📊" label="空間利用率 (%)">（全箱体積合計 ÷ コンテナ内部総容積）× 100%。70%以上が良好、80%以上が優秀。</Info>
-      <Info icon="📏" label="残りスペース">Z（奥行）・X（幅）・Y（高さ）それぞれの方向で最後の箱から有効端までの距離。「余白含」表示は余白を加えた実際の隙間です。</Info>
-      <Warn>空間利用率が100%未満でも「積載不足」警告が出ることがあります。残りスペースが細切れになり、箱がどの向きでも入らない「デッドスペース」が生じるためです。</Warn>
-      <Tip>不足が発生した場合：① 深層最適化を試す → ② 余白を縮小 → ③ 40' HQ に変更して高さを増やす。</Tip>
+      <Field name="パレット層数明細" type="日本向けモード">計算完了後の概要に「1層N箱×L層×Cパレット」の明細が表示されます。</Field>
+      <Warn>設定変更後の旧結果には半透明オーバーレイと「再計算してください」の警告が表示され、誤読を防止します。</Warn>
+      <Tip>不足が発生した場合：① 深層最適化 → ② 余白を縮小 → ③ 40' HQに変更。</Tip>
     </div>,
     <div className="p-5 space-y-4">
-      {[
-        ['「標準寸法」と「中間値」の違いと使い分け方は？','【標準寸法】公差を全く考慮せず、入力した寸法（ダンボール選択時はその厚みを含む）で直接計算します。公差が無視できる場合や、大まかな見積もりに適しています。\n\n【中間値】「(正公差 - 負公差) ÷ 2」の値を寸法に加算します。例えば正公差+5、負公差-1の場合、中間値は+2になります。メーカーの公差範囲が非対称で、ロット全体の「平均的な予想サイズ」を使ってより正確なシミュレーションを行いたい場合に使用します。'],
-        ['「自動」戦略と手動選択の結果が同じになるのはなぜですか？','「自動」はL優先とW優先の両方を実行し、積載数の多い方を採用します。両方同じ結果の場合は同一表示になります。'],
-        ['深層最適化が標準計算より良くならないことはありますか？','あります。ランダム性があるため、箱種が単純な場合は標準計算がすでに最適解に近いことがほとんどです。'],
-        ['公差機能はいつ使いますか？','外注製造の箱で実寸に誤差がある場合に使用。標称600mm±2mmなら、正公差2・負公差2・計算基準「最大」で最悪ケースを検証できます。'],
-        ['DXFファイルをCADで開いても図形が見えません。','縮尺1:40のため図形が非常に小さく表示される場合があります。CADで「ZOOM → ALL」または「ZOOM → EXTENT」を実行してください。'],
+      {[['「標準寸法」と「中間値」の使い分け方','標準寸法は公差なし。中間値は「(正公差-負公差)÷2」を加算し、ロット平均サイズのシミュレーションに使用。'],
+        ['空間利用率を上げるには？','① 余白を縮小 → ② 深層最適化 → ③ 支持しきい値を下げる（30~40%）'],
       ].map(([q,a],i)=>(
         <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
-          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2 whitespace-pre-wrap"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
+          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
         </div>
       ))}
     </div>
   ];
 
   const contents = zh ? content_zh : content_ja;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
       <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Ico.Book c="w-5 h-5 text-blue-600"/>
-            <h2 className="text-lg font-bold text-slate-800">{zh?'貨櫃裝載計算器 — 完整使用說明':'コンテナ積載計算ツール — 操作ガイド'}</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors">
-            <Ico.X c="w-5 h-5"/>
-          </button>
+          <div className="flex items-center gap-2"><Ico.Book c="w-5 h-5 text-blue-600"/><h2 className="text-lg font-bold text-slate-800">{zh?'完整使用說明':'操作ガイド'}</h2></div>
+          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
         </div>
         <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
           {tabs.map((tb,i)=>(
-            <button key={i} onClick={()=>setTab(i)}
-              className={'px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 '+(tab===i?'border-blue-600 text-blue-700 bg-white':'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100')}>
-              {tb}
-            </button>
+            <button key={i} onClick={()=>setTab(i)} className={'px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 '+(tab===i?'border-blue-600 text-blue-700 bg-white':'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100')}>{tb}</button>
           ))}
         </div>
         <div className="flex-1 overflow-y-auto scr">{contents[tab]}</div>
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
           <div className="flex gap-2">
-            <button onClick={()=>setTab(t=>Math.max(0,t-1))} disabled={tab===0} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">
-              {zh?'◀ 上一頁':'◀ 前へ'}
-            </button>
-            <button onClick={()=>setTab(t=>Math.min(tabs.length-1,t+1))} disabled={tab===tabs.length-1} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">
-              {zh?'下一頁 ▶':'次へ ▶'}
-            </button>
+            <button onClick={()=>setTab(t=>Math.max(0,t-1))} disabled={tab===0} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">{zh?'◀ 上一頁':'◀ 前へ'}</button>
+            <button onClick={()=>setTab(t=>Math.min(tabs.length-1,t+1))} disabled={tab===tabs.length-1} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">{zh?'下一頁 ▶':'次へ ▶'}</button>
           </div>
           <span className="text-xs text-slate-400">{tab+1} / {tabs.length}</span>
-          <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
-            {zh?'關閉':'閉じる'}
-          </button>
+          <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">{zh?'關閉':'閉じる'}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── メインアプリ ──────────────────────────────────────────────────────────
 function App(){
   const PS = window.PRELOADED_STATE;
-
-  const [lang, setLang] = useState(PS?.lang || 'zh');
+  const [lang, setLang]           = useState(PS?.lang || 'zh');
   const t = T[lang];
-
-  const [ctnType,  setCtnType]  = useState(PS?.ctnType  || '20GP');
-  const [doorGap,  setDoorGap]  = useState(PS?.doorGap  ?? 268);
-  const [innerGap, setInnerGap] = useState(PS?.innerGap ?? 0);
-  const [rightGap, setRightGap] = useState(PS?.rightGap ?? 10);
-  const [topGap,   setTopGap]   = useState(PS?.topGap   ?? 50);
-  const [suppPct,  setSuppPct]  = useState(PS?.suppPct  ?? 50);
-  const [strat,    setStrat]    = useState(PS?.strat    || 'auto');
-
+  const [ctnType,  setCtnType]    = useState(PS?.ctnType  || '20GP');
+  const [doorGap,  setDoorGap]    = useState(PS?.doorGap  ?? 268);
+  const [innerGap, setInnerGap]   = useState(PS?.innerGap ?? 0);
+  const [rightGap, setRightGap]   = useState(PS?.rightGap ?? 10);
+  const [topGap,   setTopGap]     = useState(PS?.topGap   ?? 50);
+  const [suppPct,  setSuppPct]    = useState(PS?.suppPct  ?? 50);
+  const [strat,    setStrat]      = useState(PS?.strat    || 'auto');
   const [isJapanBound, setIsJapanBound] = useState(PS?.isJapanBound || false);
-  const [palletType, setPalletType] = useState(PS?.palletType || '1030');
-
-  const [boxes, setBoxes] = useState(PS?.boxes || [{
-    id:uid(), name:'紙箱 A', cbType:'none', L:600, W:400, H:400,
-    color:COLORS[0], qty:0, tolPlus:0, tolMinus:0, calcMode:'max'
-  }]);
-
-  const [result, setResult] = useState({packed:[], stats:null});
-  const [loading, setLoading]   = useState(false);
-  const [graspOn, setGraspOn]   = useState(false);
+  const [palletType,   setPalletType]   = useState(PS?.palletType   || '1030');
+  const [interlockFirst, setInterlockFirst] = useState(PS?.interlockFirst ?? false);
+  const [boxes, setBoxes]         = useState(PS?.boxes || [{id:uid(),name:'紙箱 A',cbType:'none',L:600,W:400,H:400,color:COLORS[0],qty:0,tolPlus:0,tolMinus:0,calcMode:'max'}]);
+  const [result, setResult]       = useState({packed:[],stats:null});
+  const [loading, setLoading]     = useState(false);
+  const [graspOn, setGraspOn]     = useState(false);
   const [isReporting, setIsReporting] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [step, setStep]         = useState(0);
-  const [xray, setXray]         = useState(false);
+  const [reportProgress, setReportProgress] = useState(0);
+  const [progress, setProgress]   = useState(0);
+  const [step, setStep]           = useState(0);
+  const [xray, setXray]           = useState(false);
   const [isPerspective, setIsPerspective] = useState(true);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [fixOpen,  setFixOpen]  = useState(false);
-  const [saveOpen, setSaveOpen] = useState(false);
+  const [helpOpen, setHelpOpen]   = useState(false);
+  const [fixOpen,  setFixOpen]    = useState(false);
+  const [saveOpen, setSaveOpen]   = useState(false);
   const [showPreloadBanner, setShowPreloadBanner] = useState(!!PS);
+  const workerRef = useRef(null);
+
+  const clearResult = useCallback(() => {
+    setResult({packed:[],stats:null});
+    setStep(0);
+  }, []);
 
   useEffect(()=>{
-    if(showPreloadBanner){
-      const tm=setTimeout(()=>setShowPreloadBanner(false), 4000);
-      return ()=>clearTimeout(tm);
-    }
+    if(showPreloadBanner){ const tm=setTimeout(()=>setShowPreloadBanner(false),4000); return ()=>clearTimeout(tm); }
   },[showPreloadBanner]);
 
   const canvasRef   = useRef(null);
@@ -858,358 +819,220 @@ function App(){
   const ctrlRef     = useRef(null);
   const sceneRef    = useRef(null);
   const rendererRef = useRef(null);
+  const meshGroupRef = useRef(null);
 
   const doSaveHtml = useCallback(() => {
-    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType };
+    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst };
     const stateJson = JSON.stringify(state);
     const htmlSource = document.documentElement.outerHTML;
     const newScript = `<script id="preloaded-state">\n  window.PRELOADED_STATE = ${stateJson};\n  <\/script>`;
     const updatedHtml = htmlSource.replace(/<script id="preloaded-state">[\s\S]*?<\/script>/, newScript);
-
     const blob = new Blob(['<!DOCTYPE html>\n' + updatedHtml], {type:'text/html;charset=utf-8'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const ts   = new Date().toISOString().slice(0,10).replace(/-/g,'');
-    a.href     = url;
-    a.download = `Container_Settings_${ctnType}_${ts}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Container_Settings_${ctnType}_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.html`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst]);
 
   const doShot = () => {
     const el=document.getElementById('app-root');
-    if(window.htmlToImage){
-      window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#f8fafc',pixelRatio:2})
-        .then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
-    }
+    if(window.htmlToImage) window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#f8fafc',pixelRatio:2}).then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
   };
 
   const doReport = async () => {
-    if (!window.ExcelJS) {
-      alert(lang === 'zh' ? '尚未載入 Excel 套件，請稍後再試！' : 'Excelモジュールが読み込まれていません。後でお試しください。');
-      return;
+    if (!window.ExcelJS) { alert(lang==='zh'?'尚未載入 Excel 套件！':'Excelモジュール未読み込み'); return; }
+    setIsReporting(true); setReportProgress(0);
+    await new Promise(r=>setTimeout(r, 50));
+
+    try {
+      const c = CONTAINERS[ctnType];
+      const maxX = Math.max(0,c.w-rightGap), maxY = Math.max(0,c.h-topGap), maxZ = Math.max(0,c.d-doorGap);
+      const thr = suppPct/100;
+      setReportProgress(10);
+
+      let imgBase64=null, rawImgW=800, rawImgH=500;
+      if(rendererRef.current && sceneRef.current && camRef.current){
+        rendererRef.current.render(sceneRef.current, camRef.current);
+        const canvasEl = rendererRef.current.domElement;
+        imgBase64 = canvasEl.toDataURL("image/jpeg",0.95);
+        rawImgW = canvasEl.width; rawImgH = canvasEl.height;
+      }
+      setReportProgress(20);
+      await new Promise(r=>setTimeout(r,10));
+
+      const runModeForReport = (mode) => {
+        const testBoxes = boxes.map(b=>({...b,calcMode:mode}));
+        let best=[], bestVol=-1;
+        const tryIt = arr => { const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0); if(v>bestVol){bestVol=v;best=arr;} };
+        const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst):simulate(arr,innerGap,maxX,maxY,maxZ,s,thr,rand);
+        if(strat==='auto'){tryIt(runSim(testBoxes,'length',false));tryIt(runSim(testBoxes,'width',false));}
+        else tryIt(runSim(testBoxes,strat,false));
+        let vol=0; const counts={};
+        best.forEach(p=>{if(p.isPallet||p.isPad) return; vol+=p.w*p.h*p.d; counts[p.typeId]=(counts[p.typeId]||0)+1;});
+        const rem={w:getGaps(best,c,'X',maxX),h:getGaps(best,c,'Y',maxY),d:getGaps(best,c,'Z',maxZ)};
+        return {total:Object.values(counts).reduce((a,b)=>a+b,0),counts,rem};
+      };
+
+      const resMax = runModeForReport('max'); setReportProgress(40); await new Promise(r=>setTimeout(r,10));
+      const resMid = runModeForReport('mid'); setReportProgress(60); await new Promise(r=>setTimeout(r,10));
+      const resMin = runModeForReport('min'); setReportProgress(75); await new Promise(r=>setTimeout(r,10));
+
+      const wb = new window.ExcelJS.Workbook();
+      const ws = wb.addWorksheet('分析レポート');
+      const fontBase={name:'BIZ UDPゴシック',size:11}, fontBold={name:'BIZ UDPゴシック',size:11,bold:true}, fontTitle={name:'BIZ UDPゴシック',size:14,bold:true,color:{argb:'FFFFFFFF'}};
+      const setCell=(cell,value,font,fill,align,border)=>{cell.value=value;if(font)cell.font=font;if(fill)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};cell.alignment=align||{vertical:'middle',horizontal:'center'};if(border)cell.border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};};
+
+      ws.mergeCells('A1:G1'); setCell(ws.getCell('A1'),'コンテナ積載分析レポート',fontTitle,'FF2563EB',{vertical:'middle',horizontal:'center'},false); ws.getRow(1).height=30; ws.addRow([]);
+
+      ws.getCell('A3').value='【コンテナ設定】'; ws.getCell('A3').font=fontBold;
+      const rowCtnHead=ws.addRow(['コンテナ種類','支持面積しきい値','最奥部余白','ドア側余白','右側余白','上部余白']);
+      rowCtnHead.eachCell(c=>setCell(c,c.value,fontBold,'FFE2EFDA',null,true));
+      let ctnName=ctnType==='20GP'?"20フィート標準 (20' GP)":(ctnType==='40GP'?"40フィート標準 (40' GP)":"40フィートHQ (40' HQ)");
+      const rowCtnVal=ws.addRow([ctnName,suppPct+'%',innerGap+' mm',doorGap+' mm',rightGap+' mm',topGap+' mm']);
+      rowCtnVal.eachCell(c=>setCell(c,c.value,fontBase,null,null,true));
+      ws.addRow([]);
+
+      const boxStartRow=ws.rowCount+1;
+      ws.getCell(`A${boxStartRow}`).value='【箱寸法設定 (mm)】'; ws.getCell(`A${boxStartRow}`).font=fontBold;
+      const rowBoxHead=ws.addRow(['箱の名前','ダンボール種類','内寸 (L x W x H)','外寸: 最大','外寸: 中間値','外寸: 最小']);
+      rowBoxHead.eachCell(c=>setCell(c,c.value,fontBold,'FFE2EFDA',null,true));
+      boxes.forEach(b=>{
+        const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];
+        const bL=b.L+cb.L,bW=b.W+cb.W,bH=b.H+cb.H;
+        const calcSz=(mode)=>{let l=bL,w=bW,h=bH;if(mode==='max'){l+=b.tolPlus;w+=b.tolPlus;h+=b.tolPlus;}else if(mode==='min'){l-=b.tolMinus;w-=b.tolMinus;h-=b.tolMinus;}else if(mode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;l+=d;w+=d;h+=d;}return`${l} x ${w} x ${h}`;};
+        const r=ws.addRow([b.name,(b.cbType==='none'?'なし':b.cbType+'段'),`${b.L} x ${b.W} x ${b.H}`,calcSz('max'),calcSz('mid'),calcSz('min')]);
+        r.eachCell(c=>setCell(c,c.value,fontBase,null,null,true));
+      });
+      ws.addRow([]);
+
+      const resultStartRow=ws.rowCount+1;
+      ws.getCell(`A${resultStartRow}`).value='【積載と残りスペース比較】'; ws.getCell(`A${resultStartRow}`).font=fontBold;
+      const header=['計算基準',...boxes.map(b=>b.name+'\n(積載数量)'),'総積載箱数','奥行(Z)\n(実隙間/余白含)','幅(X)\n(実隙間/余白含)','高さ(Y)\n(実隙間/余白含)'];
+      const rowResHead=ws.addRow(header);
+      rowResHead.eachCell(c=>setCell(c,c.value,fontBold,'FFD9E1F2',{vertical:'middle',horizontal:'center',wrapText:true},true)); rowResHead.height=30;
+      const fmtGaps=(gaps,gv)=>(!gaps||!gaps.length)?'0 mm\n(0 mm)':gaps.map(g=>`${g} mm\n(${g+gv} mm)`).join('\n');
+      const modes=[{key:'max',text:'最大(正公差)',data:resMax,color:'FFFFE6E6'},{key:'mid',text:'中間値',data:resMid,color:'FFFFF9E6'},{key:'min',text:'最小(負公差)',data:resMin,color:'FFE6F9EE'}];
+      modes.forEach(m=>{
+        const row=ws.addRow([m.text,...boxes.map(b=>(m.data.counts[b.id]||0)+' 箱'),m.data.total+' 箱',fmtGaps(m.data.rem.d,doorGap),fmtGaps(m.data.rem.w,rightGap),fmtGaps(m.data.rem.h,topGap)]);
+        row.eachCell(c=>setCell(c,c.value,fontBase,m.color,{vertical:'middle',horizontal:'center',wrapText:true},true));
+        const maxLines=Math.max(m.data.rem.d.length*2,m.data.rem.w.length*2,m.data.rem.h.length*2,2);
+        row.height=maxLines*15+10;
+      });
+
+      const skipRows=new Set([1,3,boxStartRow,resultStartRow]);
+      let imgStartRow=-1;
+      if(imgBase64){
+        const imgId=wb.addImage({base64:imgBase64,extension:'jpeg'});
+        imgStartRow=ws.rowCount+2;
+        skipRows.add(imgStartRow);
+        ws.getCell(`A${imgStartRow}`).value='【3D 積載参考図 (現在の視点)】'; ws.getCell(`A${imgStartRow}`).font=fontBold;
+        const targetWidth=800, targetHeight=targetWidth*(rawImgH/rawImgW);
+        ws.addImage(imgId,{tl:{col:0,row:imgStartRow},ext:{width:targetWidth,height:targetHeight}});
+      }
+
+      ws.columns.forEach((col)=>{
+        let maxLen=0;
+        col.eachCell({includeEmpty:true},cell=>{
+          if(skipRows.has(cell.row)) return;
+          const val=cell.value?cell.value.toString():'';
+          val.split('\n').forEach(l=>{let len=0;for(let j=0;j<l.length;j++)len+=l.charCodeAt(j)>255?2.2:1.2;if(len>maxLen)maxLen=len;});
+        });
+        col.width=Math.min(Math.max(maxLen+2,12),40);
+      });
+
+      setReportProgress(90);
+      const buffer=await wb.xlsx.writeBuffer();
+      const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const link=document.createElement('a');
+      link.href=URL.createObjectURL(blob); link.download=`Report_${ctnType}_${Date.now()}.xlsx`; link.click();
+      URL.revokeObjectURL(link.href);
+      setReportProgress(100);
+    } catch(err) {
+      console.error(err);
+      alert(lang==='zh'?'產生報告書時發生錯誤！':'エラーが発生しました！');
+    } finally {
+      setTimeout(()=>setIsReporting(false), 500);
     }
-    setIsReporting(true);
-    
-    setTimeout(async () => {
-      try {
-        const c = CONTAINERS[ctnType];
-        const maxX = Math.max(0, c.w - rightGap);
-        const maxY = Math.max(0, c.h - topGap);
-        const maxZ = Math.max(0, c.d - doorGap);
-        const thr = suppPct / 100;
-
-        let imgBase64 = null;
-        let rawImgW = 800;
-        let rawImgH = 500;
-        if (rendererRef.current && sceneRef.current && camRef.current) {
-          rendererRef.current.render(sceneRef.current, camRef.current);
-          const canvasEl = rendererRef.current.domElement;
-          imgBase64 = canvasEl.toDataURL("image/jpeg", 0.95);
-          rawImgW = canvasEl.width;
-          rawImgH = canvasEl.height;
-        }
-
-        const runModeForReport = (mode) => {
-          const testBoxes = boxes.map(b => ({ ...b, calcMode: mode }));
-          let best = [], bestVol = -1;
-          const tryIt = (arr) => {
-            const v = arr.reduce((s, p) => s + (p.isPallet ? 0 : p.w * p.h * p.d), 0);
-            if (v > bestVol) { bestVol = v; best = arr; }
-          };
-
-          const runSim = (arr, s, rand) => {
-            if(isJapanBound && palletType === '1030') return simulateWithPallet(arr, innerGap, maxX, maxY, maxZ, s, thr, rand, palletType);
-            return simulate(arr, innerGap, maxX, maxY, maxZ, s, thr, rand);
-          };
-
-          if (strat === 'auto') {
-            tryIt(runSim(testBoxes, 'length', false));
-            tryIt(runSim(testBoxes, 'width', false));
-          } else {
-            tryIt(runSim(testBoxes, strat, false));
-          }
-
-          let vol = 0; const counts = {};
-          let actualTotal = 0;
-          best.forEach(p => { 
-            if(p.isPallet) return; 
-            vol += p.w * p.h * p.d; 
-            counts[p.typeId] = (counts[p.typeId] || 0) + 1; 
-            actualTotal++;
-          });
-          const rem = {
-            w: getGaps(best, c, 'X', maxX),
-            h: getGaps(best, c, 'Y', maxY),
-            d: getGaps(best, c, 'Z', maxZ)
-          };
-          return { total: actualTotal, counts, rem, testBoxes };
-        };
-
-        const resMax = runModeForReport('max');
-        const resMid = runModeForReport('mid');
-        const resMin = runModeForReport('min');
-
-        const wb = new window.ExcelJS.Workbook();
-        const ws = wb.addWorksheet('分析レポート');
-
-        const fontBase = { name: 'BIZ UDPゴシック', size: 11 };
-        const fontBold = { name: 'BIZ UDPゴシック', size: 11, bold: true };
-        const fontTitle = { name: 'BIZ UDPゴシック', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
-
-        const setCell = (cell, value, font, fill, align, border) => {
-          cell.value = value;
-          if (font) cell.font = font;
-          if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
-          cell.alignment = align || { vertical: 'middle', horizontal: 'center' };
-          if (border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-        };
-
-        ws.mergeCells('A1:G1');
-        setCell(ws.getCell('A1'), 'コンテナ積載分析レポート', fontTitle, 'FF2563EB', { vertical: 'middle', horizontal: 'center' }, false);
-        ws.getRow(1).height = 30;
-        ws.addRow([]);
-
-        const ctnStartRow = 3;
-        ws.getCell(`A${ctnStartRow}`).value = '【コンテナ設定】';
-        ws.getCell(`A${ctnStartRow}`).font = fontBold;
-        
-        const ctnHeader = ['コンテナ種類', '支持面積しきい値', '最奥部余白', 'ドア側余白', '右側余白', '上部余白'];
-        const rowCtnHead = ws.addRow(ctnHeader);
-        rowCtnHead.eachCell(c => setCell(c, c.value, fontBold, 'FFE2EFDA', null, true));
-        
-        let ctnName = ctnType === '20GP' ? "20フィート標準 (20' GP)" : (ctnType === '40GP' ? "40フィート標準 (40' GP)" : "40フィートHQ (40' HQ)");
-        const rowCtnVal = ws.addRow([ctnName, suppPct + '%', innerGap + ' mm', doorGap + ' mm', rightGap + ' mm', topGap + ' mm']);
-        rowCtnVal.eachCell(c => setCell(c, c.value, fontBase, null, null, true));
-
-        ws.addRow([]); 
-
-        const boxStartRow = ws.rowCount + 1;
-        ws.getCell(`A${boxStartRow}`).value = '【箱寸法設定 (mm)】';
-        ws.getCell(`A${boxStartRow}`).font = fontBold;
-        
-        const boxHeader = ['箱の名前', 'ダンボール種類', '内寸 (L x W x H)', '外寸: 最大 (正公差)', '外寸: 中間値', '外寸: 最小 (負公差)'];
-        const rowBoxHead = ws.addRow(boxHeader);
-        rowBoxHead.eachCell(c => setCell(c, c.value, fontBold, 'FFE2EFDA', null, true));
-
-        boxes.forEach(b => {
-          const inner = `${b.L} x ${b.W} x ${b.H}`;
-          const cbName = b.cbType === 'none' ? 'なし' : b.cbType + '段';
-          const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
-          const bL = b.L + cb.L, bW = b.W + cb.W, bH = b.H + cb.H;
-          
-          const calcModeSize = (mode) => {
-              let finL = bL, finW = bW, finH = bH;
-              if(mode==='max'){finL+=b.tolPlus;finW+=b.tolPlus;finH+=b.tolPlus;}
-              else if(mode==='min'){finL-=b.tolMinus;finW-=b.tolMinus;finH-=b.tolMinus;}
-              else if(mode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;finL+=d;finW+=d;finH+=d;}
-              return `${finL} x ${finW} x ${finH}`;
-          };
-
-          const r = ws.addRow([b.name, cbName, inner, calcModeSize('max'), calcModeSize('mid'), calcModeSize('min')]);
-          r.eachCell(c => setCell(c, c.value, fontBase, null, null, true));
-        });
-
-        ws.addRow([]);
-        
-        const resultStartRow = ws.rowCount + 1;
-        ws.getCell(`A${resultStartRow}`).value = '【積載と残りスペース比較】';
-        ws.getCell(`A${resultStartRow}`).font = fontBold;
-
-        const header = [
-          '計算基準',
-          ...boxes.map(b => b.name + '\n(積載数量)'),
-          '総積載箱数',
-          '奥行(Z)\n(実隙間/余白含)',
-          '幅(X)\n(実隙間/余白含)',
-          '高さ(Y)\n(実隙間/余白含)'
-        ];
-        
-        const rowResHead = ws.addRow(header);
-        rowResHead.eachCell(c => setCell(c, c.value, fontBold, 'FFD9E1F2', { vertical: 'middle', horizontal: 'center', wrapText: true }, true));
-        rowResHead.height = 30;
-
-        const formatGaps = (gaps, gapVal) => {
-            if (!gaps || gaps.length === 0) return '0 mm\n(0 mm)';
-            return gaps.map(g => `${g} mm\n(${g + gapVal} mm)`).join('\n');
-        };
-
-        const modes = [
-            { key: 'max', text: '最大(正公差)', data: resMax, color: 'FFFFE6E6' },
-            { key: 'mid', text: '中間値', data: resMid, color: 'FFFFF9E6' },
-            { key: 'min', text: '最小(負公差)', data: resMin, color: 'FFE6F9EE' }
-        ];
-
-        const boxUnit = ' 箱';
-
-        modes.forEach(m => {
-          const row = ws.addRow([
-            m.text,
-            ...boxes.map(b => (m.data.counts[b.id] || 0) + boxUnit),
-            m.data.total + boxUnit,
-            formatGaps(m.data.rem.d, doorGap),
-            formatGaps(m.data.rem.w, rightGap),
-            formatGaps(m.data.rem.h, topGap)
-          ]);
-          row.eachCell(c => setCell(c, c.value, fontBase, m.color, { vertical: 'middle', horizontal: 'center', wrapText: true }, true));
-          
-          const maxLines = Math.max(m.data.rem.d.length * 2, m.data.rem.w.length * 2, m.data.rem.h.length * 2, 2);
-          row.height = maxLines * 15 + 10; 
-        });
-
-        const skipRows = new Set([1, ctnStartRow, boxStartRow, resultStartRow]);
-        let imgStartRow = -1;
-
-        if (imgBase64) {
-            const imgId = wb.addImage({
-                base64: imgBase64,
-                extension: 'jpeg',
-            });
-            imgStartRow = ws.rowCount + 2;
-            skipRows.add(imgStartRow);
-            
-            ws.getCell(`A${imgStartRow}`).value = '【3D 積載参考図 (現在の視点)】';
-            ws.getCell(`A${imgStartRow}`).font = fontBold;
-
-            const targetWidth = 800;
-            const targetHeight = targetWidth * (rawImgH / rawImgW);
-
-            ws.addImage(imgId, {
-                tl: { col: 0, row: imgStartRow },
-                ext: { width: targetWidth, height: targetHeight }
-            });
-        }
-
-        ws.columns.forEach((col, i) => {
-          let maxLen = 0;
-          col.eachCell({ includeEmpty: true }, cell => {
-            if (skipRows.has(cell.row)) return; 
-            const val = cell.value ? cell.value.toString() : '';
-            const lines = val.split('\n');
-            lines.forEach(l => {
-                let len = 0;
-                for(let j=0; j<l.length; j++) len += l.charCodeAt(j) > 255 ? 2.2 : 1.2;
-                if (len > maxLen) maxLen = len;
-            });
-          });
-          col.width = Math.min(Math.max(maxLen + 2, 12), 40);
-        });
-
-        const buffer = await wb.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Report_${ctnType}_${Date.now()}.xlsx`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-
-      } catch (err) {
-        console.error(err);
-        alert(lang === 'zh' ? '產生報告書時發生錯誤！' : 'エラーが発生しました！');
-      } finally {
-        setIsReporting(false);
-      }
-    }, 50);
   };
 
-  const doCalc = (deep) => {
+  const doCalc = useCallback((deep) => {
+    clearResult();
     setLoading(true);
-    if(deep){setGraspOn(true);setProgress(0);}
-    setTimeout(()=>{
-      const c=CONTAINERS[ctnType];
-      const maxX=Math.max(0,c.w-rightGap);
-      const maxY=Math.max(0,c.h-topGap);
-      const maxZ=Math.max(0,c.d-doorGap);
-      const thr=suppPct/100;
+    if (deep) { setGraspOn(true); setProgress(0); }
 
-      let best=[], bestVol=-1;
-      const tryIt=(arr)=>{
-          const v=arr.reduce((s,p)=>s+(p.isPallet ? 0 : p.w*p.h*p.d),0);
-          if(v>bestVol){bestVol=v;best=arr;}
-      };
+    const c = CONTAINERS[ctnType];
+    const maxX = Math.max(0, c.w - rightGap);
+    const maxY = Math.max(0, c.h - topGap);
+    const maxZ = Math.max(0, c.d - doorGap);
+    const thr  = suppPct / 100;
 
-      const runSim = (arr, s, rand) => {
-        if(isJapanBound && palletType === '1030') return simulateWithPallet(arr, innerGap, maxX, maxY, maxZ, s, thr, rand, palletType);
-        return simulate(arr, innerGap, maxX, maxY, maxZ, s, thr, rand);
-      };
+    if (workerRef.current) { workerRef.current.terminate(); }
+    const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
+    const url  = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    workerRef.current = worker;
 
-      if(strat==='auto'){
-        tryIt(runSim(boxes, 'length', false));
-        tryIt(runSim(boxes, 'width', false));
-      }else{
-        tryIt(runSim(boxes, strat, false));
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') {
+        setProgress(e.data.pct);
+      } else if (e.data.type === 'done') {
+        worker.terminate();
+        URL.revokeObjectURL(url);
+        workerRef.current = null;
+        finalize(e.data.packed, c, maxX, maxY, maxZ);
       }
+    };
+    worker.onerror = (err) => {
+      console.error('Worker error:', err);
+      worker.terminate();
+      URL.revokeObjectURL(url);
+      workerRef.current = null;
+      setLoading(false); setGraspOn(false);
+    };
 
-      if(!deep){finalize(best,c,maxX,maxY,maxZ);return;}
-
-      const ITER=100; let cur=0;
-      const loop=()=>{
-        for(let i=0;i<5&&cur<ITER;i++){
-          let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat;
-          tryIt(runSim(boxes, s2, true));
-          if(cur%10===0){
-            tryIt(runSim(boxes, 'length', true));
-            tryIt(runSim(boxes, 'width', true));
-          }
-          cur++;
-        }
-        setProgress(Math.round(cur/ITER*100));
-        if(cur<ITER) setTimeout(loop,10);
-        else finalize(best,c,maxX,maxY,maxZ);
-      };
-      loop();
-    },50);
-  };
+    worker.postMessage({ boxes, innerGap, maxX, maxY, maxZ, strat, thresh: thr, isJapanBound, palletType, interlockFirst, ITER: deep?100:1 });
+  }, [ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, isJapanBound, palletType, interlockFirst, boxes, clearResult]);
 
   const finalize=(packed,c,maxX,maxY,maxZ)=>{
     let vol=0; const counts={};
-    let actualCount = 0;
-    let palletCount = 0;
+    let palletCount=0;
+    const palletDetail = packed._palletDetail || null;
     packed.forEach(p=>{
-      if(p.isPallet) {
-         palletCount++;
-         return; 
-      }
-      vol+=p.w*p.h*p.d;
-      counts[p.typeId]=(counts[p.typeId]||0)+1;
-      actualCount++;
+      if(p.isPallet&&p.typeId==='pallet'){palletCount++;return;}
+      if(p.isPad||p.isPallet) return;
+      vol+=p.w*p.h*p.d; counts[p.typeId]=(counts[p.typeId]||0)+1;
     });
     const rem={w:getGaps(packed,c,'X',maxX),h:getGaps(packed,c,'Y',maxY),d:getGaps(packed,c,'Z',maxZ)};
     const warns=[];
     boxes.forEach(b=>{if(b.qty>0&&(counts[b.id]||0)<b.qty) warns.push({name:b.name,color:b.color,req:b.qty,pk:counts[b.id]||0,lack:b.qty-(counts[b.id]||0)});});
-    
-    setResult({packed,stats:{total:actualCount, palletCount, util:((vol/(c.w*c.h*c.d))*100).toFixed(2),vol,counts,warns,rem}});
-    setStep(packed.length); 
-    setLoading(false);setGraspOn(false);
+    const total=Object.values(counts).reduce((a,b)=>a+b,0);
+    setResult({packed,stats:{total,palletCount,palletDetail,util:((vol/(c.w*c.h*c.d))*100).toFixed(2),vol,counts,warns,rem}});
+    setStep(packed.length);
+    setLoading(false); setGraspOn(false);
   };
 
-  // ── 3D Scene ──────────────────────────────────────────────────────────
   useEffect(()=>{
     if(!canvasRef.current||!window.THREE) return;
     const THREE=window.THREE;
     canvasRef.current.innerHTML='';
-    meshesRef.current=[];
+    meshesRef.current=[]; meshGroupRef.current=null; dimRef.current=null;
+
     const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
-    
-    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
-    sceneRef.current = scene; 
-    
-    const aspect = W/H;
+    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9); sceneRef.current=scene;
+
     const c=CONTAINERS[ctnType];
+    const aspect=W/H;
     let camera;
-    if (isPerspective) {
-        camera=new THREE.PerspectiveCamera(45, aspect, 1, 100000);
+    if(isPerspective){
+      camera=new THREE.PerspectiveCamera(45,aspect,1,100000);
     } else {
-        const frustumSize = Math.max(c.w, c.d, c.h) * 1.3;
-        camera=new THREE.OrthographicCamera(-frustumSize*aspect/2, frustumSize*aspect/2, frustumSize/2, -frustumSize/2, 1, 100000);
+      const fs=Math.max(c.w,c.d,c.h)*1.3;
+      camera=new THREE.OrthographicCamera(-fs*aspect/2,fs*aspect/2,fs/2,-fs/2,1,100000);
     }
     camRef.current=camera;
-    
+
     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
-    rendererRef.current = renderer; 
-    
+    rendererRef.current=renderer;
     renderer.setSize(W,H); canvasRef.current.appendChild(renderer.domElement);
     const controls=new THREE.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=true; ctrlRef.current=controls;
@@ -1224,12 +1047,9 @@ function App(){
     const eX0=-c.w/2, eX1=eX0+(c.w-rightGap);
     const eY0=-c.h/2, eY1=eY0+(c.h-topGap);
     const eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
-
     const corners=[
-      new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),
-      new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),
-      new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),
-      new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)
+      new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),
+      new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)
     ];
     const edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
     const dpts=[];
@@ -1237,138 +1057,75 @@ function App(){
       const p1=corners[i],p2=corners[j],dist=p1.distanceTo(p2),dir=new THREE.Vector3().subVectors(p2,p1).normalize();
       let cc=0;
       while(cc<dist){
-        let n=Math.min(cc+150,dist);
-        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
-        cc+=190;if(cc>=dist)break;
-        n=Math.min(cc+15,dist);
-        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
-        cc+=55;if(cc>=dist)break;
-        n=Math.min(cc+15,dist);
-        dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));
-        cc+=55;
+        let n=Math.min(cc+150,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=190; if(cc>=dist)break;
+        n=Math.min(cc+15,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=55; if(cc>=dist)break;
+        n=Math.min(cc+15,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=55;
       }
     });
-    scene.add(new THREE.LineSegments(
-      new THREE.BufferGeometry().setFromPoints(dpts),
-      new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})
-    ));
-
-    const grp=new THREE.Group();
-    result.packed.forEach(p=>{
-      const mesh=new THREE.Mesh(
-        new THREE.BoxGeometry(p.w,p.h,p.d),
-        new THREE.MeshLambertMaterial({color:p.color})
-      );
-      mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
-      
-      if (!p.isPallet) {
-        mesh.add(new THREE.LineSegments(
-          new THREE.EdgesGeometry(mesh.geometry),
-          new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})
-        ));
-      } else {
-        mesh.add(new THREE.LineSegments(
-          new THREE.EdgesGeometry(mesh.geometry),
-          new THREE.LineBasicMaterial({color:0x5d2906,linewidth:2,transparent:true,opacity:.8})
-        ));
-      }
-      
-      meshesRef.current.push(mesh); grp.add(mesh);
-    });
-    scene.add(grp);
-
-    const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
-    if(result.stats?.rem&&result.packed.length>0){
-      const {w:gW,h:gH,d:gD}=result.stats.rem;
-
-      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([p1,p2]),
-        new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})
-      ));
-
-      const addD=(p1,p2,txt,col,sx,sy,sz)=>{
-        dimGrp.add(new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([p1,p2]),
-          new THREE.LineBasicMaterial({color:col,linewidth:2})
-        ));
-        const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
-        const cv=document.createElement('canvas'); cv.width=1536; cv.height=150;
-        const ctx=cv.getContext('2d');
-        
-        ctx.font='bold 60px sans-serif';
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        const tw = ctx.measureText(txt).width;
-        const px = 768 - tw/2 - 30, py = 75 - 45, pw = tw + 60, ph = 90, r = 20;
-        
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.beginPath();
-        ctx.moveTo(px+r, py);
-        ctx.lineTo(px+pw-r, py); ctx.quadraticCurveTo(px+pw, py, px+pw, py+r);
-        ctx.lineTo(px+pw, py+ph-r); ctx.quadraticCurveTo(px+pw, py+ph, px+pw-r, py+ph);
-        ctx.lineTo(px+r, py+ph); ctx.quadraticCurveTo(px, py+ph, px, py+ph-r);
-        ctx.lineTo(px, py+r); ctx.quadraticCurveTo(px, py, px+r, py);
-        ctx.closePath();
-        ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = col;
-        ctx.stroke();
-
-        ctx.fillStyle=col;
-        ctx.fillText(txt,768,75);
-        
-        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
-        sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
-      };
-
-      const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0;
-
-      gW.forEach((g,i)=>{
-        if(g>0){
-          const off=400+i*300;
-          const p1=new THREE.Vector3(lX-g, y0, lZ+off);
-          const p2=new THREE.Vector3(lX,   y0, lZ+off);
-          addL(new THREE.Vector3(lX-g, y0, lZ), p1, '#2563eb');
-          addL(new THREE.Vector3(lX,   y0, lZ), p2, '#2563eb');
-          addD(p1,p2, t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)', '#2563eb', 0, 0, 150);
-        }
-      });
-
-      gH.forEach((g,i)=>{
-        if(g>0){
-          const off=600+i*400;
-          const p1=new THREE.Vector3(lX, lY-g, lZ+off);
-          const p2=new THREE.Vector3(lX, lY,   lZ+off);
-          addL(new THREE.Vector3(lX, lY-g, lZ), p1, '#16a34a');
-          addL(new THREE.Vector3(lX, lY,   lZ), p2, '#16a34a');
-          addD(p1,p2, t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)', '#16a34a', 200, 0, 300);
-        }
-      });
-
-      gD.forEach((g,i)=>{
-        if(g>0){
-          const off=400+i*300;
-          const p1=new THREE.Vector3(lX, y0-off, lZ-g);
-          const p2=new THREE.Vector3(lX, y0-off, lZ);
-          addL(new THREE.Vector3(lX, y0, lZ-g), p1, '#ea580c');
-          addL(new THREE.Vector3(lX, y0, lZ),   p2, '#ea580c');
-          addD(p1,p2, t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)', '#ea580c', 0, -300, 0);
-        }
-      });
-    }
-    scene.add(dimGrp);
+    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})));
 
     camera.position.set(c.w*1.8,c.h*1.8,c.d*1.5); controls.update();
     const animate=()=>{requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
     animate();
-    const onResize=()=>{
-      if(!canvasRef.current)return;
-      camera.aspect=canvasRef.current.clientWidth/canvasRef.current.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);
-    };
+    const onResize=()=>{if(!canvasRef.current)return;const ratio=canvasRef.current.clientWidth/canvasRef.current.clientHeight;if(isPerspective){camera.aspect=ratio;camera.updateProjectionMatrix();}renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);};
     window.addEventListener('resize',onResize);
     return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
-  },[result,ctnType,doorGap,innerGap,rightGap,topGap,lang,isPerspective]);
+  },[ctnType,isPerspective]);
+
+  useEffect(()=>{
+    if(!sceneRef.current||!window.THREE) return;
+    const THREE=window.THREE;
+    const c=CONTAINERS[ctnType];
+
+    if(meshGroupRef.current){ sceneRef.current.remove(meshGroupRef.current); meshGroupRef.current=null; }
+    if(dimRef.current){ sceneRef.current.remove(dimRef.current); dimRef.current=null; }
+    meshesRef.current=[];
+
+    const grp=new THREE.Group(); meshGroupRef.current=grp;
+    result.packed.forEach((p,idx)=>{
+      const color = p.color;
+      const mesh=new THREE.Mesh(
+        new THREE.BoxGeometry(p.w,p.h,p.d),
+        new THREE.MeshLambertMaterial({color})
+      );
+      mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
+
+      if(!p.isPallet&&!p.isPad){
+        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})));
+      } else if(p.isPallet&&!p.isPad){
+        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x5d2906,linewidth:2,transparent:true,opacity:.8})));
+      }
+
+      meshesRef.current.push(mesh); grp.add(mesh);
+    });
+    sceneRef.current.add(grp);
+
+    const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
+    if(result.stats?.rem&&result.packed.length>0){
+      const {w:gW,h:gH,d:gD}=result.stats.rem;
+      const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ1=c.d/2-doorGap;
+      const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0;
+      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})));
+      const addD=(p1,p2,txt,col,sx,sy,sz)=>{
+        dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,linewidth:2})));
+        const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
+        const cv=document.createElement('canvas'); cv.width=1536; cv.height=150; const ctx=cv.getContext('2d');
+        ctx.font='bold 60px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const tw=ctx.measureText(txt).width,px_=768-tw/2-30,py_=75-45,pw=tw+60,ph=90,r=20;
+        ctx.fillStyle='rgba(255,255,255,0.85)';
+        ctx.beginPath(); ctx.moveTo(px_+r,py_); ctx.lineTo(px_+pw-r,py_); ctx.quadraticCurveTo(px_+pw,py_,px_+pw,py_+r);
+        ctx.lineTo(px_+pw,py_+ph-r); ctx.quadraticCurveTo(px_+pw,py_+ph,px_+pw-r,py_+ph);
+        ctx.lineTo(px_+r,py_+ph); ctx.quadraticCurveTo(px_,py_+ph,px_,py_+ph-r); ctx.lineTo(px_,py_+r); ctx.quadraticCurveTo(px_,py_,px_+r,py_); ctx.closePath(); ctx.fill();
+        ctx.lineWidth=3; ctx.strokeStyle=col; ctx.stroke(); ctx.fillStyle=col; ctx.fillText(txt,768,75);
+        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
+        sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
+      };
+      gW.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX-g,y0,lZ+off),p2=new THREE.Vector3(lX,y0,lZ+off);addL(new THREE.Vector3(lX-g,y0,lZ),p1,'#2563eb');addL(new THREE.Vector3(lX,y0,lZ),p2,'#2563eb');addD(p1,p2,t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)','#2563eb',0,0,150);}});
+      gH.forEach((g,i)=>{if(g>0){const off=600+i*400;const p1=new THREE.Vector3(lX,lY-g,lZ+off),p2=new THREE.Vector3(lX,lY,lZ+off);addL(new THREE.Vector3(lX,lY-g,lZ),p1,'#16a34a');addL(new THREE.Vector3(lX,lY,lZ),p2,'#16a34a');addD(p1,p2,t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)','#16a34a',200,0,300);}});
+      gD.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX,y0-off,lZ-g),p2=new THREE.Vector3(lX,y0-off,lZ);addL(new THREE.Vector3(lX,y0,lZ-g),p1,'#ea580c');addL(new THREE.Vector3(lX,y0,lZ),p2,'#ea580c');addD(p1,p2,t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)','#ea580c',0,-300,0);}});
+    }
+    sceneRef.current.add(dimGrp);
+  },[result, lang, ctnType, doorGap, innerGap, rightGap, topGap]);
 
   useEffect(()=>{
     meshesRef.current.forEach((m,i)=>{
@@ -1384,33 +1141,48 @@ function App(){
     const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
     if(!cam||!ctrl) return;
     ctrl.target.set(0,0,0);
-    const dist = Math.max(c.w, c.d) * 1.5;
-    
-    if(v==='iso')   cam.position.set(c.w*1.8, c.h*1.8, c.d*1.5);
-    if(v==='top')   cam.position.set(0, dist, 0);
-    if(v==='bottom')cam.position.set(0, -dist, 0);
-    if(v==='front') cam.position.set(0, 0, dist);
-    if(v==='back')  cam.position.set(0, 0, -dist);
-    if(v==='left')  cam.position.set(-dist, 0, 0);
-    if(v==='right') cam.position.set(dist, 0, 0);
-    
+    const dist=Math.max(c.w,c.d)*1.5;
+    if(v==='iso')   cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
+    if(v==='top')   cam.position.set(0,dist,0);
+    if(v==='bottom')cam.position.set(0,-dist,0);
+    if(v==='front') cam.position.set(0,0,dist);
+    if(v==='back')  cam.position.set(0,0,-dist);
+    if(v==='left')  cam.position.set(-dist,0,0);
+    if(v==='right') cam.position.set(dist,0,0);
     ctrl.update();
   };
 
   const doExport=()=>{
     if(!result.packed.length) return;
     const c=CONTAINERS[ctnType], sc=1/40, gap=1500*sc, eps=1e-4;
-    let dxf='0\nSECTION\n2\nENTITIES\n';
+    let dxf='0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
     const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
     const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
-    const aci=id=>{
-      if(id === 'pallet') return 33; 
-      const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;
+
+    const dimLine=(x1,y1,x2,y2,text,lay,offset)=>{
+      const mx=(x1+x2)/2, my=(y1+y2)/2;
+      if(Math.abs(y1-y2)<eps){ 
+        ln(x1,y1,x1,y1+offset,lay,7); ln(x2,y2,x2,y2+offset,lay,7);
+        ln(x1,y1+offset,x2,y2+offset,lay,4);
+        const arr=0.06;
+        ln(x1,y1+offset,x1+arr,y1+offset+arr*0.5,lay,4); ln(x1,y1+offset,x1+arr,y1+offset-arr*0.5,lay,4);
+        ln(x2,y2+offset,x2-arr,y2+offset+arr*0.5,lay,4); ln(x2,y2+offset,x2-arr,y2+offset-arr*0.5,lay,4);
+        dxf+=`0\nTEXT\n8\n${lay}\n62\n4\n10\n${mx.toFixed(4)}\n20\n${(my+offset+0.05).toFixed(4)}\n30\n0.0\n40\n0.12\n1\n${text}\n72\n1\n`;
+      } else { 
+        ln(x1,y1,x1+offset,y1,lay,7); ln(x2,y2,x2+offset,y2,lay,7);
+        ln(x1+offset,y1,x2+offset,y2,lay,4);
+        const arr=0.06;
+        ln(x1+offset,y1,x1+offset+arr*0.5,y1+arr,lay,4); ln(x1+offset,y1,x1+offset-arr*0.5,y1+arr,lay,4);
+        ln(x2+offset,y2,x2+offset+arr*0.5,y2-arr,lay,4); ln(x2+offset,y2,x2+offset-arr*0.5,y2-arr,lay,4);
+        dxf+=`0\nTEXT\n8\n${lay}\n62\n4\n10\n${(mx+offset+0.05).toFixed(4)}\n20\n${((y1+y2)/2).toFixed(4)}\n30\n0.0\n40\n0.12\n1\n${text}\n`;
+      }
     };
+
+    const aci=id=>{if(id==='pallet')return 33;if(id==='pad')return 9;const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
     const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
-    rect(0,0,cW,cH,'CONTAINER',7);
-    rect(0,cH+gap,cW,cD,'CONTAINER',7);
-    rect(cW+gap,0,cD,cH,'CONTAINER',7);
+    rect(0,0,cW,cH,'CONTAINER',7); rect(0,cH+gap,cW,cD,'CONTAINER',7); rect(cW+gap,0,cD,cH,'CONTAINER',7);
+    dimLine(0,0,cW,0,`W:${c.w}mm`,'DIM',-0.3); dimLine(cW,0,cW,cH,`H:${c.h}mm`,'DIM',0.3); dimLine(0,cH+gap,0,cH+gap+cD,`D:${c.d}mm`,'DIM',-0.3);
+
     const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
     const pview=(faces,dx,dy)=>{
       for(let i=0;i<faces.length;i++){
@@ -1438,8 +1210,8 @@ function App(){
     dxf+='0\nENDSEC\n0\nEOF\n';
     const blob=new Blob([dxf],{type:'application/dxf'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download='3view_'+ctnType+'.dxf';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    const a=document.createElement('a'); a.href=url; a.download='3view_'+ctnType+'.dxf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   const c=CONTAINERS[ctnType];
@@ -1447,28 +1219,27 @@ function App(){
 
   return (
     <div id="app-root" className="min-h-screen p-4 md:p-6 bg-slate-50">
-
       {helpOpen && <HelpModal onClose={()=>setHelpOpen(false)} lang={lang}/>}
       {saveOpen && <SaveHtmlModal onClose={()=>setSaveOpen(false)} onSave={doSaveHtml} lang={lang} t={t}/>}
-
       {fixOpen && (
-        <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={false}>
-          <div className="p-4 space-y-3">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7,t.fix8,t.fix9,t.fix10,t.fix11].map((f,i)=>(
-              <div key={i} className="flex items-start p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center mr-2.5 flex-shrink-0 mt-0.5">{i+1}</span>
-                <span className="text-sm text-slate-700">{f}</span>
-              </div>
-            ))}
+        <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={true}>
+          <div className="p-4 space-y-2">
+            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7,t.fix8,t.fix9,t.fix10,t.fix11,t.fix12,t.fix13,t.fix14,t.fix15,t.fix16,t.fix17].map((f,i)=>{
+              const cat=i<3?'bg-red-100 text-red-700':i<7?'bg-amber-100 text-amber-700':i<12?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-600';
+              const label=i<3?'Bug Fix':i<7?'改善':i<12?'新功能':'品質';
+              return (
+                <div key={i} className="flex items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mr-2 flex-shrink-0 mt-0.5 ${cat}`}>{label}</span>
+                  <span className="text-sm text-slate-700">{f}</span>
+                </div>
+              );
+            })}
           </div>
         </Modal>
       )}
-
       {showPreloadBanner && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium pointer-events-none"
-          style={{animation:'fadeUp .3s ease-out'}}>
-          <Ico.Chk c="w-4 h-4"/>
-          {t.preloadBanner}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium pointer-events-none" style={{animation:'fadeUp .3s ease-out'}}>
+          <Ico.Chk c="w-4 h-4"/>{t.preloadBanner}
         </div>
       )}
 
@@ -1483,10 +1254,10 @@ function App(){
               </button>
             </h1>
           </div>
-          <div className="flex flex-row flex-nowrap items-center gap-1.5 overflow-x-auto w-full md:w-auto hide-scroll pb-1 md:pb-0" style={{WebkitOverflowScrolling: 'touch'}}>
-            <button onClick={doReport} disabled={isReporting || boxes.length === 0} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap ' + (isReporting ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white')}>
-              {isReporting ? <Ico.Spin c="w-4 h-4 mr-1.5 animate-spin"/> : <Ico.Table c="w-4 h-4 mr-1.5"/>}
-              {isReporting ? t.reportIng : t.reportBtn}
+          <div className="flex flex-row flex-nowrap items-center gap-1.5 overflow-x-auto w-full md:w-auto hide-scroll pb-1 md:pb-0" style={{WebkitOverflowScrolling:'touch'}}>
+            <button onClick={doReport} disabled={isReporting||boxes.length===0}
+              className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap '+(isReporting?'bg-slate-300 text-slate-600 cursor-not-allowed':'bg-blue-600 hover:bg-blue-700 text-white')}>
+              {isReporting?<><Ico.Spin c="w-4 h-4 mr-1.5 animate-spin"/>{t.reportIng+' '+reportProgress+'%'}</>:<><Ico.Table c="w-4 h-4 mr-1.5"/>{t.reportBtn}</>}
             </button>
             <button onClick={doExport} disabled={!hasPacked} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
               <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
@@ -1512,33 +1283,29 @@ function App(){
               <h2 className="text-base font-semibold flex items-center mb-1"><Ico.Box c="w-4 h-4 mr-2 text-slate-500"/>{t.ctnSet}</h2>
               <p className="text-xs text-slate-400 mb-3 ml-6">{t.ctnSub}</p>
               <select className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                value={ctnType} onChange={e=>{setCtnType(e.target.value);setResult({packed:[],stats:null});}}>
+                value={ctnType} onChange={e=>{setCtnType(e.target.value);clearResult();}}>
                 <option value="20GP">{t.ctn20}</option>
                 <option value="40GP">{t.ctn40}</option>
                 <option value="40HQ">{t.ctn40h}</option>
               </select>
-              
               <div className="bg-slate-100 p-3.5 rounded-lg border border-slate-200 mb-4">
                 <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1.5 text-slate-500"/>{t.gAdv}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[[t.gInner,innerGap,setInnerGap],[t.gDoor,doorGap,setDoorGap],[t.gRight,rightGap,setRightGap],[t.gTop,topGap,setTopGap]].map(([lbl,v,fn],i)=>(
                     <div key={i}>
                       <label className="block text-[11px] text-slate-500 mb-1">{lbl}</label>
-                      <input type="number" min="0" value={v} onChange={e=>fn(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"/>
+                      <input type="number" min="0" value={v} onChange={e=>{fn(Number(e.target.value));clearResult();}} className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"/>
                     </div>
                   ))}
                 </div>
               </div>
-
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-medium text-amber-800 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1"/>{t.gSupport}</label>
                   <span className="text-sm font-bold text-amber-700 bg-amber-100 px-2 rounded">{suppPct}%</span>
                 </div>
-                <input type="range" min="20" max="80" step="5" value={suppPct} onChange={e=>setSuppPct(Number(e.target.value))} className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
-                <div className="flex justify-between text-[10px] text-amber-600 mt-1">
-                  <span>{t.gSupportL}</span><span>{t.gSupportR}</span>
-                </div>
+                <input type="range" min="20" max="80" step="5" value={suppPct} onChange={e=>{setSuppPct(Number(e.target.value));clearResult();}} className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
+                <div className="flex justify-between text-[10px] text-amber-600 mt-1"><span>{t.gSupportL}</span><span>{t.gSupportR}</span></div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg">
                 {[[t.dimTotal,c.d+'x'+c.w+'x'+c.h+' mm','text-slate-700'],[t.dimD,Math.max(0,c.d-doorGap-innerGap)+' mm','text-blue-600'],[t.dimW,Math.max(0,c.w-rightGap)+' mm','text-blue-600'],[t.dimH,Math.max(0,c.h-topGap)+' mm','text-blue-600']].map(([lbl,v,cls],i)=>(
@@ -1550,33 +1317,38 @@ function App(){
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-base font-semibold flex items-center"><Ico.Pkg c="w-4 h-4 mr-2 text-slate-500"/>{t.boxSet}</h2>
-                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'max'}])} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length%26),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'max'}])}
+                  className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
                   <Ico.Plus c="w-4 h-4 mr-1"/>{t.addBox}
                 </button>
               </div>
               <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1 scr">
                 {boxes.map(box=>{
-                  const cb = CARDBOARD_TYPES[box.cbType || 'none'] || CARDBOARD_TYPES['none'];
-                  const bL = box.L + cb.L, bW = box.W + cb.W, bH = box.H + cb.H;
-                  let finL = bL, finW = bW, finH = bH;
+                  const cb=CARDBOARD_TYPES[box.cbType||'none']||CARDBOARD_TYPES['none'];
+                  const bL=box.L+cb.L,bW=box.W+cb.W,bH=box.H+cb.H;
+                  let finL=bL,finW=bW,finH=bH;
                   if(box.calcMode==='max'){finL+=box.tolPlus;finW+=box.tolPlus;finH+=box.tolPlus;}
                   else if(box.calcMode==='min'){finL-=box.tolMinus;finW-=box.tolMinus;finH-=box.tolMinus;}
                   else if(box.calcMode==='mid'){const d=(box.tolPlus-box.tolMinus)/2;finL+=d;finW+=d;finH+=d;}
-                  const showLabel = box.calcMode !== 'nominal' || (box.cbType && box.cbType !== 'none');
-
+                  const showLabel=box.calcMode!=='nominal'||(box.cbType&&box.cbType!=='none');
                   return (
                     <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
-                      <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Ico.Del c="w-4 h-4"/>
-                      </button>
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={()=>setBoxes(bs=>{const idx=bs.findIndex(b=>b.id===box.id);const newBox={...box,id:uid(),name:box.name+' (2)'};return [...bs.slice(0,idx+1),newBox,...bs.slice(idx+1)];} )}
+                          className="text-blue-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50" title={t.copyBox}>
+                          <Ico.Copy c="w-3.5 h-3.5"/>
+                        </button>
+                        <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                          <Ico.Del c="w-3.5 h-3.5"/>
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2 mb-3">
                         <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="w-6 h-6 rounded border-0 p-0 cursor-pointer"/>
                         <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
                       </div>
-                      
                       <div className="mb-2">
                         <label className="block text-[10px] text-slate-500 mb-1">{t.cbType}</label>
-                        <select value={box.cbType || 'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
+                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
                           <option value="none">{lang==='zh'?'無 (直接輸入外寸)':'なし (外寸を直接入力)'}</option>
                           <option value="AB">AB段 {lang==='zh'?'(長寬+15, 高+30)':'(長幅+15, 高+30)'}</option>
                           <option value="A">A段 {lang==='zh'?'(長寬+10, 高+20)':'(長幅+10, 高+20)'}</option>
@@ -1613,8 +1385,7 @@ function App(){
                           </select>
                         </div>
                       </div>
-                      
-                      {showLabel && (
+                      {showLabel&&(
                         <div className="mt-3 text-[12px] text-blue-700 bg-blue-50/50 border border-blue-100 px-3 py-2 rounded-lg font-medium flex justify-between items-center">
                           <span>{t.mLabel}</span>
                           <span className="tracking-wide">{finL} x {finW} x {finH} <span className="text-[10px] text-blue-500 font-normal">mm</span></span>
@@ -1624,31 +1395,33 @@ function App(){
                   );
                 })}
               </div>
-              
+
               <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">{t.stratTitle}</label>
-                <select value={strat} onChange={e=>setStrat(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <select value={strat} onChange={e=>{setStrat(e.target.value);clearResult();}} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                   <option value="auto">{t.stratAuto}</option>
                   <option value="length">{t.stratL}</option>
                   <option value="width">{t.stratW}</option>
                 </select>
-
                 <div className="mt-3 pt-3 border-t border-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
-                    <input type="checkbox" checked={isJapanBound} onChange={e=>setIsJapanBound(e.target.checked)} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
+                    <input type="checkbox" checked={isJapanBound} onChange={e=>{setIsJapanBound(e.target.checked);clearResult();}} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
                     {t.japanBound}
                   </label>
-                  {isJapanBound && (
+                  {isJapanBound&&(
                     <div className="mt-2 pl-6">
                       <label className="block text-[11px] text-slate-500 mb-1">{t.palletType}</label>
-                      <select value={palletType} onChange={e=>setPalletType(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                      <select value={palletType} onChange={e=>{setPalletType(e.target.value);clearResult();}} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none mb-2">
                         <option value="1030">1030mm X 1030mm</option>
                         <option value="sheet">シートパレット</option>
                       </select>
+                      <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
+                        <input type="checkbox" checked={interlockFirst} onChange={e=>{setInterlockFirst(e.target.checked);clearResult();}} className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"/>
+                        {t.interlockFirst}
+                      </label>
                     </div>
                   )}
                 </div>
-
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <button onClick={()=>doCalc(false)} disabled={loading} className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
@@ -1670,8 +1443,19 @@ function App(){
             </div>
           </div>
 
+          {/* ── 右側 3D + 結果 ── */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative" style={{height:'620px'}}>
+              {/* 狀態遮罩 */}
+              {(!hasPacked && !loading && result.stats === null && step === 0) ? null : 
+               (result.stats === null && !loading) && (
+                 <div className="absolute inset-0 bg-slate-100/60 backdrop-blur-[2px] z-30 flex items-center justify-center rounded-xl">
+                   <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-amber-200 text-amber-700 font-medium text-sm flex items-center">
+                     <Ico.Warn c="w-4 h-4 mr-2"/>{t.staleWarning}
+                   </div>
+                 </div>
+               )}
+
               <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
                 {boxes.map(b=>(
                   <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-0.5 rounded border border-slate-200 shadow-sm flex items-center text-[10px]">
@@ -1698,22 +1482,23 @@ function App(){
                   </div>
                 )}
               </div>
-              
+
               <div className="absolute top-3 right-3 z-10 flex flex-wrap gap-1.5 justify-end max-w-[280px]">
                 {[['iso',t.vIso],['top',t.vTop],['bottom',t.vBottom],['front',t.vFront],['back',t.vBack],['left',t.vLeft],['right',t.vRight]].map(([v,lbl])=>(
                   <button key={v} onClick={()=>changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2 py-1 rounded border border-slate-200 text-[11px] font-medium shadow-sm">{lbl}</button>
                 ))}
               </div>
-              
+
               <div ref={canvasRef} className="rounded-lg cursor-move touch-none bg-slate-100" style={{position:'absolute',top:'8px',left:'8px',right:'8px',bottom:'8px'}}></div>
               <div className="hint-overlay">
                 <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>
                 <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>
                 <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'縮尺'}</span>
               </div>
+
               {hasPacked&&(
                 <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-20">
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     <span className="flex items-center text-blue-700 font-bold text-xs bg-blue-50 px-2 py-1 rounded">
                       <Ico.Play c="w-3 h-3 mr-1"/>{t.play}{step}/{result.packed.length}
                     </span>
@@ -1737,7 +1522,7 @@ function App(){
               )}
             </div>
 
-            {/* 結果サマリ */}
+            {/* 結果摘要 */}
             {result.stats&&(
               <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-base font-semibold text-slate-800 flex items-center border-b border-slate-100 pb-3">
@@ -1752,17 +1537,33 @@ function App(){
                     <p className="text-xs text-slate-400 mb-1">{t.util}</p>
                     <p className="text-xl font-bold text-blue-600">{result.stats.util}%</p>
                   </div>
-                  {result.stats.palletCount > 0 && (
+                  {result.stats.palletCount>0&&(
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-xs text-slate-400 mb-1">{t.palletUsage}</p>
                       <p className="text-xl font-bold text-orange-600">{result.stats.palletCount}</p>
                     </div>
                   )}
-                  <div className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${result.stats.palletCount > 0 ? 'col-span-2 md:col-span-1' : 'col-span-2'}`}>
+                  <div className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${result.stats.palletCount>0?'col-span-2 md:col-span-1':'col-span-2'}`}>
                     <p className="text-xs text-slate-400 mb-1">{t.effVol}</p>
                     <p className="text-xl font-bold text-slate-800">{(result.stats.vol/1e9).toFixed(2)} m³ <span className="text-xs font-normal text-slate-400">/ {t.totVol} {((c.w*c.h*c.d)/1e9).toFixed(2)}m³</span></p>
                   </div>
                 </div>
+
+                {/* C3: 棧板層數明細 */}
+                {result.stats.palletDetail&&(
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
+                    <Ico.Layers c="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5"/>
+                    <div>
+                      <p className="text-xs font-bold text-orange-800 mb-0.5">{t.palletDetail}</p>
+                      <p className="text-xs text-orange-700">
+                        {t.palletLayerFmt.replace('{n}',result.stats.palletDetail.boxesPerLayer).replace('{l}',result.stats.palletDetail.layers)}
+                        {' · '}
+                        {t.palletCountFmt.replace('{c}',result.stats.palletCount)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-sm font-medium text-slate-600 mb-2">{t.detail}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1789,10 +1590,7 @@ function App(){
                     <ul className="space-y-1.5 mb-3">
                       {result.stats.warns.map((w,i)=>(
                         <li key={i} className="flex items-center justify-between bg-white px-3 py-1.5 rounded border border-orange-100 text-sm">
-                          <span className="flex items-center font-medium">
-                            <span className="w-2.5 h-2.5 rounded-full mr-2" style={{backgroundColor:w.color}}></span>
-                            {w.name}
-                          </span>
+                          <span className="flex items-center font-medium"><span className="w-2.5 h-2.5 rounded-full mr-2" style={{backgroundColor:w.color}}></span>{w.name}</span>
                           <span className="text-orange-700 font-semibold text-xs">{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req}/{t.wPack} {w.pk})</span>
                         </li>
                       ))}
