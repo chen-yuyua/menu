@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v2.3</title>
+  <title>貨櫃裝載計算器 v3.3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -13,29 +13,404 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <script id="preloaded-state">window.PRELOADED_STATE = null;</script>
+<script id="worker-code-src">
+const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:0,H:0},'AB':{L:15,W:15,H:30},'A':{L:10,W:10,H:20},'B':{L:6,W:6,H:12},'EB':{L:9,W:9,H:18},'E':{L:3,W:3,H:6}};\nfunction isColliding(x,y,z,w,h,d,packed){for(const b of packed){if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS))return true;}return false;}\nfunction isSupported(x,y,z,w,h,d,packed,thresh){if(y<EPS)return true;let area=0;for(const b of packed){if(Math.abs((b.y+b.h)-y)<EPS){const ix1=Math.max(x,b.x),iz1=Math.max(z,b.z),ix2=Math.min(x+w,b.x+b.w),iz2=Math.min(z+d,b.z+b.d);if(ix1<ix2-EPS&&iz1<iz2-EPS)area+=(ix2-ix1)*(iz2-iz1);}}return area/(w*d)>=thresh;}\nfunction getOrientations(b,strat){const u=new Set(),res=[];for(const p of [[b.w,b.h,b.d],[b.d,b.h,b.w]]){const k=Math.round(p[0])+','+Math.round(p[1])+','+Math.round(p[2]);if(!u.has(k)){u.add(k);let pref=true;if(strat==='length'&&Math.abs(p[2]-b.d)>EPS)pref=false;if(strat==='width'&&Math.abs(p[2]-b.w)>EPS)pref=false;res.push({w:p[0],h:p[1],d:p[2],pref});}}return res;}\nfunction dedupPoints(pts){const s=new Set(),r=[];for(const p of pts){const k=Math.round(p.x)+','+Math.round(p.y)+','+Math.round(p.z);if(!s.has(k)){s.add(k);r.push(p);}}return r;}\nfunction ptInsideBox(p,b){return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;}\nfunction simulate(boxTypes,innerGap,maxX,maxY,maxZ,strat,thresh,randomize){\n  let pts=[{x:0,y:0,z:innerGap}],packed=[];const finInv=[],infInv=[];\n  boxTypes.forEach(b=>{const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];let aL=b.L+cb.L,aW=b.W+cb.W,aH=b.H+cb.H;if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}const item=Object.assign({},b,{w:aW,h:aH,d:aL});if(b.qty>0){item.remaining=b.qty;finInv.push(item);}else{item.remaining=Infinity;infInv.push(item);}});\n  let count=0;\n  for(const inv of [finInv,infInv]){\n    if(!inv.length)continue;let canPack=true;\n    while(canPack&&count<3000){\n      canPack=false;pts.sort((a,b)=>{if(Math.abs(a.z-b.z)>1)return a.z-b.z;if(randomize&&Math.random()<0.45)return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;});\n      for(const pt of pts){\n        let bIdx=-1,bOri=null,bVol=-1,bFit=-1,bD=-1,bPref=false;let idx=inv.map((_,i)=>i);\n        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));let tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}}\n        for(const i of idx){\n          const box=inv[i];if(box.remaining<=0)continue;let cs=strat;if(randomize&&Math.random()>0.65)cs=Math.random()>0.5?'length':'width';\n          for(const ori of getOrientations(box,cs)){\n            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS)continue;\n            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){\n              const vol=ori.w*ori.h*ori.d,fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);\n              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol,better=false;\n              if(bIdx===-1)better=true;else if(ori.pref&&!bPref)better=true;else if(!ori.pref&&bPref)better=false;else if(ev>bVol)better=true;else if(ev===bVol&&fit>bFit)better=true;else if(ev===bVol&&fit===bFit&&ori.d>bD)better=true;\n              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}\n            }\n          }\n        }\n        if(bIdx!==-1){\n          const bb=inv[bIdx];packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});bb.remaining--;count++;canPack=true;\n          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});\n          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));pts=dedupPoints(pts);break;\n        }\n      }\n    }\n  }\n  return {packed};\n}\n\nfunction simulateJapanPallet(boxTypes, innerGap, maxX, maxY, maxZ, palletType, interlockFirst, interlockType, xAlign) {\n    let box = null;\n    for (let b of boxTypes) {\n        const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];\n        let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;\n        if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}\n        box = Object.assign({},b,{ w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity }); break;\n    }\n    if (!box) return {packed: [], interlockFailed: false};\n\n    const availZ = maxZ - innerGap;\n    const isSheet = palletType === 'sheet';\n    const basePalletH = isSheet ? 1.5 : 120;\n    const cornerPadThick = isSheet ? 5 : 0;\n\n    let sheetMaxW = 1160;\n    let sheetMaxD = 1300; \n    let maxPatW = isSheet ? sheetMaxW - cornerPadThick*2 : 1030;\n    let maxPatD = isSheet ? sheetMaxD - cornerPadThick*2 : 1030;\n\n    function generateAllPatterns(L, W, maxW, maxD) {\n      if (L <= 0 || W <= 0) return [];\n      let patterns = [];\n      const addPat = (layout, uW, uD, isInter) => { if (uW <= maxW+EPS && uD <= maxD+EPS) patterns.push({layout: layout, uW: uW, uD: uD, isInterlock: isInter||false}); };\n      const fill = (w, d, ox, oz, boxL, boxW) => { let nx=Math.floor((w+EPS)/boxL), nz=Math.floor((d+EPS)/boxW), arr=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) arr.push({x:ox+i*boxL, z:oz+j*boxW, w:boxL, d:boxW}); return arr; };\n      const maxNX = Math.floor(maxW/Math.min(L,W))+1, maxNZ = Math.floor(maxD/Math.min(L,W))+1;\n\n      for(let nx=1; nx<=maxNX && nx*L<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*W<=maxD+EPS; nz++) { addPat(fill(nx*L, nz*W, 0, 0, L, W), nx*L, nz*W, false); }\n      for(let nx=1; nx<=maxNX && nx*W<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*L<=maxD+EPS; nz++) { addPat(fill(nx*W, nz*L, 0, 0, W, L), nx*W, nz*L, false); }\n\n      if (interlockFirst) {\n          if (interlockType === 'auto') {\n              for(let nz1=1; nz1<=maxNZ && nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz2<=maxNZ && nz2*W<=maxD+EPS; nz2++) { if (Math.abs(nz1*L - nz2*W) < EPS) { let depth = nz1*L; for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx1*W+nx2*L<=maxW+EPS; nx2++) { let p=fill(nx1*W,depth,0,0,W,L).concat(fill(nx2*L,depth,nx1*W,0,L,W)); addPat(p, nx1*W+nx2*L, depth, true); } } }\n              for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx2*L<=maxW+EPS; nx2++) { if (Math.abs(nx1*W - nx2*L) < EPS) { let width = nx1*W; for(let nz1=1; nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz1*L+nz2*W<=maxD+EPS; nz2++) { let p=fill(width,nz1*L,0,0,W,L).concat(fill(width,nz2*W,0,nz1*L,L,W)); addPat(p, width, nz1*L+nz2*W, true); } } }\n          }\n\n          let kStart = 1, kEnd = 2;\n          if (interlockType === 'single') { kStart = 1; kEnd = 1; }\n          else if (interlockType === 'double') { kStart = 2; kEnd = 2; }\n\n          for (let k = kStart; k <= kEnd; k++) {\n              let L1 = L, W1 = k * W;\n              if (L1+W1 <= Math.min(maxW,maxD)+EPS) { const pwS=L1+W1; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W1,L1,ox,oz,W,L)); p.push(...fill(L1,W1,ox,oz+L1,L,W)); p.push(...fill(W1,L1,ox+L1,oz+W1,W,L)); p.push(...fill(L1,W1,ox+W1,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n              let L2 = k * L, W2 = W;\n              if (L2+W2 <= Math.min(maxW,maxD)+EPS) { const pwS=L2+W2; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W2,L2,ox,oz,W,L)); p.push(...fill(L2,W2,ox,oz+L2,L,W)); p.push(...fill(W2,L2,ox+L2,oz+W2,W,L)); p.push(...fill(L2,W2,ox+W2,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n          }\n      }\n\n      let rotated = [];\n      for (let pat of patterns) { if (pat.uD <= maxW+EPS && pat.uW <= maxD+EPS) { rotated.push({ layout: pat.layout.map(p=>{ return {x:p.z,z:p.x,w:p.d,d:p.w}; }), uW: pat.uD, uD: pat.uW, isInterlock: pat.isInterlock }); } }\n      patterns = patterns.concat(rotated);\n      let uniquePats = [], sigs = new Set();\n      for(let pat of patterns) { const layoutSig = pat.layout.map(b=>Math.round(b.x)+Math.round(b.z)+Math.round(b.w)+Math.round(b.d)).sort().join('|'); const sig = Math.round(pat.uW)+'_'+Math.round(pat.uD)+'_'+layoutSig; if (!sigs.has(sig)) { sigs.add(sig); uniquePats.push(pat); } }\n      return uniquePats;\n    }\n\n    let patterns = generateAllPatterns(box.d, box.w, maxPatW, maxPatD);\n    if (!patterns.length) return {packed: [], interlockFailed: false};\n\n    let requireInterlock = interlockFirst;\n\n    let bestPat = null, bestIsInterlock = false, maxTotalBoxes = -1, bestShortSideCount = -1, bestPatArea = -1;\n    let bestUX = 0, bestUZ = 0, bestUY = 0, bestLayers = 0, bestActualW = 0, bestActualD = 0;\n\n    for (let pat of patterns) {\n        if (requireInterlock && !pat.isInterlock) continue;\n        \n        let packMinX=Infinity, packMinZ=Infinity, packMaxX=0, packMaxZ=0;\n        for (let b of pat.layout) {\n            if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n            if (b.x + b.w > packMaxX) packMaxX = b.x + b.w; if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;\n        }\n        let actualW = packMaxX - packMinX, actualD = packMaxZ - packMinZ;\n        \n        let stepX = isSheet ? actualW + cornerPadThick * 2 : 1030;\n        let stepZ = isSheet ? actualD + cornerPadThick * 2 : 1030;\n\n        let uX = Math.floor((maxX + EPS) / stepX);\n        let uZ = Math.floor((availZ + EPS) / stepZ);\n        \n        if (uX <= 0 || uZ <= 0) continue;\n\n        let uY = isSheet ? 2 : 1;\n        let lPerUnit = 1;\n        if (isSheet) {\n            let halfH = Math.floor((maxY+EPS) / 2);\n            lPerUnit = Math.floor((halfH - basePalletH) / box.h);\n            if (lPerUnit < 1) continue; \n        } else {\n            lPerUnit = Math.floor((maxY - basePalletH) / box.h);\n            if (lPerUnit < 1) continue;\n        }\n\n        let totalUnits = uX * uZ * uY;\n        let totalBoxes = totalUnits * pat.layout.length * lPerUnit;\n        if (box.remaining !== Infinity && totalBoxes > box.remaining) totalBoxes = box.remaining;\n        \n        let shortSides = 0; for(let b of pat.layout) if(b.w < b.d) shortSides++; shortSides *= lPerUnit * totalUnits;\n        let patArea = actualW * actualD;\n        \n        let replace = false;\n        if (!bestPat) replace = true;\n        else if (totalBoxes > maxTotalBoxes) replace = true;\n        else if (totalBoxes === maxTotalBoxes) {\n            if (interlockFirst && pat.isInterlock && !bestIsInterlock) replace = true;\n            else if (!interlockFirst || pat.isInterlock === bestIsInterlock) {\n                if (shortSides > bestShortSideCount) replace = true;\n                else if (shortSides === bestShortSideCount && patArea > bestPatArea) replace = true;\n            }\n        }\n        if (replace) { \n            maxTotalBoxes=totalBoxes; bestShortSideCount=shortSides; bestIsInterlock=pat.isInterlock; bestPatArea=patArea; \n            bestPat=pat; bestUX = uX; bestUZ = uZ; bestUY = uY; bestLayers = lPerUnit; \n            bestActualW = actualW; bestActualD = actualD;\n        }\n    }\n\n    if (!bestPat) return { packed: [], interlockFailed: interlockFirst };\n    \n    let finalPacked = [];\n    let pDetail = { boxesPerLayer: bestPat.layout.length, layers: bestLayers, totalPallets: bestUX * bestUZ * bestUY };\n    let boxesLeft = box.remaining;\n\n    let stepX = isSheet ? bestActualW + cornerPadThick * 2 : 1030;\n    let stepZ = isSheet ? bestActualD + cornerPadThick * 2 : 1030;\n    let totalBlockW = bestUX * stepX;\n    let unitH_total = bestLayers * box.h + basePalletH;\n\n    for (let y = 0; y < bestUY; y++) {\n        for (let z = 0; z < bestUZ; z++) {\n            for (let x = 0; x < bestUX; x++) {\n                if (boxesLeft <= 0) break;\n                \n                let px = 0;\n                if (xAlign === 'left') {\n                    px = x * stepX;\n                } else if (xAlign === 'distributed') {\n                    px = bestUX > 1 ? x * ((maxX - stepX) / (bestUX - 1)) : (maxX - stepX) / 2;\n                } else if (xAlign === 'distributed-around') {\n                    let gap = (maxX - totalBlockW) / (bestUX + 1);\n                    px = gap + x * (stepX + gap);\n                } else {\n                    px = Math.max(0, (maxX - totalBlockW) / 2) + x * stepX;\n                }\n                \n                let pz = innerGap + z * stepZ;\n                let py = y * unitH_total;\n\n                let packMinX=Infinity, packMinZ=Infinity;\n                for (let b of bestPat.layout) {\n                    if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n                }\n                \n                let innerOffsetX = isSheet ? cornerPadThick - packMinX : (1030 - bestActualW) / 2 - packMinX;\n                let innerOffsetZ = isSheet ? cornerPadThick - packMinZ : (1030 - bestActualD) / 2 - packMinZ;\n                \n                let bx0 = px + innerOffsetX + packMinX, bz0 = pz + innerOffsetZ + packMinZ, bx1 = bx0 + bestActualW, bz1 = bz0 + bestActualD;\n\n                if (isSheet) {\n                    finalPacked.push({isPallet:true,x:bx0-cornerPadThick,y:py,z:bz0-cornerPadThick,w:bestActualW+cornerPadThick*2,h:basePalletH,d:bestActualD+cornerPadThick*2,color:'#c8c8c0',typeId:'pallet',name:'シートパレット'});\n                    let padH=bestLayers * box.h, padC='#a8a8a0', pN='コーナーパッド', th=cornerPadThick, len=30;\n                    [[bx0-th,py+basePalletH,bz0-th,len,padH,th],[bx0-th,py+basePalletH,bz0-th,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz0-th,len,padH,th],[bx1,py+basePalletH,bz0-th,th,padH,len],\n                     [bx0-th,py+basePalletH,bz1,len,padH,th],[bx0-th,py+basePalletH,bz1+th-len,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz1,len,padH,th],[bx1,py+basePalletH,bz1+th-len,th,padH,len]\n                    ].forEach(arr=>finalPacked.push({isPallet:true,isPad:true,x:arr[0],y:arr[1],z:arr[2],w:arr[3],h:arr[4],d:arr[5],color:padC,typeId:'pad',name:pN}));\n                } else {\n                    finalPacked.push({isPallet:true,x:px,y:py,z:pz,w:1030,h:basePalletH,d:1030,color:'#b08050',typeId:'pallet',name:'パレット 1030×1030'});\n                }\n\n                // ── Cross-layer interlock (single / double windmill) ─────────────\n                // Even layers: bestPat.layout as-is (the selected windmill pattern)\n                // Odd  layers: bestPat.layout rotated 90° CCW around the pallet centre\n                //              so both layers share the same physical centre and\n                //              the outer edges align with the pallet boundary.\n                //\n                // Rotation 90° CCW: (x, z, w, d)  →  (z,  patW - x - w,  d,  w)\n                // After rotation oddActualW = bestActualD, oddActualD = bestActualW\n                // so we compute separate innerOffsets for each layout.\n                const doBrickBond = interlockFirst &&\n                    (interlockType === 'single' || interlockType === 'double') &&\n                    bestPat.isInterlock;\n\n                // ── evenLayout: original pattern, centred on pallet ──\n                // innerOffsetX/Z already computed above for bestPat\n                // ── oddLayout: 90° CCW rotation, re-centred on same pallet ──\n                let oddLayout = bestPat.layout;\n                let oddOffX = innerOffsetX;\n                let oddOffZ = innerOffsetZ;\n\n                if (doBrickBond && bestPat.layout.length > 0) {\n                    const patW = bestActualW;\n                    const patD = bestActualD;\n\n                    // 90° CCW: (x, z, w, d) → (z,  patW - x - w,  d,  w)\n                    let rotated = bestPat.layout.map(pos => ({\n                        x: pos.z,\n                        z: patW - pos.x - pos.w,\n                        w: pos.d,\n                        d: pos.w\n                    }));\n\n                    // Normalise to (0,0)\n                    let minX = Infinity, minZ = Infinity;\n                    for (const p of rotated) {\n                        if (p.x < minX) minX = p.x;\n                        if (p.z < minZ) minZ = p.z;\n                    }\n                    oddLayout = rotated.map(p => ({\n                        x: p.x - minX,\n                        z: p.z - minZ,\n                        w: p.w,\n                        d: p.d\n                    }));\n\n                    // Footprint of oddLayout (after normalise, min is 0)\n                    let oddMaxX = 0, oddMaxZ = 0;\n                    for (const p of oddLayout) {\n                        if (p.x + p.w > oddMaxX) oddMaxX = p.x + p.w;\n                        if (p.z + p.d > oddMaxZ) oddMaxZ = p.z + p.d;\n                    }\n                    // Centre oddLayout on the same pallet step (1030×1030 or sheet)\n                    oddOffX = isSheet ? cornerPadThick : (1030 - oddMaxX) / 2;\n                    oddOffZ = isSheet ? cornerPadThick : (1030 - oddMaxZ) / 2;\n                }\n\n                for (let l = 0; l < bestLayers; l++) {\n                    const isOddLayer = doBrickBond && (l % 2 === 1);\n                    const layout  = isOddLayer ? oddLayout  : bestPat.layout;\n                    const offX    = isOddLayer ? oddOffX    : innerOffsetX;\n                    const offZ    = isOddLayer ? oddOffZ    : innerOffsetZ;\n\n                    for (let pos of layout) {\n                        if (boxesLeft <= 0) break;\n                        finalPacked.push({\n                            x: px + offX + pos.x,\n                            y: py + basePalletH + l * box.h,\n                            z: pz + offZ + pos.z,\n                            w: pos.w, h: box.h, d: pos.d,\n                            color: box.color, typeId: box.id, name: box.name\n                        });\n                        boxesLeft--;\n                    }\n                }\n            }\n        }\n    }\n    return { packed: finalPacked, palletDetail: pDetail, interlockFailed: false };\n}\n\nself.onmessage = function(e) {\n  const {boxes,innerGap,maxX,maxY,maxZ,strat,thresh,isJapanBound,palletType,interlockFirst,interlockType,xAlign,ITER} = e.data;\n  let best=[], bestVol=-1, bestDetail=null, bestIntFail=false;\n  \n  const tryIt=(res)=>{\n    const arr = res.packed || [];\n    const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0);\n    if(v>bestVol){\n        bestVol=v; \n        best=arr;\n        bestDetail = res.palletDetail || null;\n        bestIntFail = res.interlockFailed || false;\n    }\n  };\n  \n  const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst,interlockType,xAlign):simulate(arr,innerGap,maxX,maxY,maxZ,s,thresh,rand);\n  \n  if(!isJapanBound){\n    if(strat==='auto'){tryIt(runSim(boxes,'length',false));tryIt(runSim(boxes,'width',false));}\n    else tryIt(runSim(boxes,strat,false));\n  } else { tryIt(runSim(boxes,strat,false)); }\n  \n  for(let cur=0;cur<ITER;cur++){\n    if(!isJapanBound){\n      let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat; tryIt(runSim(boxes,s2,true));\n      if(cur%10===0){tryIt(runSim(boxes,'length',true));tryIt(runSim(boxes,'width',true));}\n    }\n    if(cur%5===4) self.postMessage({type:'progress',pct:Math.round((cur+1)/ITER*100)});\n  }\n  self.postMessage({type:'done', packed:best, palletDetail: bestDetail, interlockFailed: bestIntFail});\n};\n";
+</script>
+
   <style>
-    .touch-none{touch-action:none}
-    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:16px;width:16px;border-radius:50%;background:#2563eb;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.3)}
-    .scr::-webkit-scrollbar{width:8px}
-    .scr::-webkit-scrollbar-track{background:#f1f5f9;border-radius:4px}
-    .scr::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
-    .scr::-webkit-scrollbar-thumb:hover{background:#94a3b8}
-    .hide-scroll::-webkit-scrollbar{display:none}
-    .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
-    .hint-overlay{position:absolute;bottom:72px;right:10px;background:rgba(15,23,42,.72);backdrop-filter:blur(6px);color:#e2e8f0;font-size:10px;padding:6px 10px;border-radius:8px;pointer-events:none;z-index:15;line-height:1.8;border:1px solid rgba(255,255,255,.1)}
-    .hint-key{display:inline-block;background:rgba(255,255,255,.18);border-radius:3px;padding:0 4px;margin-right:3px;font-family:monospace;font-size:9px}
-    @keyframes shine{0%{background-position:-200% center}100%{background-position:200% center}}
-    .prog-bar{background:linear-gradient(90deg,#4f46e5 0%,#818cf8 40%,#4f46e5 60%,#4f46e5 100%);background-size:200% auto;animation:shine 1.5s linear infinite;transition:width .3s ease;height:100%;border-radius:9999px}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    .modal-in{animation:fadeUp .22s ease-out}
-    @keyframes savePop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
-    .save-pop{animation:savePop .25s ease-out}
+    :root {
+      /* ── Design system updated ── */
+      /* ── Right panel base ── */
+      --ink:        #3a3642;
+      --ink-mid:    #555060;
+      --ink-soft:   #787285;
+      --ink-ghost:  #a6a0b2;
+      --line:       #e0e0e0;
+      --paper:      #ffffff; /* 全局背景改為純白 */
+      --paper-warm: #f4f4f4; /* 稍微帶點灰色的區塊，用於區分卡片內部 */
+      --paper-card: #ffffff; /* 卡片背景為純白 */
+
+      /* ── Left panel: 淺蔥鼠 (Asaginezumi #94a8b0) hierarchy ── */
+      --panel-bg:   #94a8b0; /* Sidebar base */
+      --panel-mid:  #869ca5; /* Inputs */
+      --panel-card: #a3b6be; /* Internal cards */
+      --panel-line: #b5c6cc; /* Borders */
+      
+      /* 左側欄字體變更為純黑色 */
+      --panel-text: #000000; 
+      --panel-sub:  #333333; /* 次要文字也改為深灰色以適應黑色系 */
+      --panel-ghost:#555555;
+      
+      --panel-accent:#a2d7dd; /* 瓶覗 Kamenozoki for active states */
+      --nakabeni:   #db4d6d; /* 中紅 Nakabeni 用於亮點數字 */
+
+      /* ── Accent (Primary Button): 柳鼠 (Yanaginezumi #c8d5bb) ── */
+      --accent:     #c8d5bb;
+      --accent-mid: #b5c4a6;
+      --accent-soft:#e6ecdf;
+      --accent-pale:#f4f7f1;
+
+      /* ── Semantic ── */
+      --ok:         #c8d5bb;
+      --ok-soft:    #e6ecdf;
+      --ok-pale:    #f4f7f1;
+      --warn:       #f9bf45;
+      --warn-soft:  #fdf3da;
+      --warn-pale:  #fffbf2;
+      --danger:     #e05050;
+      --danger-soft:#fce8e8;
+
+      /* ── Tertiary / Brand: 藤鼠 (Fujinezumi #a59aca) ── */
+      --brand:       #a59aca;
+      --tertiary:    #a59aca;
+      --tertiary-mid:#9387bb;
+      --tertiary-soft:#e2def0;
+
+      /* ── Secondary palette / Highlights: 瓶覗 (Kamenozoki #a2d7dd) ── */
+      --secondary:   #a2d7dd;
+      --secondary-mid:#8bc5cc;
+      --secondary-soft:#e2f3f5;
+
+      /* ── Aliases for backward compat ── */
+      --grape:      #a59aca;
+      --grape-mid:  #9387bb;
+      --teal:       #a2d7dd;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI","Microsoft YaHei UI","微軟雅黑UI","游ゴシック UI","Yu Gothic UI","Hiragino Kaku Gothic ProN",sans-serif;
+      font-size: 17px; line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 99px; }
+    .right-scroll::-webkit-scrollbar-thumb { background: var(--line); }
+
+    /* ── LEFT PANEL ── */
+    .left-panel {
+      background: var(--panel-bg);
+      border-radius: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(148, 168, 176, 0.25);
+    }
+    .left-card {
+      background: var(--panel-card);
+      border: 1px solid var(--panel-line);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .left-sec-header {
+      display: flex; align-items: center; gap: 7px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--panel-line);
+      margin-bottom: 12px;
+    }
+    .left-sec-dot {
+      width: 3px; height: 15px;
+      background: var(--nakabeni); /* 使用中紅作為側邊欄標題點綴 */
+      border-radius: 99px; flex-shrink: 0;
+    }
+    .left-sec-title {
+      font-size: 17px; font-weight: 700;
+      color: var(--panel-text); letter-spacing: .2px;
+    }
+    .left-label {
+      display: block; font-size: 12px; font-weight: 700;
+      color: var(--panel-text); letter-spacing: .5px;
+      text-transform: uppercase; margin-bottom: 4px;
+      opacity: .85;
+    }
+    /* Dark-panel form controls */
+    .ctrl-dark {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--panel-line);
+      border-radius: 6px;
+      background: var(--panel-mid);
+      color: var(--panel-text);
+      font-family: inherit; font-size: 16px; font-weight: 700;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+      appearance: none; -webkit-appearance: none;
+    }
+    .ctrl-dark:focus {
+      border-color: var(--panel-text);
+      box-shadow: 0 0 0 3px rgba(0,0,0,.15);
+    }
+    .ctrl-dark option { background: var(--panel-mid); color: var(--panel-text); }
+    select.ctrl-dark {
+      /* 修改下拉箭頭顏色以搭配黑色字體 */
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23333333'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    input[type=range].dark-range {
+      appearance: none; -webkit-appearance: none;
+      height: 4px; border-radius: 99px;
+      background: rgba(0,0,0,0.15); outline: none;
+    }
+    input[type=range].dark-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--panel-text); border: 2px solid var(--panel-card);
+      box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer;
+    }
+    input[type=number].ctrl-dark::-webkit-inner-spin-button,
+    input[type=number].ctrl-dark::-webkit-outer-spin-button { opacity: .4; }
+    input[type=checkbox].dark-check {
+      appearance: none; -webkit-appearance: none;
+      width: 15px; height: 15px;
+      border: 1.5px solid var(--panel-sub);
+      border-radius: 4px; background: var(--panel-mid);
+      cursor: pointer; position: relative; flex-shrink: 0;
+      transition: all .15s;
+    }
+    input[type=checkbox].dark-check:checked {
+      background: var(--panel-text); border-color: var(--panel-text);
+    }
+    input[type=checkbox].dark-check:checked::after {
+      content: ''; position: absolute;
+      left: 3px; top: 1px; width: 5px; height: 8px;
+      border: 2px solid #ffffff; /* Checkmark is white to contrast with black */
+      border-top: none; border-left: none;
+      transform: rotate(45deg);
+    }
+    input[type=color].color-swatch {
+      padding: 0; border: 1px solid var(--panel-line);
+      border-radius: 4px; cursor: pointer; background: none;
+    }
+    .dark-text-input {
+      flex: 1; background: transparent;
+      border: none; border-bottom: 1px solid var(--panel-line);
+      padding: 2px 4px; font-size: 15px; font-weight: 700;
+      color: var(--panel-text); outline: none; font-family: inherit;
+    }
+    .dark-text-input:focus { border-bottom-color: var(--panel-text); }
+    
+    .dark-sub-panel {
+      background: var(--panel-mid);
+      border: 1px solid var(--panel-line);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .dark-warn-panel {
+      background: rgba(0,0,0, 0.05);
+      border: 1px solid rgba(0,0,0, 0.15);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .dark-divider { height: 1px; background: var(--panel-line); margin: 10px 0; }
+
+    /* ── Interlock selector ── */
+    .int-btn {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 4px; border-radius: 7px;
+      border: 1.5px solid var(--panel-line);
+      background: var(--panel-mid);
+      cursor: pointer;
+      font-size: 13px; font-weight: 700; color: var(--panel-sub);
+      gap: 4px; transition: all .15s; font-family: inherit;
+    }
+    .int-btn:hover { border-color: var(--panel-text); color: var(--panel-text); background: rgba(0,0,0,0.05); }
+    .int-btn.active { border-color: var(--panel-text); background: rgba(0,0,0,0.1); color: var(--panel-text); }
+
+    /* ── Box card (in dark panel) ── */
+    .box-card {
+      background: var(--panel-card);
+      border: 1px solid var(--panel-line);
+      border-radius: 10px; padding: 12px 14px;
+      transition: border-color .15s; position: relative;
+    }
+    .box-card:hover { border-color: var(--panel-text); }
+    .box-card-actions {
+      position: absolute; top: 9px; right: 9px;
+      display: flex; gap: 3px; opacity: 0; transition: opacity .15s;
+    }
+    .box-card:hover .box-card-actions { opacity: 1; }
+    .box-computed {
+      margin-top: 8px; padding: 6px 10px;
+      background: rgba(255,255,255,.2);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    /* ── RIGHT PANEL ── */
+    .card {
+      background: var(--paper-card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+    }
+    .sec-header {
+      display: flex; align-items: center; gap: 7px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line); margin-bottom: 14px;
+    }
+    .sec-dot { width: 3px; height: 16px; background: var(--brand); border-radius: 99px; flex-shrink: 0; }
+    .text-caption { font-size: 13px; color: var(--ink-ghost); }
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 2px 7px; border-radius: 4px;
+      font-size: 13px; font-weight: 700; letter-spacing: .3px;
+    }
+    .tag-accent  { background: var(--accent-soft); color: #415234; }
+    .tag-ok      { background: var(--ok-soft); color: #415234; }
+    .tag-warn    { background: var(--warn-soft); color: var(--warn); }
+    .tag-danger  { background: var(--danger-soft); color: var(--danger); }
+    .tag-ink     { background: var(--paper-warm); color: var(--ink-mid); border: 1px solid var(--line); }
+    .stat-box {
+      background: var(--paper-warm);
+      border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .stat-num { font-size: 25px; font-weight: 700; letter-spacing: -.5px; line-height: 1.2; }
+    
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 5px; padding: 7px 14px; border-radius: 8px;
+      font-family: inherit; font-size: 15px; font-weight: 700;
+      border: none; cursor: pointer; transition: all .15s;
+      white-space: nowrap; letter-spacing: .2px;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent); color: #3b4632; font-weight: 800; }
+    .btn-primary:not(:disabled):hover  { background: var(--accent-mid); }
+    .btn-grape    { background: var(--tertiary); color: #fff; font-weight: 800; }
+    .btn-grape:not(:disabled):hover    { background: var(--tertiary-mid); }
+    .btn-success  { background: var(--accent); color: #3b4632; }
+    .btn-success:not(:disabled):hover  { background: var(--accent-mid); }
+    .btn-teal     { background: var(--secondary); color: #2b4549; }
+    .btn-teal:not(:disabled):hover     { background: var(--secondary-mid); }
+    .btn-ink      { background: var(--ink); color: #fff; }
+    .btn-ink:not(:disabled):hover      { background: var(--ink-mid); }
+    .btn-ghost {
+      background: var(--paper-warm); color: var(--ink-mid);
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:not(:disabled):hover { background: var(--tertiary-pale); color: var(--tertiary); border-color: var(--tertiary); }
+    /* Dark ghost (in left panel) */
+    .btn-panel-ghost {
+      background: rgba(255,255,255,.3); color: var(--panel-text);
+      border: 1px solid var(--panel-text);
+    }
+    .btn-panel-ghost:not(:disabled):hover { background: var(--panel-text); color: #ffffff; font-weight: 800; }
+    .btn-danger-ghost {
+      background: transparent; color: var(--ink-ghost); border: none; padding: 4px;
+    }
+    .btn-danger-ghost:hover { color: var(--danger); background: var(--danger-soft); border-radius: 4px; }
+    .btn-dark-del {
+      background: transparent; color: var(--panel-sub); border: none; padding: 5px; cursor: pointer;
+      border-radius: 4px; transition: all .12s;
+    }
+    .btn-dark-del:hover { color: var(--panel-text); background: rgba(0,0,0,.1); }
+    .btn-lg { padding: 10px 20px; font-size: 17px; border-radius: 8px; }
+
+    /* ── View buttons (on 3D viewport) ── */
+    .view-btn {
+      padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 700;
+      background: rgba(255,255,255,.88); backdrop-filter: blur(6px);
+      border: 1px solid rgba(0,0,0,.08); color: var(--ink-mid);
+      cursor: pointer; transition: all .12s; letter-spacing: .2px; font-family: inherit;
+    }
+    .view-btn:hover { background: #fff; color: var(--brand); border-color: var(--brand); font-weight: 800; }
+
+    /* ── Gap pill ── */
+    .gap-pill {
+      background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+      border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    /* ── Progress bar ── */
+    @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+    .prog-bar {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg,var(--secondary-mid) 0%,#ffffff 40%,var(--secondary-mid) 60%,var(--secondary-mid) 100%);
+      background-size: 200% auto;
+      animation: shimmer 1.5s linear infinite;
+      transition: width .3s ease;
+    }
+
+    /* ── Hint overlay ── */
+    .hint-overlay {
+      position: absolute; bottom: 68px; right: 10px;
+      background: rgba(45,43,51,.82); backdrop-filter: blur(8px);
+      color: rgba(255,255,255,.9); font-size: 13px; font-weight: 700;
+      padding: 6px 10px; border-radius: 8px;
+      pointer-events: none; z-index: 15; line-height: 2;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+    .hint-key {
+      display: inline-block; background: rgba(255,255,255,.15);
+      border-radius: 4px; padding: 0 5px; margin-right: 4px;
+      font-family: monospace; font-size: 12px;
+    }
+
+    /* ── Modal ── */
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(45,43,51,.6); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; animation: fadeIn .18s ease-out;
+    }
+    .modal-box {
+      background: var(--paper-card); border: 1px solid var(--line);
+      border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,.15);
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: fadeUp .2s ease-out;
+    }
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--line);
+      background: var(--paper-warm);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .modal-body { flex: 1; overflow-y: auto; }
+    .modal-footer {
+      padding: 14px 20px; border-top: 1px solid var(--line);
+      background: var(--paper-warm);
+      display: flex; justify-content: flex-end; align-items: center;
+      gap: 8px; flex-shrink: 0;
+    }
+
+    /* ── Stale overlay ── */
+    .stale-overlay {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,.78); backdrop-filter: blur(3px);
+      z-index: 30; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Misc ── */
+    .touch-none { touch-action: none; }
+    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    .hide-scroll::-webkit-scrollbar { display: none; }
+    #canvas-wrap { position: absolute; inset: 8px; border-radius: 10px; overflow: hidden; }
+
+    .preload-banner {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 60; background: var(--brand); color: #fff;
+      padding: 8px 18px; border-radius: 99px; font-size: 15px; font-weight: 700;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      display: flex; align-items: center; gap: 6px;
+      pointer-events: none; animation: fadeUp .25s ease-out;
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans">
+<body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 let _uidCounter = 1;
 const uid = () => 'box_' + (_uidCounter++).toString(36).padStart(4,'0');
@@ -46,549 +421,90 @@ const CONTAINERS = {
   '40GP': {id:'40GP', w:2330, h:2350, d:11998},
   '40HQ': {id:'40HQ', w:2330, h:2655, d:11998}
 };
-
 const CARDBOARD_TYPES = {
-  'none': { L:0, W:0, H:0 },
-  'AB':   { L:15, W:15, H:30 },
-  'A':    { L:10, W:10, H:20 },
-  'B':    { L:6,  W:6,  H:12 },
-  'EB':   { L:9,  W:9,  H:18 },
-  'E':    { L:3,  W:3,  H:6  }
+  'none': {L:0,W:0,H:0}, 'AB': {L:15,W:15,H:30}, 'A': {L:10,W:10,H:20},
+  'B': {L:6,W:6,H:12}, 'EB': {L:9,W:9,H:18}, 'E': {L:3,W:3,H:6}
 };
+const COLORS = ['#a59aca', '#db4d6d', '#c8d5bb', '#94a8b0', '#a2d7dd', '#eb7a77', '#f9bf45'];
+const APP_VER = '2.01';
+const APP_DATE = '2026/03/31';
 
-const COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
-const APP_VER = '2.3';
-const APP_DATE = '2026/03/28';
-
-const WORKER_CODE = `
-const EPS = 0.5;
-const CARDBOARD_TYPES = {
-  'none':{L:0,W:0,H:0},'AB':{L:15,W:15,H:30},'A':{L:10,W:10,H:20},
-  'B':{L:6,W:6,H:12},'EB':{L:9,W:9,H:18},'E':{L:3,W:3,H:6}
-};
-
-function isColliding(x,y,z,w,h,d,packed){
-  for(const b of packed){if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS))return true;}return false;
-}
-function isSupported(x,y,z,w,h,d,packed,thresh){
-  if(y<EPS)return true;let area=0;
-  for(const b of packed){if(Math.abs((b.y+b.h)-y)<EPS){const ix1=Math.max(x,b.x),iz1=Math.max(z,b.z),ix2=Math.min(x+w,b.x+b.w),iz2=Math.min(z+d,b.z+b.d);if(ix1<ix2-EPS&&iz1<iz2-EPS)area+=(ix2-ix1)*(iz2-iz1);}}
-  return area/(w*d)>=thresh;
-}
-function getOrientations(b,strat){
-  const u=new Set(),res=[];
-  for(const p of [[b.w,b.h,b.d],[b.d,b.h,b.w]]){const k=Math.round(p[0])+','+Math.round(p[1])+','+Math.round(p[2]);if(!u.has(k)){u.add(k);let pref=true;if(strat==='length'&&Math.abs(p[2]-b.d)>EPS)pref=false;if(strat==='width'&&Math.abs(p[2]-b.w)>EPS)pref=false;res.push({w:p[0],h:p[1],d:p[2],pref});}}return res;
-}
-function dedupPoints(pts){const s=new Set(),r=[];for(const p of pts){const k=Math.round(p.x)+','+Math.round(p.y)+','+Math.round(p.z);if(!s.has(k)){s.add(k);r.push(p);}}return r;}
-function ptInsideBox(p,b){return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;}
-
-function simulate(boxTypes,innerGap,maxX,maxY,maxZ,strat,thresh,randomize){
-  let pts=[{x:0,y:0,z:innerGap}],packed=[];
-  const finInv=[],infInv=[];
-  boxTypes.forEach(b=>{
-    const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];
-    let aL=b.L+cb.L,aW=b.W+cb.W,aH=b.H+cb.H;
-    if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
-    else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
-    else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
-    const item=Object.assign({},b,{w:aW,h:aH,d:aL});
-    if(b.qty>0){item.remaining=b.qty;finInv.push(item);}else{item.remaining=Infinity;infInv.push(item);}
-  });
-  let count=0;
-  for(const inv of [finInv,infInv]){
-    if(!inv.length)continue;let canPack=true;
-    while(canPack&&count<3000){
-      canPack=false;
-      pts.sort((a,b)=>{if(Math.abs(a.z-b.z)>1)return a.z-b.z;if(randomize&&Math.random()<0.45)return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;});
-      for(const pt of pts){
-        let bIdx=-1,bOri=null,bVol=-1,bFit=-1,bD=-1,bPref=false;
-        let idx=inv.map((_,i)=>i);
-        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));let tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}}
-        for(const i of idx){
-          const box=inv[i];if(box.remaining<=0)continue;
-          let cs=strat;if(randomize&&Math.random()>0.65)cs=Math.random()>0.5?'length':'width';
-          for(const ori of getOrientations(box,cs)){
-            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS)continue;
-            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){
-              const vol=ori.w*ori.h*ori.d,fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);
-              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol,better=false;
-              if(bIdx===-1)better=true;
-              else if(ori.pref&&!bPref)better=true;
-              else if(!ori.pref&&bPref)better=false;
-              else if(ev>bVol)better=true;
-              else if(ev===bVol&&fit>bFit)better=true;
-              else if(ev===bVol&&fit===bFit&&ori.d>bD)better=true;
-              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}
-            }
-          }
-        }
-        if(bIdx!==-1){
-          const bb=inv[bIdx];
-          packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});
-          bb.remaining--;count++;canPack=true;
-          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});
-          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));
-          pts=dedupPoints(pts);break;
-        }
-      }
-    }
-  }
-  return packed;
-}
-
-function simulateJapanPallet(boxTypes, innerGap, maxX, maxY, maxZ, palletType, interlockFirst) {
-    let box = null;
-    for (let b of boxTypes) {
-        const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];
-        let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;
-        if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}
-        else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}
-        else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}
-        box = Object.assign({},b,{ w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity });
-        break;
-    }
-    if (!box) return [];
-
-    const availZ = maxZ - innerGap;
-    const isSheet = palletType === 'sheet';
-    const basePalletH = isSheet ? 15 : 120;
-    const cornerPadThick = isSheet ? 5 : 0;
-
-    let sheetMaxW = 1160;
-    let numZ = Math.max(1, Math.floor(availZ / sheetMaxW));
-    let sheetMaxD = Math.floor(availZ / numZ);
-
-    let maxPatW = isSheet ? sheetMaxW - cornerPadThick*2 : 1030;
-    let maxPatD = isSheet ? sheetMaxD - cornerPadThick*2 : 1030;
-
-    const effectiveH = maxY - basePalletH;
-    if (effectiveH < box.h) return []; 
-
-    let layersPerUnit = 1;
-    if (isSheet) {
-        let halfH = Math.floor(maxY / 2);
-        let calcLayers = Math.floor((halfH - basePalletH) / box.h);
-        layersPerUnit = Math.max(1, calcLayers);
-    } else {
-        let calcLayers = Math.floor((maxY - basePalletH) / box.h);
-        layersPerUnit = Math.max(1, calcLayers);
-    }
-
-    let unitH_boxes = layersPerUnit * box.h;
-    let unitH_total = unitH_boxes + basePalletH;
-
-    function generateAllPatterns(L, W, maxW, maxD) {
-      if (L <= 0 || W <= 0) return [];
-      const maxArea = maxW * maxD;
-      let patterns = [];
-
-      const addPat = (layout, uW, uD, isInterlock) => {
-          if (uW <= maxW + EPS && uD <= maxD + EPS) patterns.push({layout: layout, uW: uW, uD: uD, isInterlock: isInterlock||false});
-      };
-
-      const fill = (w, d, ox, oz, boxL, boxW) => {
-          let nx = Math.floor((w + EPS) / boxL);
-          let nz = Math.floor((d + EPS) / boxW);
-          let arr = [];
-          for(let i=0; i<nx; i++)
-              for(let j=0; j<nz; j++)
-                  arr.push({x: ox + i*boxL, z: oz + j*boxW, w: boxL, d: boxW});
-          return arr;
-      };
-
-      const maxNX = Math.floor(maxW / Math.min(L, W)) + 1;
-      const maxNZ = Math.floor(maxD / Math.min(L, W)) + 1;
-
-      for(let nx=1; nx<=maxNX && nx*L<=maxW+EPS; nx++) {
-          for(let nz=1; nz<=maxNZ && nz*W<=maxD+EPS; nz++) {
-              if(nx*L * nz*W > maxArea * 1.1) break; 
-              addPat(fill(nx*L, nz*W, 0, 0, L, W), nx*L, nz*W, false);
-          }
-      }
-      for(let nx=1; nx<=maxNX && nx*W<=maxW+EPS; nx++) {
-          for(let nz=1; nz<=maxNZ && nz*L<=maxD+EPS; nz++) {
-              if(nx*W * nz*L > maxArea * 1.1) break;
-              addPat(fill(nx*W, nz*L, 0, 0, W, L), nx*W, nz*L, false);
-          }
-      }
-
-      for(let nz1=1; nz1<=maxNZ && nz1*L<=maxD+EPS; nz1++) {
-          for(let nz2=1; nz2<=maxNZ && nz2*W<=maxD+EPS; nz2++) {
-              if (Math.abs(nz1*L - nz2*W) < EPS) {
-                  let depth = nz1*L;
-                  for(let nx1=1; nx1*W<=maxW+EPS; nx1++) {
-                      for(let nx2=1; nx1*W + nx2*L<=maxW+EPS; nx2++) {
-                          if(depth * (nx1*W + nx2*L) > maxArea * 1.1) break;
-                          let p = fill(nx1*W, depth, 0, 0, W, L).concat(fill(nx2*L, depth, nx1*W, 0, L, W));
-                          addPat(p, nx1*W + nx2*L, depth, true);
-                      }
-                  }
-              }
-          }
-      }
-
-      for(let nx1=1; nx1*W<=maxW+EPS; nx1++) {
-          for(let nx2=1; nx2*L<=maxW+EPS; nx2++) {
-              if (Math.abs(nx1*W - nx2*L) < EPS) {
-                  let width = nx1*W;
-                  for(let nz1=1; nz1*L<=maxD+EPS; nz1++) {
-                      for(let nz2=1; nz1*L + nz2*W<=maxD+EPS; nz2++) {
-                          if(width * (nz1*L + nz2*W) > maxArea * 1.1) break;
-                          let p = fill(width, nz1*L, 0, 0, W, L).concat(fill(width, nz2*W, 0, nz1*L, L, W));
-                          addPat(p, width, nz1*L + nz2*W, true);
-                      }
-                  }
-              }
-          }
-      }
-
-      for (let k = 1; k <= 4; k++) {
-          let L1 = L, W1 = k * W;
-          if (L1 + W1 <= Math.min(maxW, maxD) + EPS) {
-              const pwSize = L1 + W1;
-              for(let nx=1; nx*pwSize<=maxW+EPS; nx++) {
-                  for(let nz=1; nz*pwSize<=maxD+EPS; nz++) {
-                      if(nx*pwSize * nz*pwSize > maxArea * 1.1) break;
-                      let p = [];
-                      for(let i=0;i<nx;i++) {
-                          for(let j=0;j<nz;j++) {
-                              let ox = i*pwSize, oz = j*pwSize;
-                              p.push(...fill(W1, L1, ox, oz, W, L));
-                              p.push(...fill(L1, W1, ox, oz+L1, L, W));
-                              p.push(...fill(W1, L1, ox+L1, oz+W1, W, L));
-                              p.push(...fill(L1, W1, ox+W1, oz, L, W));
-                          }
-                      }
-                      addPat(p, nx*pwSize, nz*pwSize, true);
-                  }
-              }
-          }
-          let L2 = k * L, W2 = W;
-          if (L2 + W2 <= Math.min(maxW, maxD) + EPS) {
-              const pwSize = L2 + W2;
-              for(let nx=1; nx*pwSize<=maxW+EPS; nx++) {
-                  for(let nz=1; nz*pwSize<=maxD+EPS; nz++) {
-                      if(nx*pwSize * nz*pwSize > maxArea * 1.1) break;
-                      let p = [];
-                      for(let i=0;i<nx;i++) {
-                          for(let j=0;j<nz;j++) {
-                              let ox = i*pwSize, oz = j*pwSize;
-                              p.push(...fill(W2, L2, ox, oz, W, L));
-                              p.push(...fill(L2, W2, ox, oz+L2, L, W));
-                              p.push(...fill(W2, L2, ox+L2, oz+W2, W, L));
-                              p.push(...fill(L2, W2, ox+W2, oz, L, W));
-                          }
-                      }
-                      addPat(p, nx*pwSize, nz*pwSize, true);
-                  }
-              }
-          }
-      }
-
-      let rotated = [];
-      for (let pat of patterns) {
-          if (pat.uD <= maxW + EPS && pat.uW <= maxD + EPS) {
-              rotated.push({
-                  layout: pat.layout.map(p=>{ return {x:p.z,z:p.x,w:p.d,d:p.w}; }),
-                  uW: pat.uD, uD: pat.uW,
-                  isInterlock: pat.isInterlock
-              });
-          }
-      }
-      patterns = patterns.concat(rotated);
-
-      let uniquePats = [];
-      let sigs = new Set();
-      for(let pat of patterns) {
-          const layoutSig = pat.layout.map(b=> Math.round(b.x)+','+Math.round(b.z)+','+Math.round(b.w)+','+Math.round(b.d) ).sort().join('|');
-          const sig = Math.round(pat.uW)+'_'+Math.round(pat.uD)+'_'+layoutSig;
-          if (!sigs.has(sig)) {
-              sigs.add(sig);
-              uniquePats.push(pat);
-          }
-      }
-      return uniquePats;
-    }
-
-    let patterns = generateAllPatterns(box.d, box.w, maxPatW, maxPatD);
-    if (!patterns.length) return [];
-
-    let hasInterlock = false;
-    for(let p of patterns) if(p.isInterlock) hasInterlock = true;
-    let requireInterlock = interlockFirst && hasInterlock;
-
-    let maxBoxesPerLayer = 0;
-    for (let pat of patterns) {
-        if (requireInterlock && !pat.isInterlock) continue;
-        if (pat.layout.length > maxBoxesPerLayer) maxBoxesPerLayer = pat.layout.length;
-    }
-
-    let bestPat = null;
-    let bestIsInterlock = false;
-    let maxTotalBoxes = -1;
-    let bestShortSideCount = -1;
-
-    let unitTotalW = isSheet ? sheetMaxW : 1030;
-    let unitTotalD = isSheet ? sheetMaxD : 1030;
-
-    let maxUnitsX = Math.floor((maxX + EPS) / unitTotalW);
-    let maxUnitsZ = Math.floor((availZ + EPS) / unitTotalD);
-    let maxUnitsY = Math.floor((maxY + EPS) / unitH_total);
-
-    if (maxUnitsX <= 0 || maxUnitsZ <= 0 || maxUnitsY <= 0) return [];
-
-    for (let pat of patterns) {
-        if (requireInterlock && !pat.isInterlock) continue;
-        if (pat.layout.length < maxBoxesPerLayer) continue;
-        
-        let totalUnits = maxUnitsX * maxUnitsZ * maxUnitsY;
-        let boxesPerUnit = pat.layout.length * layersPerUnit;
-        let totalBoxes = totalUnits * boxesPerUnit;
-        if (box.remaining !== Infinity && totalBoxes > box.remaining) totalBoxes = box.remaining;
-        
-        let shortSides = 0;
-        for(let b of pat.layout) if(b.w < b.d) shortSides++;
-        shortSides = shortSides * layersPerUnit * totalUnits;
-        
-        let replace = false;
-        if (!bestPat) {
-            replace = true;
-        } else {
-            if (interlockFirst) {
-                if (pat.isInterlock && !bestIsInterlock) replace = true;
-                else if (pat.isInterlock === bestIsInterlock) {
-                    if (totalBoxes > maxTotalBoxes) replace = true;
-                    else if (totalBoxes === maxTotalBoxes && shortSides > bestShortSideCount) replace = true;
-                }
-            } else {
-                if (totalBoxes > maxTotalBoxes) replace = true;
-                else if (totalBoxes === maxTotalBoxes && shortSides > bestShortSideCount) replace = true;
-            }
-        }
-
-        if (replace) {
-            maxTotalBoxes = totalBoxes;
-            bestShortSideCount = shortSides;
-            bestIsInterlock = pat.isInterlock;
-            bestPat = pat;
-        }
-    }
-
-    if (!bestPat) return [];
-
-    const palletDetail = {
-        boxesPerLayer: bestPat.layout.length,
-        layers: layersPerUnit,
-        totalPallets: maxUnitsX * maxUnitsZ * maxUnitsY
-    };
-
-    let finalPacked = [];
-    finalPacked._palletDetail = palletDetail;
-
-    let boxesLeft = box.remaining;
-
-    for (let y = 0; y < maxUnitsY; y++) {
-        for (let z = 0; z < maxUnitsZ; z++) {
-            for (let x = 0; x < maxUnitsX; x++) {
-                if (boxesLeft <= 0) break;
-
-                let px = maxUnitsX > 1 ? x * ((maxX - unitTotalW) / (maxUnitsX - 1)) : (maxX - unitTotalW) / 2;
-                let pz = innerGap + z * unitTotalD;
-                let py = y * unitH_total;
-
-                let packMinX=Infinity, packMinZ=Infinity, packMaxX=0, packMaxZ=0;
-                for (let b of bestPat.layout) {
-                    if (b.x < packMinX) packMinX = b.x;
-                    if (b.z < packMinZ) packMinZ = b.z;
-                    if (b.x + b.w > packMaxX) packMaxX = b.x + b.w;
-                    if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;
-                }
-                let actualW = packMaxX - packMinX;
-                let actualD = packMaxZ - packMinZ;
-                let innerOffsetX = (unitTotalW - actualW) / 2 - packMinX;
-                let innerOffsetZ = (unitTotalD - actualD) / 2 - packMinZ;
-                let bx0 = px + innerOffsetX + packMinX;
-                let bz0 = pz + innerOffsetZ + packMinZ;
-                let bx1 = bx0 + actualW;
-                let bz1 = bz0 + actualD;
-
-                if (isSheet) {
-                    finalPacked.push({isPallet:true,x:bx0-cornerPadThick,y:py,z:bz0-cornerPadThick,w:actualW+cornerPadThick*2,h:basePalletH,d:actualD+cornerPadThick*2,color:'#cbd5e1',typeId:'pallet',name:'Sheet Pallet'});
-                    let padH=unitH_boxes, padC='#94a3b8', pN='Corner Pad', th=cornerPadThick, len=30;
-                    [[bx0-th,py+basePalletH,bz0-th,len,padH,th],[bx0-th,py+basePalletH,bz0-th,th,padH,len],
-                     [bx1+th-len,py+basePalletH,bz0-th,len,padH,th],[bx1,py+basePalletH,bz0-th,th,padH,len],
-                     [bx0-th,py+basePalletH,bz1,len,padH,th],[bx0-th,py+basePalletH,bz1+th-len,th,padH,len],
-                     [bx1+th-len,py+basePalletH,bz1,len,padH,th],[bx1,py+basePalletH,bz1+th-len,th,padH,len]
-                    ].forEach(arr=>finalPacked.push({isPallet:true,isPad:true,x:arr[0],y:arr[1],z:arr[2],w:arr[3],h:arr[4],d:arr[5],color:padC,typeId:'pad',name:pN}));
-                } else {
-                    finalPacked.push({isPallet:true,x:px,y:py,z:pz,w:1030,h:basePalletH,d:1030,color:'#b45309',typeId:'pallet',name:'Pallet 1030x1030'});
-                }
-
-                for (let l = 0; l < layersPerUnit; l++) {
-                    for (let pos of bestPat.layout) {
-                        if (boxesLeft <= 0) break;
-                        finalPacked.push({x:px+innerOffsetX+pos.x,y:py+basePalletH+l*box.h,z:pz+innerOffsetZ+pos.z,w:pos.w,h:box.h,d:pos.d,color:box.color,typeId:box.id,name:box.name});
-                        boxesLeft--;
-                    }
-                }
-            }
-        }
-    }
-    return finalPacked;
-}
-
-self.onmessage = function(e) {
-  const {boxes,innerGap,maxX,maxY,maxZ,strat,thresh,isJapanBound,palletType,interlockFirst,ITER} = e.data;
-  let best=[], bestVol=-1;
-  const tryIt=(arr)=>{const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0);if(v>bestVol){bestVol=v;best=arr;}};
-  const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst):simulate(arr,innerGap,maxX,maxY,maxZ,s,thresh,rand);
-  
-  if(!isJapanBound){
-    if(strat==='auto'){tryIt(runSim(boxes,'length',false));tryIt(runSim(boxes,'width',false));}
-    else tryIt(runSim(boxes,strat,false));
-  } else {
-    tryIt(runSim(boxes,strat,false));
-  }
-  
-  for(let cur=0;cur<ITER;cur++){
-    if(!isJapanBound){
-      let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat;
-      tryIt(runSim(boxes,s2,true));
-      if(cur%10===0){tryIt(runSim(boxes,'length',true));tryIt(runSim(boxes,'width',true));}
-    }
-    if(cur%5===4) self.postMessage({type:'progress',pct:Math.round((cur+1)/ITER*100)});
-  }
-  self.postMessage({type:'done',packed:best});
-};
-`;
+// WORKER_CODE is defined in the preceding <script> tag
 
 const T = {
   zh:{
-    title:'貨櫃裝載計算器', lang:'日本語切替', shot:'截圖', by:'作成：分室',
-    ctnSet:'貨櫃種類設定', ctnSub:'使用 JIS/ISO 規定的「最小內部尺寸」',
-    gAdv:'預留間隙設定 (通常維持不變)',
-    gInner:'最內側預留 (mm)', gDoor:'門口預留 (mm)', gRight:'右側預留 (mm)', gTop:'上方預留 (mm)',
-    gSupport:'支撐面積閾值 (%)', gSupportL:'寬鬆(高裝載率)', gSupportR:'嚴格(高穩定性)',
-    dimTotal:'內部尺寸 (深×寬×高)', dimD:'有效深度', dimW:'有效寬度', dimH:'有效高度',
-    boxSet:'箱體尺寸設定(內寸)', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱', copyBox:'複製',
-    cbType:'紙箱種類 (自動計算外寸)',
-    fL:'長(L) mm', fW:'寬(W) mm', fH:'高(H) mm', fQ:'數量 (0=自動)',
-    tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
-    mNom:'標準尺寸', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間值',
-    mLabel:'實際運算外寸:',
-    stratTitle:'裝載方向策略',
-    stratAuto:'自動最佳化 (整體數量最多)',
-    stratL:'優先以 箱長(L) 貼合貨櫃深',
-    stratW:'優先以 箱寬(W) 貼合貨櫃深',
-    japanBound:'日本向 (啟用特定棧板)', palletType:'棧板種類',
-    interlockFirst:'強制互扣優先 (增強穩定性)',
-    calcBtn:'標準計算', calcIng:'計算中…',
-    graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
+    title:'貨櫃裝載計算器', lang:'日本語切替', shot:'截圖', by:'作成：分室', ctnSet:'貨櫃設定', ctnSub:'使用 JIS/ISO 規定之最小內部尺寸',
+    gAdv:'預留空間設定', gInner:'最內側預留 (mm)', gDoor:'門口預留 (mm)', gRight:'右側預留 (mm)', gTop:'上方預留 (mm)',
+    gSupport:'支撐面積閾值', gSupportL:'寬鬆（高裝載率）', gSupportR:'嚴格（高穩定性）', dimTotal:'貨櫃內部尺寸 (深×寬×高)', dimD:'有效深度', dimW:'有效寬度', dimH:'有效高度',
+    boxSet:'箱體設定', addBox:'新增箱體', boxName:'箱體名稱', boxPfx:'紙箱', copyBox:'複製', cbType:'紙箱種類（自動換算外寸）',
+    fL:'長(L) mm', fW:'寬(W) mm', fH:'高(H) mm', fQ:'數量（0=自動）', tPlus:'正公差 (+)', tMinus:'負公差 (−)', calcMode:'計算基準', mNom:'標準尺寸', mMax:'最大（正公差）', mMin:'最小（負公差）', mMid:'中間值', mLabel:'實際運算外寸：',
+    stratTitle:'裝載方向策略', stratAuto:'自動最佳化（整體數量最多）', stratL:'優先以箱長(L)貼合貨櫃深', stratW:'優先以箱寬(W)貼合貨櫃深',
+    japanBound:'日本向（啟用特定棧板）', palletType:'棧板種類', interlockFirst:'強制互扣優先（增強穩定性）',
+    xAlignTitle:'寬幅(X軸)排列方式', xAlignLeft:'靠一側（緊貼邊緣）', xAlignCenter:'整體置中（無間隙）', xAlignDist:'平均分散（靠邊）', xAlignDistAround:'平均分散（含兩側）',
+    intAuto:'自動混合', intSingle:'單箱風車', intDouble:'雙箱風車',
+    intFailTitle: '無法產生互扣排列', intFailMsg: '目前的紙箱尺寸無法以您選擇的「互扣方式」進行排列。\n\n系統已取消本次計算，請嘗試更換紙箱尺寸，或是取消勾選「強制互扣優先」。',
+    calcBtn:'標準計算', calcIng:'計算中…', graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
     vIso:'等角', vTop:'俯視', vBottom:'仰視', vFront:'前視', vBack:'後視', vLeft:'左視', vRight:'右視',
-    play:'裝載順序：', xray:'透視', perspective:'透視投影', inner:'最內側', door:'門口',
-    export:'導出3視圖 (.dxf)',
-    saveHtml:'儲存設定',
-    saveHtmlTitle:'儲存為HTML檔',
-    saveHtmlDesc:'將當前所有輸入設定封裝進HTML檔案，其他人開啟後即可看到相同的設定，無需重新輸入。',
-    saveHtmlBtn:'下載 HTML 檔案',
-    saveHtmlDone:'已儲存！',
-    reportBtn:'報告書(.xlsx)', reportIng:'產出中...',
-    palletUsage:'棧板所需數量',
-    palletDetail:'棧板層數明細',
-    palletPerUnit:'每棧板',
-    palletLayerFmt:'每層{n}箱 × {l}層',
-    palletCountFmt:'共{c}個棧板',
-    sumTitle:'裝載結果摘要',
-    totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積',
-    detail:'各類別裝載數量：', boxU:'箱',
-    warnTitle:'部分箱體未能完全裝入！', wShort:'短缺', wReq:'需求', wPack:'實裝',
-    wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。',
-    wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。',
-    staleWarning:'⚠️ 設定已變更，請重新計算',
-    remTitle:'整體剩餘間隙', remD:'深度(Z)', remW:'寬度(X)', remH:'高度(Y)', remInc:'含預留',
-    helpBtn:'使用說明', helpTitle:'操作說明',
-    closeBtn:'關閉',
-    fixTitle:'v'+APP_VER+' 修正項目',
-    fix17:'修正17：徹底修復 Worker 迴圈錯誤導致的白屏0箱問題。並升級陣列引擎，完美支援圖紙中「8箱互扣」等進階多箱風車與交錯組合排列。',
-    ctn20:'20呎標準櫃 (20\' GP)', ctn40:'40呎標準櫃 (40\' GP)', ctn40h:'40呎高櫃 (40\' HQ)',
-    preloadBanner:'✅ 已載入預存設定',
+    play:'裝載順序：', xray:'透視', perspective:'透視投影', inner:'最內側', door:'門口', export:'導出3視圖 (.dxf)',
+    saveHtml:'儲存設定', saveHtmlTitle:'儲存為 HTML 檔', saveHtmlDesc:'將當前所有輸入設定封裝進 HTML 檔案，其他人開啟後即可看到相同的設定，無需重新輸入。', saveHtmlBtn:'下載 HTML 檔案', saveHtmlDone:'已儲存！',
+    reportBtn:'報告書 (.xlsx)', reportIng:'產出中…', palletUsage:'棧板所需數量', palletDetail:'棧板層數明細', palletPerUnit:'每棧板', palletLayerFmt:'每層{n}箱 × {l}層', palletCountFmt:'共{c}個棧板',
+    sumTitle:'裝載結果', totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積', detail:'各類別裝載數量', boxU:'箱',
+    warnTitle:'部分箱體未能完全裝入', wShort:'短缺', wReq:'需求', wPack:'實裝', wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。', wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。', staleWarning:'設定已變更，請重新計算',
+    remTitle:'剩餘間隙', remD:'深度 (Z)', remW:'寬度 (X)', remH:'高度 (Y)', remInc:'含預留', helpBtn:'使用說明', helpTitle:'操作說明', closeBtn:'關閉',
+    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'新增互扣失敗防呆機制，若紙箱尺寸無法支援強制互扣條件，將立即中斷並顯示警告視窗，提示使用者更換排版策略，避免空轉。',
+    ctn20:"20呎標準櫃 (20' GP)", ctn40:"40呎標準櫃 (40' GP)", ctn40h:"40呎高櫃 (40' HQ)", preloadBanner:'✓ 已載入預存設定',
   },
   ja:{
-    title:'コンテナ積載計算ツール', lang:'中文切替', shot:'撮影', by:'作成：分室',
-    ctnSet:'コンテナ種類設定', ctnSub:'JIS/ISO 規定の「最小内部寸法」を使用',
-    gAdv:'余白設定 (通常は変更不要)',
-    gInner:'最奥部余白 (mm)', gDoor:'ドア側余白 (mm)', gRight:'右側余白 (mm)', gTop:'上部余白 (mm)',
-    gSupport:'支持面積しきい値 (%)', gSupportL:'緩やか(高積載率)', gSupportR:'厳格(高安定性)',
-    dimTotal:'内部寸法 (奥行×幅×高)', dimD:'有効奥行', dimW:'有効幅', dimH:'有効高さ',
-    boxSet:'箱寸法設定(内寸)', addBox:'箱を追加', boxName:'箱の名前', boxPfx:'ダンボール', copyBox:'複製',
-    cbType:'ダンボール種類 (外寸自動計算)',
-    fL:'長さ(L) mm', fW:'幅(W) mm', fH:'高さ(H) mm', fQ:'数量 (0=自動)',
-    tPlus:'正公差(+)', tMinus:'負公差(-)', calcMode:'計算基準',
-    mNom:'標準寸法', mMax:'最大(正公差)', mMin:'最小(負公差)', mMid:'中間値',
-    mLabel:'実際の計算外寸:',
-    stratTitle:'積載方向の戦略',
-    stratAuto:'自動最適化 (全体数量最大)',
-    stratL:'優先: 箱の長さ(L)を奥行に合わせる',
-    stratW:'優先: 箱の幅(W)を奥行に合わせる',
-    japanBound:'日本向け (専用パレット)', palletType:'パレット種類',
-    interlockFirst:'インターロック優先 (荷崩れ防止)',
-    calcBtn:'標準計算', calcIng:'計算中…',
-    graspBtn:'深層最適化 (GRASP)', graspIng:'最適化中',
+    title:'コンテナ積載計算ツール', lang:'中文切替', shot:'撮影', by:'作成：分室', ctnSet:'コンテナ設定', ctnSub:'JIS/ISO 規定の最小内部寸法を使用',
+    gAdv:'余白設定', gInner:'最奥部余白 (mm)', gDoor:'ドア側余白 (mm)', gRight:'右側余白 (mm)', gTop:'上部余白 (mm)',
+    gSupport:'支持面積しきい値', gSupportL:'緩やか（高積載率）', gSupportR:'厳格（高安定性）', dimTotal:'内部寸法（奥行×幅×高さ）', dimD:'有効奥行', dimW:'有効幅', dimH:'有効高さ',
+    boxSet:'箱寸法設定', addBox:'箱を追加', boxName:'箱の名称', boxPfx:'ダンボール', copyBox:'複製', cbType:'ダンボール種類（外寸自動計算）',
+    fL:'長さ(L) mm', fW:'幅(W) mm', fH:'高さ(H) mm', fQ:'数量（0=自動）', tPlus:'正公差 (+)', tMinus:'負公差 (−)', calcMode:'計算基準', mNom:'標準寸法', mMax:'最大（正公差）', mMin:'最小（負公差）', mMid:'中間値', mLabel:'実際の計算外寸：',
+    stratTitle:'積載方向の戦略', stratAuto:'自動最適化（全体数量最大）', stratL:'優先：箱の長さ(L)を奥行に合わせる', stratW:'優先：箱の幅(W)を奥行に合わせる',
+    japanBound:'日本向け（専用パレット使用）', palletType:'パレット種類', interlockFirst:'インターロック優先（荷崩れ防止）',
+    xAlignTitle:'幅（X軸）の配置方法', xAlignLeft:'片側寄せ（端に密着）', xAlignCenter:'中央寄せ（隙間なし）', xAlignDist:'均等配置（両端密着）', xAlignDistAround:'均等配置（両端に隙間）',
+    intAuto:'自動ミックス', intSingle:'シングル風車', intDouble:'ダブル風車',
+    intFailTitle: 'インターロック配置不可', intFailMsg: '現在の箱の寸法では、選択した「インターロック」を生成できません。\n\n計算をキャンセルしました。箱の寸法を変更するか、「インターロック優先」のチェックを外してください。',
+    calcBtn:'標準計算', calcIng:'計算中…', graspBtn:'深層最適化（GRASP）', graspIng:'最適化中',
     vIso:'等角', vTop:'平面', vBottom:'底面', vFront:'正面', vBack:'背面', vLeft:'左側面', vRight:'右側面',
-    play:'積載順序：', xray:'透過', perspective:'透視投影', inner:'最奥', door:'ドア',
-    export:'3面図を出力 (.dxf)',
-    saveHtml:'設定を保存',
-    saveHtmlTitle:'HTMLファイルとして保存',
-    saveHtmlDesc:'現在の入力設定をHTMLファイルに埋め込みます。他のユーザーがファイルを開くと、同じ設定が自動的に読み込まれます。',
-    saveHtmlBtn:'HTMLファイルをダウンロード',
-    saveHtmlDone:'保存完了！',
-    reportBtn:'レポート(.xlsx)', reportIng:'出力中...',
-    palletUsage:'パレット必要数',
-    palletDetail:'パレット層数明細',
-    palletPerUnit:'パレット毎',
-    palletLayerFmt:'1層{n}箱 × {l}層',
-    palletCountFmt:'計{c}パレット',
-    sumTitle:'積載結果の概要',
-    totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積',
-    detail:'各カテゴリ積載数：', boxU:'箱',
-    warnTitle:'一部の箱が積載されませんでした！', wShort:'不足', wReq:'要求', wPack:'実積載',
-    wAnal:'🔍 原因：残りスペースがデッドスペースに細分化され、箱を収められません。',
-    wSug:'💡 提案：深層最適化を試す / 大きなコンテナに変更 / 余白を縮小。',
-    staleWarning:'⚠️ 設定が変更されました。再計算してください',
-    remTitle:'残りスペース', remD:'奥行(Z)', remW:'幅(X)', remH:'高さ(Y)', remInc:'余白含',
-    helpBtn:'ヘルプ', helpTitle:'操作ガイド',
-    closeBtn:'閉じる',
-    fixTitle:'v'+APP_VER+' 修正内容',
-    fix17:'修正17：Workerのループエラーを解決し、0箱バグを完全に修正。また、「8箱風車」など図面にある高度な複数箱インターロック配置に完全対応しました。',
-    ctn20:"20フィート標準 (20' GP)", ctn40:"40フィート標準 (40' GP)", ctn40h:"40フィートHQ (40' HQ)",
-    preloadBanner:'✅ 保存された設定を読み込みました',
+    play:'積載順序：', xray:'透過表示', perspective:'透視投影', inner:'最奥', door:'ドア側', export:'3面図を出力（.dxf）',
+    saveHtml:'設定を保存', saveHtmlTitle:'HTML ファイルとして保存', saveHtmlDesc:'現在の入力設定を HTML ファイルに埋め込みます。他のユーザーがファイルを開くと、同じ設定が自動的に読み込まれます。', saveHtmlBtn:'HTML ファイルをダウンロード', saveHtmlDone:'保存完了！',
+    reportBtn:'レポート（.xlsx）', reportIng:'出力中…', palletUsage:'パレット必要数', palletDetail:'パレット積付け詳細', palletPerUnit:'パレット毎', palletLayerFmt:'1層{n}箱 × {l}層', palletCountFmt:'計{c}パレット',
+    sumTitle:'積載結果', totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積', detail:'種類別積載数', boxU:'箱',
+    warnTitle:'一部の箱が積載できませんでした', wShort:'不足', wReq:'要求', wPack:'実積載', wAnal:'🔍 原因：残りスペースが分断されており、箱を収められません。', wSug:'💡 提案：深層最適化 / 大きなコンテナに変更 / 余白を縮小。', staleWarning:'設定が変更されました。再計算してください',
+    remTitle:'残りスペース', remD:'奥行（Z）', remW:'幅（X）', remH:'高さ（Y）', remInc:'余白含む', helpBtn:'ヘルプ', helpTitle:'操作ガイド', closeBtn:'閉じる',
+    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'インターロック失敗防止機能を追加しました。箱のサイズが強制インターロックの条件を満たさない場合、即座に計算を中断し警告ウィンドウを表示します。',
+    ctn20:"20フィート標準（20' GP）", ctn40:"40フィート標準（40' GP）", ctn40h:"40フィートHQ（40' HQ）", preloadBanner:'✓ 保存済み設定を読み込みました',
   }
 };
 
+// ── SVG Icons ──────────────────────────────────────────
 const Ico = {
-  Pkg:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-  Plus:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  Copy:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
-  Del:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
-  Spin:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
-  Box:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-  Warn:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  Play:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="5 3 19 12 5 21 5 3"/></svg>,
-  Eye:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-  Dl:    ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-  Glob:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
-  Rule:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"/><line x1="6" y1="18" x2="10.1" y2="13.9"/><line x1="8" y1="20" x2="12.1" y2="15.9"/><line x1="10" y1="22" x2="14.1" y2="17.9"/><line x1="14" y1="20" x2="18.1" y2="15.9"/><line x1="16" y1="18" x2="20.1" y2="13.9"/></svg>,
-  Cam:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
-  Book:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-  Star:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
-  Chk:   ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Gear:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  X:     ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  Save:  ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
-  Table: ({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
-  Layers:({c})=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+  Pkg:  ({s})=><svg width={s||16} height={s||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  Plus: ({s})=><svg width={s||16} height={s||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  Copy: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  Del:  ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  Spin: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+  Warn: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Play: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+  Eye:  ({s})=><svg width={s||13} height={s||13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  Dl:   ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Glob: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+  Rule: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3l-9-9c-.7-.7-1.9-.7-2.6 0l-7 7c-.7.7-.7 1.9 0 2.6l9 9c.7.7 1.9.7 2.6 0l7-7c.7-.7.7-1.9 0-2.6z"/><line x1="6" y1="18" x2="10.1" y2="13.9"/><line x1="8" y1="20" x2="12.1" y2="15.9"/><line x1="10" y1="22" x2="14.1" y2="17.9"/><line x1="14" y1="20" x2="18.1" y2="15.9"/><line x1="16" y1="18" x2="20.1" y2="13.9"/></svg>,
+  Cam:  ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+  Book: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  Star: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>,
+  Chk:  ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Gear: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  X:    ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Save: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+  Table:({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
+  Layers:({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+  WindSingle:({s})=><svg width={s||18} height={s||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="10" height="7" rx="1"/><rect x="14" y="3" width="7" height="10" rx="1"/><rect x="11" y="14" width="10" height="7" rx="1"/><rect x="3" y="11" width="7" height="10" rx="1"/></svg>,
+  WindDouble:({s})=><svg width={s||18} height={s||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="10" height="3" rx=".5"/><rect x="3" y="7" width="10" height="3" rx=".5"/><rect x="14" y="3" width="3" height="10" rx=".5"/><rect x="18" y="3" width="3" height="10" rx=".5"/><rect x="11" y="14" width="10" height="3" rx=".5"/><rect x="11" y="18" width="10" height="3" rx=".5"/><rect x="3" y="11" width="3" height="10" rx=".5"/><rect x="7" y="11" width="3" height="10" rx=".5"/></svg>,
 };
 
+// ── Helpers ────────────────────────────────────────────
 function getGaps(packed, container, axis, limit){
   const realPacked = packed.filter(p => !p.isPallet && !p.isPad);
   if(!realPacked.length) return [0];
@@ -611,18 +527,17 @@ function getGaps(packed, container, axis, limit){
   return gaps.length?gaps.slice(0,3):[0];
 }
 
-function Modal({onClose, title, children, wide}){
+// ── Modals ─────────────────────────────────────────────
+function BaseModal({onClose, title, children, footer, wide, accent}){
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
-      <div className={'modal-in bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden '+(wide?'w-full max-w-4xl max-h-[92vh]':'w-full max-w-2xl max-h-[90vh]')}>
-        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
-          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
+    <div className="modal-backdrop">
+      <div className={"modal-box "+(wide?'w-full max-w-4xl max-h-[92vh]':'w-full max-w-lg max-h-[88vh]')}>
+        <div className="modal-header" style={accent?{borderTop:`3px solid ${accent}`,background:'var(--paper-warm)'}:{}}>
+          <span style={{fontWeight:700, fontSize:17}}>{title}</span>
+          <button onClick={onClose} className="btn-danger-ghost btn" style={{padding:'5px'}}><Ico.X s={14}/></button>
         </div>
-        <div className="flex-1 overflow-y-auto scr">{children}</div>
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
-          <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">{T.zh.closeBtn}</button>
-        </div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-footer">{footer}</div>
       </div>
     </div>
   );
@@ -632,197 +547,224 @@ function SaveHtmlModal({onClose, onSave, lang, t}){
   const [saved, setSaved] = useState(false);
   const handleSave = () => { onSave(); setSaved(true); setTimeout(()=>setSaved(false), 2500); };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
-      <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
-          <div className="flex items-center gap-2"><Ico.Save c="w-5 h-5 text-emerald-600"/><h2 className="text-base font-bold text-slate-800">{t.saveHtmlTitle}</h2></div>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
+    <BaseModal onClose={onClose} title={t.saveHtmlTitle} accent="var(--ok)"
+      footer={<>
+        <button onClick={onClose} className="btn btn-ghost">{t.closeBtn}</button>
+        <button onClick={handleSave} className={"btn "+(saved?'btn-success':'btn-success')}>
+          {saved?<><Ico.Chk s={13}/>{t.saveHtmlDone}</>:<><Ico.Dl s={13}/>{t.saveHtmlBtn}</>}
+        </button>
+      </>}>
+      <div style={{padding:'20px', display:'flex', flexDirection:'column', gap:14}}>
+        <div style={{background:'var(--ok-soft)', border:'1px solid var(--ok)', borderRadius:8, padding:'12px 14px'}}>
+          <p style={{fontSize:15, color:'var(--ok)', lineHeight:1.7}}>{t.saveHtmlDesc}</p>
         </div>
-        <div className="p-6 space-y-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4"><p className="text-sm text-emerald-800 leading-relaxed">{t.saveHtmlDesc}</p></div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-xs text-amber-700">{lang==='zh'?'⚠️ 計算結果不會被儲存，收到檔案後請重新執行計算。':'⚠️ 計算結果は保存されません。ファイルを受け取った方は再計算してください。'}</p>
-          </div>
-        </div>
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg text-sm transition-colors">{t.closeBtn}</button>
-          <button onClick={handleSave} className={'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all '+(saved?'bg-emerald-500 text-white save-pop':'bg-emerald-600 hover:bg-emerald-700 text-white')}>
-            {saved?<><Ico.Chk c="w-4 h-4"/>{t.saveHtmlDone}</>:<><Ico.Dl c="w-4 h-4"/>{t.saveHtmlBtn}</>}
-          </button>
+        <div style={{background:'var(--warn-soft)', border:'1px solid var(--warn)', borderRadius:7, padding:'10px 14px'}}>
+          <p style={{fontSize:14, color:'var(--warn)', lineHeight:1.6}}>
+            {lang==='zh'?'⚠ 計算結果不會被儲存，收到檔案後請重新執行計算。':'⚠ 計算結果は保存されません。ファイルを受け取った方は再計算してください。'}
+          </p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 }
 
 function HelpModal({onClose, lang}){
   const [tab, setTab] = useState(0);
   const zh = lang==='zh';
-  const tabs = zh ? ['🚀 快速上手','📦 輸入設定','🔘 按鈕功能','📊 結果說明','❓ 常見問題'] : ['🚀 クイックスタート','📦 入力設定','🔘 ボタン機能','📊 結果説明','❓ よくある質問'];
-  const Step=({n,title,children})=><div className="flex gap-3 mb-4"><span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span><div><p className="font-semibold text-slate-800 mb-1">{title}</p><div className="text-slate-600 text-xs leading-relaxed">{children}</div></div></div>;
-  const Field=({name,type,children})=><div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{type}</span><span className="font-semibold text-slate-800 text-sm">{name}</span></div><p className="text-xs text-slate-600 leading-relaxed">{children}</p></div>;
-  const Btn=({label,color,children})=><div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200"><div className="flex items-center gap-2 mb-1.5"><span className={'text-[10px] font-bold px-2 py-0.5 rounded text-white '+color}>{label}</span></div><p className="text-xs text-slate-600 leading-relaxed">{children}</p></div>;
-  const Tip=({children})=><div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3"><p className="text-xs text-emerald-800 leading-relaxed">💡 {children}</p></div>;
-  const Warn=({children})=><div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3"><p className="text-xs text-amber-800 leading-relaxed">⚠️ {children}</p></div>;
+  const tabs = zh
+    ? ['快速上手','輸入設定','按鈕功能','結果說明','常見問題']
+    : ['クイックスタート','入力設定','ボタン機能','結果説明','よくある質問'];
 
-  const content_zh=[
-    <div className="p-5 space-y-2">
-      <Step n="1" title="選擇貨櫃種類">在左上方的下拉選單中，選擇您要使用的貨櫃規格。</Step>
-      <Step n="2" title="設定預留空間">輸入貨櫃四個方向的預留空間（mm）。</Step>
-      <Step n="3" title="新增箱體資訊">點擊「＋ 新增箱體」，選擇紙箱種類並輸入內寸與數量。</Step>
-      <Step n="4" title="選擇計算策略並執行">選擇裝載方向策略後，點擊「標準計算」。</Step>
-      <Step n="5" title="查看結果、必要時深層優化">查看右側總裝載箱數與空間利用率。如需進一步提升可使用「深層優化」。</Step>
-      <Tip>第一次使用建議先用「標準計算」確認基本結果，再視情況使用深層優化。</Tip>
+  const S=({n,t,c})=>(
+    <div style={{display:'flex',gap:10,marginBottom:14}}>
+      <span style={{width:24,height:24,borderRadius:'50%',background:'var(--brand)',color:'#fff',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>{n}</span>
+      <div><p style={{fontWeight:700,fontSize:16,marginBottom:3}}>{t}</p><p style={{fontSize:14,color:'var(--ink-soft)',lineHeight:1.7}}>{c}</p></div>
+    </div>
+  );
+  const F=({name,type,c})=>(
+    <div style={{marginBottom:12,padding:'10px 12px',background:'var(--paper-warm)',borderRadius:7,border:'1px solid var(--line)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+        <span className="tag tag-accent">{type}</span>
+        <span style={{fontWeight:700,fontSize:15}}>{name}</span>
+      </div>
+      <p style={{fontSize:14,color:'var(--ink-soft)',lineHeight:1.7}}>{c}</p>
+    </div>
+  );
+  const Tip=({c})=><div style={{padding:'10px 12px',background:'var(--ok-soft)',borderRadius:7,border:'1px solid var(--ok)',marginBottom:12}}><p style={{fontSize:14,color:'var(--ok)',lineHeight:1.7}}>💡 {c}</p></div>;
+  const Wa=({c})=><div style={{padding:'10px 12px',background:'var(--warn-soft)',borderRadius:7,border:'1px solid var(--warn)',marginBottom:12}}><p style={{fontSize:14,color:'var(--warn)',lineHeight:1.7}}>⚠ {c}</p></div>;
+
+  const contentZh=[
+    <div key="q1" style={{padding:20,display:'flex',flexDirection:'column',gap:0}}>
+      <S n="1" t="選擇貨櫃種類" c="在左側貨櫃設定區，從下拉選單選擇所需規格。"/>
+      <S n="2" t="設定預留空間" c="輸入四個方向的預留空間（mm），通常保持預設值即可。"/>
+      <S n="3" t="新增箱體資訊" c="點擊「＋ 新增箱體」，依序選擇紙箱種類、輸入內寸與數量。"/>
+      <S n="4" t="選擇策略並執行" c="選擇裝載方向策略後，點擊「標準計算」。"/>
+      <S n="5" t="確認結果，必要時深層優化" c="確認右側的裝載總數與空間利用率，如有需要可執行深層優化。"/>
+      <Tip c="建議先以「標準計算」確認基本結果，再視情況使用深層優化。"/>
     </div>,
-    <div className="p-5">
-      <Field name="貨櫃種類" type="下拉選單">20' GP：深度約5867mm。40' GP：深度約11998mm。40' HQ：與40'GP同長，高度多約305mm。</Field>
-      <Field name="紙箱種類" type="下拉選單">選擇如「AB段」時，輸入尺寸視為「內寸」，自動加紙箱厚度換算外寸。</Field>
-      <Field name="數量" type="數值">輸入0：自動計算最多能裝幾個。輸入具體數字：優先裝入該數量。</Field>
-      <Field name="日本向 (特定棧板)" type="勾選框">啟用後可選擇1030×1030mm棧板或Sheet Pallet進行雙層裝載演算。</Field>
-      <Field name="強制互扣優先" type="勾選框">以安全為第一考量，犧牲部分裝載極限，強制篩選能互相交錯防倒塌的排法（如風車型）。</Field>
-      <Field name="計算基準" type="下拉選單"><strong>標準尺寸</strong>：不考慮公差，直接用基礎尺寸計算。<strong>最大</strong>：假設每個箱子都是最大狀態。<strong>最小</strong>：假設最小狀態。<strong>中間值</strong>：取正負公差平均，模擬整批平均預期尺寸。</Field>
+    <div key="q2" style={{padding:20}}>
+      <F name="紙箱種類" type="下拉選單" c="選擇如「AB段」時，輸入尺寸視為「內寸」，自動加紙箱厚度換算外寸。"/>
+      <F name="數量" type="數值" c="輸入 0：自動計算最多能裝幾個。輸入具體數字：優先裝入該數量。"/>
+      <F name="日本向（特定棧板）" type="勾選框" c="啟用後可選擇 1030×1030mm 棧板或 Sheet Pallet 進行雙層裝載演算。"/>
+      <F name="強制互扣優先" type="勾選框" c="以安全為第一考量，強制篩選能互相交錯防倒塌的排法（如風車型）。若箱子尺寸無法互扣，系統會跳出警告並停止計算。"/>
+      <F name="計算基準" type="下拉選單" c="標準尺寸：不考慮公差。最大：假設最大狀態。最小：假設最小狀態。中間值：取正負公差平均，模擬整批平均預期尺寸。"/>
     </div>,
-    <div className="p-5">
-      <Btn label="標準計算" color="bg-blue-600">快速裝載演算（約1秒）。</Btn>
-      <Btn label="深層優化 (GRASP)" color="bg-indigo-600">100次隨機迭代搜尋最佳排列（約5~15秒），UI不卡頓。</Btn>
-      <Btn label="報告書 (.xlsx)" color="bg-blue-600">三種公差各算一次，輸出Excel比較表，含3D截圖。</Btn>
-      <Btn label="導出3視圖 (.dxf)" color="bg-indigo-600">1:40比例DXF三視圖，含尺寸標註線，可在AutoCAD直接讀值。</Btn>
-      <Btn label="複製（箱體）" color="bg-slate-500">快速複製相同規格箱體，省去重複輸入。</Btn>
+    <div key="q3" style={{padding:20}}>
+      <F name="標準計算" type="青綠色按鈕" c="快速裝載演算（約 1 秒）。"/>
+      <F name="深層優化（GRASP）" type="淺藍色按鈕" c="100 次隨機迭代搜尋最佳排列（約 5～15 秒），UI 不卡頓。"/>
+      <F name="報告書（.xlsx）" type="表格按鈕" c="三種公差各算一次，輸出 Excel 比較表，含 3D 截圖。"/>
+      <F name="導出3視圖（.dxf）" type="下載按鈕" c="1:40 比例 DXF 三視圖，含尺寸標註線，可在 AutoCAD 直接讀值。"/>
+      <F name="複製（箱體）" type="圖示按鈕" c="快速複製相同規格箱體，省去重複輸入。"/>
     </div>,
-    <div className="p-5">
-      <Field name="棧板層數明細" type="日本向模式">日本向計算完成後，摘要中會顯示「每層N箱 × L層 × C個棧板」的明細，方便作業員確認。</Field>
-      <Warn>設定變更後，舊結果會顯示半透明遮罩與「設定已變更，請重新計算」警示，避免誤讀舊數據。</Warn>
-      <Tip>遇到短缺警告時：① 先嘗試「深層優化」→ ② 縮減預留空間 → ③ 換用40' HQ高櫃。</Tip>
+    <div key="q4" style={{padding:20}}>
+      <F name="棧板層數明細" type="日本向模式" c="日本向計算完成後，摘要中會顯示「每層 N 箱 × L 層 × C 個棧板」的明細，方便作業員確認。"/>
+      <Wa c="設定變更後，舊結果會顯示遮罩與「設定已變更，請重新計算」警示，避免誤讀舊數據。"/>
+      <Tip c="遇到短缺警告時：① 先嘗試「深層優化」→ ② 縮減預留空間 → ③ 換用 40' HQ 高櫃。"/>
     </div>,
-    <div className="p-5 space-y-4">
-      {[['「標準尺寸」與「中間值」差異','標準尺寸不考慮公差。中間值取「(正公差-負公差)÷2」加到基礎尺寸，適合模擬整批平均預期尺寸。'],
-        ['空間利用率怎麼提高？','① 縮小預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（30~40%）'],
+    <div key="q5" style={{padding:20,display:'flex',flexDirection:'column',gap:10}}>
+      {[
+        ['「標準尺寸」與「中間值」差異','標準尺寸不考慮公差。中間值取「(正公差−負公差)÷2」加到基礎尺寸，適合模擬整批平均預期尺寸。'],
+        ['如何提高空間利用率？','① 縮小預留空間 → ② 嘗試深層優化 → ③ 調低支撐閾值（30～40%）'],
+        ['為何高度(Y軸)總會剩下較多空間？','在 Sheet Pallet 模式中，為安全規定必須分上下兩層等高棧板。貨櫃高度切半後，可能每層剛好差一點就無法再塞一層，造成上方留有空隙。這是符合雙層棧板堆疊規範的數學極限，而非演算法未填滿。'],
       ].map(([q,a],i)=>(
-        <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
-          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
+        <div key={i} style={{border:'1px solid var(--line)',borderRadius:8,overflow:'hidden'}}>
+          <div style={{padding:'10px 14px',background:'var(--paper-warm)',fontWeight:700,fontSize:15,display:'flex',gap:6}}>
+            <span style={{color:'var(--brand)'}}>Q.</span>{q}
+          </div>
+          <div style={{padding:'10px 14px',fontSize:14,color:'var(--ink-soft)',lineHeight:1.7,display:'flex',gap:6}}>
+            <span style={{color:'var(--ok)',fontWeight:700,flexShrink:0}}>A.</span>{a}
+          </div>
         </div>
       ))}
     </div>
   ];
 
-  const content_ja=[
-    <div className="p-5 space-y-2">
-      <Step n="1" title="コンテナ種類を選択">左上のドロップダウンから使用するコンテナ規格を選択してください。</Step>
-      <Step n="2" title="余白を設定">コンテナ四方向の余白（mm）を入力します。</Step>
-      <Step n="3" title="箱情報を追加">「＋ 箱を追加」をクリックし、種類と内寸・数量を入力します。</Step>
-      <Step n="4" title="戦略を選択して計算">積載方向戦略を選んでから「標準計算」をクリック。</Step>
-      <Step n="5" title="結果確認・深層最適化">総積載数と利用率を確認し、必要なら「深層最適化」を使用。</Step>
-      <Tip>初めての方はまず「標準計算」で確認し、必要に応じて深層最適化を使用することをお勧めします。</Tip>
+  const contentJa=[
+    <div key="j1" style={{padding:20,display:'flex',flexDirection:'column',gap:0}}>
+      <S n="1" t="コンテナ種類を選択" c="左側の設定パネルで使用するコンテナ規格を選択します。"/>
+      <S n="2" t="余白を設定" c="四方向の余白（mm）を入力します。通常はデフォルト値のままで問題ありません。"/>
+      <S n="3" t="箱情報を追加" c="「＋ 箱を追加」をクリックし、種類・内寸・数量を入力します。"/>
+      <S n="4" t="戦略を選択して計算" c="積載方向戦略を選び、「標準計算」をクリックします。"/>
+      <S n="5" t="結果確認・深層最適化" c="総積載数と利用率を確認し、必要なら「深層最適化」を使用します。"/>
+      <Tip c="まず「標準計算」で結果を確認し、必要に応じて深層最適化を実行することをお勧めします。"/>
     </div>,
-    <div className="p-5">
-      <Field name="ダンボール種類" type="ドロップダウン">選択すると入力値を「内寸」と見なし、厚みを自動加算して計算します。</Field>
-      <Field name="数量" type="数値">0で自動最大充填。具体的な数値で指定数を優先して積載。</Field>
-      <Field name="日本向け (専用パレット)" type="チェックボックス">1030×1030mmパレットまたはシートパレットを使用した積載計算が可能です。</Field>
-      <Field name="インターロック優先" type="チェックボックス">荷崩れ防止を最優先し、風車積みやレンガ積みなどのインターロック配置を強制的に選択します。</Field>
-      <Field name="計算基準" type="ドロップダウン"><strong>標準寸法</strong>：公差なし。<strong>最大</strong>：全箱最大サイズ。<strong>最小</strong>：全箱最小サイズ。<strong>中間値</strong>：平均予想サイズのシミュレーション。</Field>
+    <div key="j2" style={{padding:20}}>
+      <F name="ダンボール種類" type="ドロップダウン" c="「AB段」などを選択すると、入力値が「内寸」として扱われ、厚みが自動加算されます。"/>
+      <F name="数量" type="数値" c="0 で自動最大充填。具体的な数値で指定数を優先積載します。"/>
+      <F name="日本向け（専用パレット）" type="チェックボックス" c="1030×1030mm パレットまたはシートパレットを使用した積載計算が可能です。"/>
+      <F name="インターロック優先" type="チェックボックス" c="荷崩れ防止を最優先し、風車積み等のインターロック配置を強制します。不可能な場合は警告が表示されます。"/>
+      <F name="計算基準" type="ドロップダウン" c="標準寸法：公差なし。最大：全箱最大サイズ。最小：全箱最小サイズ。中間値：平均予想サイズのシミュレーション。"/>
     </div>,
-    <div className="p-5">
-      <Btn label="標準計算" color="bg-blue-600">1回の高速演算（約1秒）。</Btn>
-      <Btn label="深層最適化 (GRASP)" color="bg-indigo-600">100回のランダム反復（約5~15秒）。UIはフリーズしません。</Btn>
-      <Btn label="レポート (.xlsx)" color="bg-blue-600">3種公差で各1回計算し比較表をExcel出力、3Dスクリーンショット付き。</Btn>
-      <Btn label="3面図を出力 (.dxf)" color="bg-indigo-600">1:40スケールDXF三面図、寸法線付きでAutoCADで直接読取可能。</Btn>
-      <Btn label="複製（箱体）" color="bg-slate-500">類似サイズの箱を素早く複製、再入力不要。</Btn>
+    <div key="j3" style={{padding:20}}>
+      <F name="標準計算" type="青緑色のボタン" c="1回の高速演算（約1秒）。"/>
+      <F name="深層最適化（GRASP）" type="水色ボタン" c="100回のランダム反復（約5〜15秒）。UI はフリーズしません。"/>
+      <F name="レポート（.xlsx）" type="テーブルボタン" c="3種公差で各1回計算し、Excel比較表を出力します（3Dスクリーンショット付き）。"/>
+      <F name="3面図を出力（.dxf）" type="ダウンロードボタン" c="1:40スケールDXF三面図。寸法線付きでAutoCADで直接読み取れます。"/>
+      <F name="複製（箱体）" type="アイコンボタン" c="類似サイズの箱を素早く複製できます。再入力不要。"/>
     </div>,
-    <div className="p-5">
-      <Field name="パレット層数明細" type="日本向けモード">計算完了後の概要に「1層N箱×L層×Cパレット」の明細が表示されます。</Field>
-      <Warn>設定変更後の旧結果には半透明オーバーレイと「再計算してください」の警告が表示され、誤読を防止します。</Warn>
-      <Tip>不足が発生した場合：① 深層最適化 → ② 余白を縮小 → ③ 40' HQに変更。</Tip>
+    <div key="j4" style={{padding:20}}>
+      <F name="パレット積付け詳細" type="日本向けモード" c="計算完了後の概要に「1層N箱×L層×Cパレット」の明細が表示されます。"/>
+      <Wa c="設定変更後の旧結果にはオーバーレイと「再計算してください」の警告が表示され、誤読を防止します。"/>
+      <Tip c="不足が発生した場合：① 深層最適化 → ② 余白を縮小 → ③ 40' HQに変更。"/>
     </div>,
-    <div className="p-5 space-y-4">
-      {[['「標準寸法」と「中間値」の使い分け方','標準寸法は公差なし。中間値は「(正公差-負公差)÷2」を加算し、ロット平均サイズのシミュレーションに使用。'],
-        ['空間利用率を上げるには？','① 余白を縮小 → ② 深層最適化 → ③ 支持しきい値を下げる（30~40%）'],
+    <div key="j5" style={{padding:20,display:'flex',flexDirection:'column',gap:10}}>
+      {[
+        ['「標準寸法」と「中間値」の使い分け','標準寸法は公差なし。中間値は「(正公差－負公差)÷2」を加算し、ロット平均サイズのシミュレーションに使用します。'],
+        ['空間利用率を上げるには？','① 余白を縮小 → ② 深層最適化 → ③ 支持しきい値を下げる（30〜40%）'],
+        ['なぜ高さ（Y軸）に余白が残るのですか？','シートパレットモードでは安全のため上下2段積みが強制されます。コンテナ高さを半分にした各段で、あと少しで次の層が入らない場合に隙間が残ります。これは2段積みルールに基づく数学的限界です。'],
       ].map(([q,a],i)=>(
-        <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 font-semibold text-sm text-slate-800 flex gap-2"><span className="text-blue-500 flex-shrink-0">Q.</span>{q}</div>
-          <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed flex gap-2"><span className="text-emerald-600 font-bold flex-shrink-0">A.</span>{a}</div>
+        <div key={i} style={{border:'1px solid var(--line)',borderRadius:8,overflow:'hidden'}}>
+          <div style={{padding:'10px 14px',background:'var(--paper-warm)',fontWeight:700,fontSize:15,display:'flex',gap:6}}>
+            <span style={{color:'var(--brand)'}}>Q.</span>{q}
+          </div>
+          <div style={{padding:'10px 14px',fontSize:14,color:'var(--ink-soft)',lineHeight:1.7,display:'flex',gap:6}}>
+            <span style={{color:'var(--ok)',fontWeight:700,flexShrink:0}}>A.</span>{a}
+          </div>
         </div>
       ))}
     </div>
   ];
+  const contents = zh ? contentZh : contentJa;
 
-  const contents = zh ? content_zh : content_ja;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3">
-      <div className="modal-in bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-          <div className="flex items-center gap-2"><Ico.Book c="w-5 h-5 text-blue-600"/><h2 className="text-lg font-bold text-slate-800">{zh?'完整使用說明':'操作ガイド'}</h2></div>
-          <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><Ico.X c="w-5 h-5"/></button>
+    <div className="modal-backdrop">
+      <div className="modal-box" style={{width:'100%',maxWidth:700,maxHeight:'92vh'}}>
+        <div className="modal-header" style={{borderTop:'3px solid var(--brand)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <Ico.Book s={16}/><span style={{fontWeight:700,fontSize:17,color:'var(--brand)'}}>{zh?'完整使用說明':'操作ガイド'}</span>
+          </div>
+          <button onClick={onClose} className="btn-danger-ghost btn" style={{padding:'5px'}}><Ico.X s={14}/></button>
         </div>
-        <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
+        <div style={{display:'flex',borderBottom:'1px solid var(--line)',background:'var(--paper-warm)',flexShrink:0,overflowX:'auto'}} className="hide-scroll">
           {tabs.map((tb,i)=>(
-            <button key={i} onClick={()=>setTab(i)} className={'px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 '+(tab===i?'border-blue-600 text-blue-700 bg-white':'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100')}>{tb}</button>
+            <button key={i} onClick={()=>setTab(i)} style={{padding:'10px 16px',fontSize:14,fontWeight:700,whiteSpace:'nowrap',border:'none',background:'transparent',cursor:'pointer',borderBottom:`2px solid ${tab===i?'var(--brand)':'transparent'}`,color:tab===i?'var(--brand)':'var(--ink-soft)',transition:'all .15s',fontFamily:'inherit'}}>
+              {tb}
+            </button>
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto scr">{contents[tab]}</div>
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
-          <div className="flex gap-2">
-            <button onClick={()=>setTab(t=>Math.max(0,t-1))} disabled={tab===0} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">{zh?'◀ 上一頁':'◀ 前へ'}</button>
-            <button onClick={()=>setTab(t=>Math.min(tabs.length-1,t+1))} disabled={tab===tabs.length-1} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition-colors">{zh?'下一頁 ▶':'次へ ▶'}</button>
+        <div style={{flex:1,overflowY:'auto'}}>{contents[tab]}</div>
+        <div className="modal-footer">
+          <div style={{display:'flex',gap:6,marginRight:'auto'}}>
+            <button onClick={()=>setTab(t=>Math.max(0,t-1))} disabled={tab===0} className="btn btn-ghost" style={{padding:'6px 12px'}}>◀ {zh?'上一頁':'前へ'}</button>
+            <button onClick={()=>setTab(t=>Math.min(tabs.length-1,t+1))} disabled={tab===tabs.length-1} className="btn btn-ghost" style={{padding:'6px 12px'}}>{zh?'下一頁':'次へ'} ▶</button>
           </div>
-          <span className="text-xs text-slate-400">{tab+1} / {tabs.length}</span>
-          <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">{zh?'關閉':'閉じる'}</button>
+          <span style={{fontSize:14,color:'var(--ink-ghost)'}}>{tab+1} / {tabs.length}</span>
+          <button onClick={onClose} className="btn btn-ink">{zh?'關閉':'閉じる'}</button>
         </div>
       </div>
     </div>
   );
 }
 
+// ── Main App ───────────────────────────────────────────
 function App(){
   const PS = window.PRELOADED_STATE;
-  const [lang, setLang]           = useState(PS?.lang || 'zh');
+  const [lang, setLang]     = useState(PS?.lang || 'zh');
   const t = T[lang];
   const [ctnType,  setCtnType]    = useState(PS?.ctnType  || '20GP');
   const [doorGap,  setDoorGap]    = useState(PS?.doorGap  ?? 268);
   const [innerGap, setInnerGap]   = useState(PS?.innerGap ?? 0);
   const [rightGap, setRightGap]   = useState(PS?.rightGap ?? 10);
   const [topGap,   setTopGap]     = useState(PS?.topGap   ?? 50);
-  const [suppPct,  setSuppPct]    = useState(PS?.suppPct  ?? 50);
+  const [suppPct,  setSuppPct]    = useState(PS?.suppPct  ?? 80);
   const [strat,    setStrat]      = useState(PS?.strat    || 'auto');
   const [isJapanBound, setIsJapanBound] = useState(PS?.isJapanBound || false);
   const [palletType,   setPalletType]   = useState(PS?.palletType   || '1030');
   const [interlockFirst, setInterlockFirst] = useState(PS?.interlockFirst ?? false);
-  const [boxes, setBoxes]         = useState(PS?.boxes || [{id:uid(),name:'紙箱 A',cbType:'none',L:600,W:400,H:400,color:COLORS[0],qty:0,tolPlus:0,tolMinus:0,calcMode:'max'}]);
-  const [result, setResult]       = useState({packed:[],stats:null});
-  const [loading, setLoading]     = useState(false);
-  const [graspOn, setGraspOn]     = useState(false);
+  const [interlockType,  setInterlockType]  = useState(PS?.interlockType || 'auto');
+  const [xAlign, setXAlign] = useState(PS?.xAlign || 'center');
+  const [boxes, setBoxes]   = useState(PS?.boxes?.map(b => b.calcMode === 'nominal' ? {...b, calcMode: 'mid'} : b) || [{id:uid(),name:'紙箱 A',cbType:'none',L:600,W:400,H:400,color:COLORS[0],qty:0,tolPlus:0,tolMinus:0,calcMode:'mid'}]);
+  const [result, setResult] = useState({packed:[],stats:null});
+  const [loading, setLoading]   = useState(false);
+  const [graspOn, setGraspOn]   = useState(false);
   const [isReporting, setIsReporting] = useState(false);
   const [reportProgress, setReportProgress] = useState(0);
-  const [progress, setProgress]   = useState(0);
-  const [step, setStep]           = useState(0);
-  const [xray, setXray]           = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [step, setStep]         = useState(0);
+  const [xray, setXray]         = useState(false);
   const [isPerspective, setIsPerspective] = useState(true);
   const [helpOpen, setHelpOpen]   = useState(false);
   const [fixOpen,  setFixOpen]    = useState(false);
   const [saveOpen, setSaveOpen]   = useState(false);
   const [showPreloadBanner, setShowPreloadBanner] = useState(!!PS);
+  const [interlockWarn, setInterlockWarn] = useState(false);
   const workerRef = useRef(null);
 
-  const clearResult = useCallback(() => {
-    setResult({packed:[],stats:null});
-    setStep(0);
-  }, []);
+  const clearResult = useCallback(() => { setResult({packed:[],stats:null}); setStep(0); }, []);
 
-  useEffect(()=>{
-    if(showPreloadBanner){ const tm=setTimeout(()=>setShowPreloadBanner(false),4000); return ()=>clearTimeout(tm); }
-  },[showPreloadBanner]);
+  useEffect(()=>{ if(showPreloadBanner){ const tm=setTimeout(()=>setShowPreloadBanner(false),4000); return ()=>clearTimeout(tm); } },[showPreloadBanner]);
 
-  const canvasRef   = useRef(null);
-  const meshesRef   = useRef([]);
-  const dimRef      = useRef(null);
-  const camRef      = useRef(null);
-  const ctrlRef     = useRef(null);
-  const sceneRef    = useRef(null);
-  const rendererRef = useRef(null);
+  const canvasRef    = useRef(null);
+  const meshesRef    = useRef([]);
+  const dimRef       = useRef(null);
+  const camRef       = useRef(null);
+  const ctrlRef      = useRef(null);
+  const sceneRef     = useRef(null);
+  const rendererRef  = useRef(null);
   const meshGroupRef = useRef(null);
 
   const doSaveHtml = useCallback(() => {
-    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst };
+    const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst, interlockType, xAlign };
     const stateJson = JSON.stringify(state);
     const htmlSource = document.documentElement.outerHTML;
     const newScript = `<script id="preloaded-state">\n  window.PRELOADED_STATE = ${stateJson};\n  <\/script>`;
@@ -832,18 +774,17 @@ function App(){
     const a = document.createElement('a');
     a.href = url; a.download = `Container_Settings_${ctnType}_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.html`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst]);
+  }, [lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst, interlockType, xAlign]);
 
   const doShot = () => {
     const el=document.getElementById('app-root');
-    if(window.htmlToImage) window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#f8fafc',pixelRatio:2}).then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
+    if(window.htmlToImage) window.htmlToImage.toJpeg(el,{quality:.95,backgroundColor:'#ffffff',pixelRatio:2}).then(url=>{const a=document.createElement('a');a.download='Container_'+Date.now()+'.jpg';a.href=url;a.click();});
   };
 
   const doReport = async () => {
     if (!window.ExcelJS) { alert(lang==='zh'?'尚未載入 Excel 套件！':'Excelモジュール未読み込み'); return; }
     setIsReporting(true); setReportProgress(0);
     await new Promise(r=>setTimeout(r, 50));
-
     try {
       const c = CONTAINERS[ctnType];
       const maxX = Math.max(0,c.w-rightGap), maxY = Math.max(0,c.h-topGap), maxZ = Math.max(0,c.d-doorGap);
@@ -861,10 +802,11 @@ function App(){
       await new Promise(r=>setTimeout(r,10));
 
       const runModeForReport = (mode) => {
-        const testBoxes = boxes.map(b=>({...b,calcMode:mode}));
+        const testBoxes = boxes.map(b=>Object.assign({},b,{calcMode:mode}));
         let best=[], bestVol=-1;
         const tryIt = arr => { const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0); if(v>bestVol){bestVol=v;best=arr;} };
-        const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst):simulate(arr,innerGap,maxX,maxY,maxZ,s,thr,rand);
+        const unpack = (res) => res.packed || [];
+        const runSim = (arr,s,rand) => isJapanBound ? unpack(simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst,interlockType,xAlign)) : unpack(simulate(arr,innerGap,maxX,maxY,maxZ,s,thr,rand));
         if(strat==='auto'){tryIt(runSim(testBoxes,'length',false));tryIt(runSim(testBoxes,'width',false));}
         else tryIt(runSim(testBoxes,strat,false));
         let vol=0; const counts={};
@@ -881,55 +823,49 @@ function App(){
       const ws = wb.addWorksheet('分析レポート');
       const fontBase={name:'BIZ UDPゴシック',size:11}, fontBold={name:'BIZ UDPゴシック',size:11,bold:true}, fontTitle={name:'BIZ UDPゴシック',size:14,bold:true,color:{argb:'FFFFFFFF'}};
       const setCell=(cell,value,font,fill,align,border)=>{cell.value=value;if(font)cell.font=font;if(fill)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};cell.alignment=align||{vertical:'middle',horizontal:'center'};if(border)cell.border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};};
-
       ws.mergeCells('A1:G1'); setCell(ws.getCell('A1'),'コンテナ積載分析レポート',fontTitle,'FF2563EB',{vertical:'middle',horizontal:'center'},false); ws.getRow(1).height=30; ws.addRow([]);
-
       ws.getCell('A3').value='【コンテナ設定】'; ws.getCell('A3').font=fontBold;
       const rowCtnHead=ws.addRow(['コンテナ種類','支持面積しきい値','最奥部余白','ドア側余白','右側余白','上部余白']);
       rowCtnHead.eachCell(c=>setCell(c,c.value,fontBold,'FFE2EFDA',null,true));
-      let ctnName=ctnType==='20GP'?"20フィート標準 (20' GP)":(ctnType==='40GP'?"40フィート標準 (40' GP)":"40フィートHQ (40' HQ)");
+      let ctnName=ctnType==='20GP'?"20フィート標準（20' GP）":(ctnType==='40GP'?"40フィート標準（40' GP）":"40フィートHQ（40' HQ）");
       const rowCtnVal=ws.addRow([ctnName,suppPct+'%',innerGap+' mm',doorGap+' mm',rightGap+' mm',topGap+' mm']);
       rowCtnVal.eachCell(c=>setCell(c,c.value,fontBase,null,null,true));
       ws.addRow([]);
-
       const boxStartRow=ws.rowCount+1;
       ws.getCell(`A${boxStartRow}`).value='【箱寸法設定 (mm)】'; ws.getCell(`A${boxStartRow}`).font=fontBold;
-      const rowBoxHead=ws.addRow(['箱の名前','ダンボール種類','内寸 (L x W x H)','外寸: 最大','外寸: 中間値','外寸: 最小']);
+      const rowBoxHead=ws.addRow(['箱の名称','ダンボール種類','内寸（L × W × H）','外寸：最大','外寸：中間値','外寸：最小']);
       rowBoxHead.eachCell(c=>setCell(c,c.value,fontBold,'FFE2EFDA',null,true));
       boxes.forEach(b=>{
         const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];
         const bL=b.L+cb.L,bW=b.W+cb.W,bH=b.H+cb.H;
-        const calcSz=(mode)=>{let l=bL,w=bW,h=bH;if(mode==='max'){l+=b.tolPlus;w+=b.tolPlus;h+=b.tolPlus;}else if(mode==='min'){l-=b.tolMinus;w-=b.tolMinus;h-=b.tolMinus;}else if(mode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;l+=d;w+=d;h+=d;}return`${l} x ${w} x ${h}`;};
-        const r=ws.addRow([b.name,(b.cbType==='none'?'なし':b.cbType+'段'),`${b.L} x ${b.W} x ${b.H}`,calcSz('max'),calcSz('mid'),calcSz('min')]);
+        const calcSz=(mode)=>{let l=bL,w=bW,h=bH;if(mode==='max'){l+=b.tolPlus;w+=b.tolPlus;h+=b.tolPlus;}else if(mode==='min'){l-=b.tolMinus;w-=b.tolMinus;h-=b.tolMinus;}else if(mode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;l+=d;w+=d;h+=d;}return`${l} × ${w} × ${h}`;};
+        const r=ws.addRow([b.name,(b.cbType==='none'?'なし':b.cbType+'段'),`${b.L} × ${b.W} × ${b.H}`,calcSz('max'),calcSz('mid'),calcSz('min')]);
         r.eachCell(c=>setCell(c,c.value,fontBase,null,null,true));
       });
       ws.addRow([]);
-
       const resultStartRow=ws.rowCount+1;
       ws.getCell(`A${resultStartRow}`).value='【積載と残りスペース比較】'; ws.getCell(`A${resultStartRow}`).font=fontBold;
       const header=['計算基準',...boxes.map(b=>b.name+'\n(積載数量)'),'総積載箱数','奥行(Z)\n(実隙間/余白含)','幅(X)\n(実隙間/余白含)','高さ(Y)\n(実隙間/余白含)'];
       const rowResHead=ws.addRow(header);
       rowResHead.eachCell(c=>setCell(c,c.value,fontBold,'FFD9E1F2',{vertical:'middle',horizontal:'center',wrapText:true},true)); rowResHead.height=30;
       const fmtGaps=(gaps,gv)=>(!gaps||!gaps.length)?'0 mm\n(0 mm)':gaps.map(g=>`${g} mm\n(${g+gv} mm)`).join('\n');
-      const modes=[{key:'max',text:'最大(正公差)',data:resMax,color:'FFFFE6E6'},{key:'mid',text:'中間値',data:resMid,color:'FFFFF9E6'},{key:'min',text:'最小(負公差)',data:resMin,color:'FFE6F9EE'}];
+      const modes=[{key:'max',text:'最大（正公差）',data:resMax,color:'FFFFE6E6'},{key:'mid',text:'中間値',data:resMid,color:'FFFFF9E6'},{key:'min',text:'最小（負公差）',data:resMin,color:'FFE6F9EE'}];
       modes.forEach(m=>{
         const row=ws.addRow([m.text,...boxes.map(b=>(m.data.counts[b.id]||0)+' 箱'),m.data.total+' 箱',fmtGaps(m.data.rem.d,doorGap),fmtGaps(m.data.rem.w,rightGap),fmtGaps(m.data.rem.h,topGap)]);
         row.eachCell(c=>setCell(c,c.value,fontBase,m.color,{vertical:'middle',horizontal:'center',wrapText:true},true));
         const maxLines=Math.max(m.data.rem.d.length*2,m.data.rem.w.length*2,m.data.rem.h.length*2,2);
         row.height=maxLines*15+10;
       });
-
       const skipRows=new Set([1,3,boxStartRow,resultStartRow]);
       let imgStartRow=-1;
       if(imgBase64){
         const imgId=wb.addImage({base64:imgBase64,extension:'jpeg'});
         imgStartRow=ws.rowCount+2;
         skipRows.add(imgStartRow);
-        ws.getCell(`A${imgStartRow}`).value='【3D 積載参考図 (現在の視点)】'; ws.getCell(`A${imgStartRow}`).font=fontBold;
+        ws.getCell(`A${imgStartRow}`).value='【3D 積載参考図（現在の視点）】'; ws.getCell(`A${imgStartRow}`).font=fontBold;
         const targetWidth=800, targetHeight=targetWidth*(rawImgH/rawImgW);
         ws.addImage(imgId,{tl:{col:0,row:imgStartRow},ext:{width:targetWidth,height:targetHeight}});
       }
-
       ws.columns.forEach((col)=>{
         let maxLen=0;
         col.eachCell({includeEmpty:true},cell=>{
@@ -939,7 +875,6 @@ function App(){
         });
         col.width=Math.min(Math.max(maxLen+2,12),40);
       });
-
       setReportProgress(90);
       const buffer=await wb.xlsx.writeBuffer();
       const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -959,49 +894,36 @@ function App(){
     clearResult();
     setLoading(true);
     if (deep) { setGraspOn(true); setProgress(0); }
-
     const c = CONTAINERS[ctnType];
     const maxX = Math.max(0, c.w - rightGap);
     const maxY = Math.max(0, c.h - topGap);
     const maxZ = Math.max(0, c.d - doorGap);
     const thr  = suppPct / 100;
-
     if (workerRef.current) { workerRef.current.terminate(); }
     const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
     const url  = URL.createObjectURL(blob);
     const worker = new Worker(url);
     workerRef.current = worker;
-
     worker.onmessage = (e) => {
-      if (e.data.type === 'progress') {
-        setProgress(e.data.pct);
-      } else if (e.data.type === 'done') {
-        worker.terminate();
-        URL.revokeObjectURL(url);
-        workerRef.current = null;
-        finalize(e.data.packed, c, maxX, maxY, maxZ);
+      if (e.data.type === 'progress') { setProgress(e.data.pct); }
+      else if (e.data.type === 'done') {
+        worker.terminate(); URL.revokeObjectURL(url); workerRef.current = null;
+        if (e.data.interlockFailed) setInterlockWarn(true);
+        finalize(e.data.packed, c, maxX, maxY, maxZ, e.data.palletDetail);
       }
     };
     worker.onerror = (err) => {
       console.error('Worker error:', err);
-      worker.terminate();
-      URL.revokeObjectURL(url);
-      workerRef.current = null;
+      worker.terminate(); URL.revokeObjectURL(url); workerRef.current = null;
       setLoading(false); setGraspOn(false);
     };
+    worker.postMessage({ boxes, innerGap, maxX, maxY, maxZ, strat, thresh: thr, isJapanBound, palletType, interlockFirst, interlockType, xAlign, ITER: deep?100:1 });
+  }, [ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, isJapanBound, palletType, interlockFirst, interlockType, xAlign, boxes, clearResult]);
 
-    worker.postMessage({ boxes, innerGap, maxX, maxY, maxZ, strat, thresh: thr, isJapanBound, palletType, interlockFirst, ITER: deep?100:1 });
-  }, [ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, isJapanBound, palletType, interlockFirst, boxes, clearResult]);
-
-  const finalize=(packed,c,maxX,maxY,maxZ)=>{
+  const finalize=(packed,c,maxX,maxY,maxZ,palletDetail)=>{
     let vol=0; const counts={};
     let palletCount=0;
-    const palletDetail = packed._palletDetail || null;
-    packed.forEach(p=>{
-      if(p.isPallet&&p.typeId==='pallet'){palletCount++;return;}
-      if(p.isPad||p.isPallet) return;
-      vol+=p.w*p.h*p.d; counts[p.typeId]=(counts[p.typeId]||0)+1;
-    });
+    packed.forEach(p=>{ if(p.isPallet&&p.typeId==='pallet'){palletCount++;return;} if(p.isPad||p.isPallet) return; vol+=p.w*p.h*p.d; counts[p.typeId]=(counts[p.typeId]||0)+1; });
     const rem={w:getGaps(packed,c,'X',maxX),h:getGaps(packed,c,'Y',maxY),d:getGaps(packed,c,'Z',maxZ)};
     const warns=[];
     boxes.forEach(b=>{if(b.qty>0&&(counts[b.id]||0)<b.qty) warns.push({name:b.name,color:b.color,req:b.qty,pk:counts[b.id]||0,lack:b.qty-(counts[b.id]||0)});});
@@ -1011,59 +933,46 @@ function App(){
     setLoading(false); setGraspOn(false);
   };
 
+  // ── Three.js scene ──
   useEffect(()=>{
     if(!canvasRef.current||!window.THREE) return;
     const THREE=window.THREE;
     canvasRef.current.innerHTML='';
     meshesRef.current=[]; meshGroupRef.current=null; dimRef.current=null;
-
     const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
-    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9); sceneRef.current=scene;
-
+    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf4f4f4); /* 清新亮灰白，配合整體純白設計 */
+    sceneRef.current=scene;
     const c=CONTAINERS[ctnType];
     const aspect=W/H;
     let camera;
-    if(isPerspective){
-      camera=new THREE.PerspectiveCamera(45,aspect,1,100000);
-    } else {
-      const fs=Math.max(c.w,c.d,c.h)*1.3;
-      camera=new THREE.OrthographicCamera(-fs*aspect/2,fs*aspect/2,fs/2,-fs/2,1,100000);
-    }
+    if(isPerspective){ camera=new THREE.PerspectiveCamera(45,aspect,1,100000); }
+    else { const fs=Math.max(c.w,c.d,c.h)*1.3; camera=new THREE.OrthographicCamera(-fs*aspect/2,fs*aspect/2,fs/2,-fs/2,1,100000); }
     camRef.current=camera;
-
     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
     rendererRef.current=renderer;
     renderer.setSize(W,H); canvasRef.current.appendChild(renderer.domElement);
+    renderer.domElement.style.borderRadius='8px';
     const controls=new THREE.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=true; ctrlRef.current=controls;
-    scene.add(new THREE.AmbientLight(0xffffff,.6));
-    const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(10000,20000,10000); scene.add(dl);
-
+    scene.add(new THREE.AmbientLight(0xffffff,.65));
+    const dl=new THREE.DirectionalLight(0xffffff,.55); dl.position.set(10000,20000,10000); scene.add(dl);
+    const dl2=new THREE.DirectionalLight(0xffffff,.2); dl2.position.set(-8000,5000,-6000); scene.add(dl2);
+    // Container wireframe — refined grey
     scene.add(new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),
-      new THREE.LineBasicMaterial({color:0x334155,linewidth:2})
+      new THREE.LineBasicMaterial({color:0x8a8a82,linewidth:1.5})
     ));
-
-    const eX0=-c.w/2, eX1=eX0+(c.w-rightGap);
-    const eY0=-c.h/2, eY1=eY0+(c.h-topGap);
-    const eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
-    const corners=[
-      new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),
-      new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)
-    ];
+    // Effective zone dashed lines
+    const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
+    const corners=[new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)];
     const edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
     const dpts=[];
     edges.forEach(([i,j])=>{
       const p1=corners[i],p2=corners[j],dist=p1.distanceTo(p2),dir=new THREE.Vector3().subVectors(p2,p1).normalize();
       let cc=0;
-      while(cc<dist){
-        let n=Math.min(cc+150,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=190; if(cc>=dist)break;
-        n=Math.min(cc+15,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=55; if(cc>=dist)break;
-        n=Math.min(cc+15,dist); dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n))); cc+=55;
-      }
+      while(cc<dist){let n=Math.min(cc+150,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=190;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;if(cc>=dist)break;n=Math.min(cc+15,dist);dpts.push(p1.clone().add(dir.clone().multiplyScalar(cc)),p1.clone().add(dir.clone().multiplyScalar(n)));cc+=55;}
     });
-    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xef4444,linewidth:2})));
-
+    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xc05858,linewidth:1.5})));
     camera.position.set(c.w*1.8,c.h*1.8,c.d*1.5); controls.update();
     const animate=()=>{requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
     animate();
@@ -1076,64 +985,44 @@ function App(){
     if(!sceneRef.current||!window.THREE) return;
     const THREE=window.THREE;
     const c=CONTAINERS[ctnType];
-
     if(meshGroupRef.current){ sceneRef.current.remove(meshGroupRef.current); meshGroupRef.current=null; }
     if(dimRef.current){ sceneRef.current.remove(dimRef.current); dimRef.current=null; }
     meshesRef.current=[];
-
     const grp=new THREE.Group(); meshGroupRef.current=grp;
-    result.packed.forEach((p,idx)=>{
-      const color = p.color;
-      const mesh=new THREE.Mesh(
-        new THREE.BoxGeometry(p.w,p.h,p.d),
-        new THREE.MeshLambertMaterial({color})
-      );
+    result.packed.forEach((p)=>{
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(p.w,p.h,p.d),new THREE.MeshLambertMaterial({color:p.color}));
       mesh.position.set(p.x+p.w/2-c.w/2,p.y+p.h/2-c.h/2,p.z+p.d/2-c.d/2);
-
-      if(!p.isPallet&&!p.isPad){
-        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.3})));
-      } else if(p.isPallet&&!p.isPad){
-        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x5d2906,linewidth:2,transparent:true,opacity:.8})));
-      }
-
+      if(!p.isPallet&&!p.isPad){ mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.2}))); }
+      else if(p.isPallet&&!p.isPad){ mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x3d2200,linewidth:1,transparent:true,opacity:.7}))); }
       meshesRef.current.push(mesh); grp.add(mesh);
     });
     sceneRef.current.add(grp);
-
     const dimGrp=new THREE.Group(); dimRef.current=dimGrp;
     if(result.stats?.rem&&result.packed.length>0){
       const {w:gW,h:gH,d:gD}=result.stats.rem;
       const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ1=c.d/2-doorGap;
       const lX=eX1, lY=eY1, lZ=eZ1, y0=eY0;
-      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.4})));
+      const addL=(p1,p2,col)=>dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.35})));
       const addD=(p1,p2,txt,col,sx,sy,sz)=>{
         dimGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1,p2]),new THREE.LineBasicMaterial({color:col,linewidth:2})));
         const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).add(new THREE.Vector3(sx,sy,sz));
         const cv=document.createElement('canvas'); cv.width=1536; cv.height=150; const ctx=cv.getContext('2d');
-        ctx.font='bold 60px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        const tw=ctx.measureText(txt).width,px_=768-tw/2-30,py_=75-45,pw=tw+60,ph=90,r=20;
-        ctx.fillStyle='rgba(255,255,255,0.85)';
-        ctx.beginPath(); ctx.moveTo(px_+r,py_); ctx.lineTo(px_+pw-r,py_); ctx.quadraticCurveTo(px_+pw,py_,px_+pw,py_+r);
-        ctx.lineTo(px_+pw,py_+ph-r); ctx.quadraticCurveTo(px_+pw,py_+ph,px_+pw-r,py_+ph);
-        ctx.lineTo(px_+r,py_+ph); ctx.quadraticCurveTo(px_,py_+ph,px_,py_+ph-r); ctx.lineTo(px_,py_+r); ctx.quadraticCurveTo(px_,py_,px_+r,py_); ctx.closePath(); ctx.fill();
-        ctx.lineWidth=3; ctx.strokeStyle=col; ctx.stroke(); ctx.fillStyle=col; ctx.fillText(txt,768,75);
+        ctx.font='bold 56px "Microsoft YaHei UI",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const tw=ctx.measureText(txt).width,px_=768-tw/2-28,py_=75-42,pw=tw+56,ph=84,r=18;
+        ctx.fillStyle='rgba(250,250,248,0.88)'; ctx.beginPath(); ctx.moveTo(px_+r,py_); ctx.lineTo(px_+pw-r,py_); ctx.quadraticCurveTo(px_+pw,py_,px_+pw,py_+r); ctx.lineTo(px_+pw,py_+ph-r); ctx.quadraticCurveTo(px_+pw,py_+ph,px_+pw-r,py_+ph); ctx.lineTo(px_+r,py_+ph); ctx.quadraticCurveTo(px_,py_+ph,px_,py_+ph-r); ctx.lineTo(px_,py_+r); ctx.quadraticCurveTo(px_,py_,px_+r,py_); ctx.closePath(); ctx.fill();
+        ctx.lineWidth=2.5; ctx.strokeStyle=col; ctx.stroke(); ctx.fillStyle=col; ctx.fillText(txt,768,75);
         const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
         sp.scale.set(3072,300,1); sp.position.copy(mid); dimGrp.add(sp);
       };
-      gW.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX-g,y0,lZ+off),p2=new THREE.Vector3(lX,y0,lZ+off);addL(new THREE.Vector3(lX-g,y0,lZ),p1,'#2563eb');addL(new THREE.Vector3(lX,y0,lZ),p2,'#2563eb');addD(p1,p2,t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)','#2563eb',0,0,150);}});
-      gH.forEach((g,i)=>{if(g>0){const off=600+i*400;const p1=new THREE.Vector3(lX,lY-g,lZ+off),p2=new THREE.Vector3(lX,lY,lZ+off);addL(new THREE.Vector3(lX,lY-g,lZ),p1,'#16a34a');addL(new THREE.Vector3(lX,lY,lZ),p2,'#16a34a');addD(p1,p2,t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)','#16a34a',200,0,300);}});
-      gD.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX,y0-off,lZ-g),p2=new THREE.Vector3(lX,y0-off,lZ);addL(new THREE.Vector3(lX,y0,lZ-g),p1,'#ea580c');addL(new THREE.Vector3(lX,y0,lZ),p2,'#ea580c');addD(p1,p2,t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)','#ea580c',0,-300,0);}});
+      gW.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX-g,y0,lZ+off),p2=new THREE.Vector3(lX,y0,lZ+off);addL(new THREE.Vector3(lX-g,y0,lZ),p1,'#3a6ea5');addL(new THREE.Vector3(lX,y0,lZ),p2,'#3a6ea5');addD(p1,p2,t.remW+': '+g+'mm ('+t.remInc+': '+(g+rightGap)+'mm)','#3a6ea5',0,0,150);}});
+      gH.forEach((g,i)=>{if(g>0){const off=600+i*400;const p1=new THREE.Vector3(lX,lY-g,lZ+off),p2=new THREE.Vector3(lX,lY,lZ+off);addL(new THREE.Vector3(lX,lY-g,lZ),p1,'#3a8a5c');addL(new THREE.Vector3(lX,lY,lZ),p2,'#3a8a5c');addD(p1,p2,t.remH+': '+g+'mm ('+t.remInc+': '+(g+topGap)+'mm)','#3a8a5c',200,0,300);}});
+      gD.forEach((g,i)=>{if(g>0){const off=400+i*300;const p1=new THREE.Vector3(lX,y0-off,lZ-g),p2=new THREE.Vector3(lX,y0-off,lZ);addL(new THREE.Vector3(lX,y0,lZ-g),p1,'#9a4a20');addL(new THREE.Vector3(lX,y0,lZ),p2,'#9a4a20');addD(p1,p2,t.remD+': '+g+'mm ('+t.remInc+': '+(g+doorGap)+'mm)','#9a4a20',0,-300,0);}});
     }
     sceneRef.current.add(dimGrp);
   },[result, lang, ctnType, doorGap, innerGap, rightGap, topGap]);
 
   useEffect(()=>{
-    meshesRef.current.forEach((m,i)=>{
-      m.visible=i<step;
-      m.material.transparent=xray;
-      m.material.opacity=xray?.3:1;
-      m.material.depthWrite=!xray;
-    });
+    meshesRef.current.forEach((m,i)=>{ m.visible=i<step; m.material.transparent=xray; m.material.opacity=xray ? 0.28 : 1; m.material.depthWrite=!xray; });
     if(dimRef.current) dimRef.current.visible=(step===result.packed.length&&result.packed.length>0);
   },[step,xray,result]);
 
@@ -1142,13 +1031,13 @@ function App(){
     if(!cam||!ctrl) return;
     ctrl.target.set(0,0,0);
     const dist=Math.max(c.w,c.d)*1.5;
-    if(v==='iso')   cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
-    if(v==='top')   cam.position.set(0,dist,0);
-    if(v==='bottom')cam.position.set(0,-dist,0);
-    if(v==='front') cam.position.set(0,0,dist);
-    if(v==='back')  cam.position.set(0,0,-dist);
-    if(v==='left')  cam.position.set(-dist,0,0);
-    if(v==='right') cam.position.set(dist,0,0);
+    if(v==='iso')    cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
+    if(v==='top')    cam.position.set(0,dist,0);
+    if(v==='bottom') cam.position.set(0,-dist,0);
+    if(v==='front')  cam.position.set(0,0,dist);
+    if(v==='back')   cam.position.set(0,0,-dist);
+    if(v==='left')   cam.position.set(-dist,0,0);
+    if(v==='right')  cam.position.set(dist,0,0);
     ctrl.update();
   };
 
@@ -1158,46 +1047,17 @@ function App(){
     let dxf='0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
     const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
     const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
-
-    const dimLine=(x1,y1,x2,y2,text,lay,offset)=>{
-      const mx=(x1+x2)/2, my=(y1+y2)/2;
-      if(Math.abs(y1-y2)<eps){ 
-        ln(x1,y1,x1,y1+offset,lay,7); ln(x2,y2,x2,y2+offset,lay,7);
-        ln(x1,y1+offset,x2,y2+offset,lay,4);
-        const arr=0.06;
-        ln(x1,y1+offset,x1+arr,y1+offset+arr*0.5,lay,4); ln(x1,y1+offset,x1+arr,y1+offset-arr*0.5,lay,4);
-        ln(x2,y2+offset,x2-arr,y2+offset+arr*0.5,lay,4); ln(x2,y2+offset,x2-arr,y2+offset-arr*0.5,lay,4);
-        dxf+=`0\nTEXT\n8\n${lay}\n62\n4\n10\n${mx.toFixed(4)}\n20\n${(my+offset+0.05).toFixed(4)}\n30\n0.0\n40\n0.12\n1\n${text}\n72\n1\n`;
-      } else { 
-        ln(x1,y1,x1+offset,y1,lay,7); ln(x2,y2,x2+offset,y2,lay,7);
-        ln(x1+offset,y1,x2+offset,y2,lay,4);
-        const arr=0.06;
-        ln(x1+offset,y1,x1+offset+arr*0.5,y1+arr,lay,4); ln(x1+offset,y1,x1+offset-arr*0.5,y1+arr,lay,4);
-        ln(x2+offset,y2,x2+offset+arr*0.5,y2-arr,lay,4); ln(x2+offset,y2,x2+offset-arr*0.5,y2-arr,lay,4);
-        dxf+=`0\nTEXT\n8\n${lay}\n62\n4\n10\n${(mx+offset+0.05).toFixed(4)}\n20\n${((y1+y2)/2).toFixed(4)}\n30\n0.0\n40\n0.12\n1\n${text}\n`;
-      }
-    };
-
+    // dimLine removed per requirement
     const aci=id=>{if(id==='pallet')return 33;if(id==='pad')return 9;const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
     const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
-    rect(0,0,cW,cH,'CONTAINER',7); rect(0,cH+gap,cW,cD,'CONTAINER',7); rect(cW+gap,0,cD,cH,'CONTAINER',7);
-    dimLine(0,0,cW,0,`W:${c.w}mm`,'DIM',-0.3); dimLine(cW,0,cW,cH,`H:${c.h}mm`,'DIM',0.3); dimLine(0,cH+gap,0,cH+gap+cD,`D:${c.d}mm`,'DIM',-0.3);
-
+    rect(0,0,cW,cH,'CONTAINER',7);rect(0,cH+gap,cW,cD,'CONTAINER',7);rect(cW+gap,0,cD,cH,'CONTAINER',7);
+    // no dimension annotations
     const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
     const pview=(faces,dx,dy)=>{
       for(let i=0;i<faces.length;i++){
         const F=faces[i];
         let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];
-        for(let j=0;j<faces.length;j++){
-          if(i===j)continue;
-          const O=faces[j];
-          if(O.depth>F.depth+eps){
-            if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);
-            if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);
-            if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);
-            if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);
-          }
-        }
+        for(let j=0;j<faces.length;j++){if(i===j)continue;const O=faces[j];if(O.depth>F.depth+eps){if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);}}
         tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});
         bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});
         lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});
@@ -1217,112 +1077,209 @@ function App(){
   const c=CONTAINERS[ctnType];
   const hasPacked=result.packed.length>0;
 
+  // ── Label strip ──
+  const LabelStrip = () => (
+    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      {boxes.map(b=>(
+        <div key={b.id} style={{display:'flex',alignItems:'center',gap:6,background:'rgba(250,250,248,.9)',backdropFilter:'blur(6px)',border:'1px solid var(--line)',borderRadius:6,padding:'4px 8px'}}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:b.color,flexShrink:0}}></span>
+          <span style={{fontSize:13,fontWeight:700,color:'var(--ink-mid)',maxWidth:110,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ── Gap strip ──
+  const GapStrip = () => {
+    if (!result.stats?.rem || !hasPacked) return null;
+    const {w:gW,h:gH,d:gD}=result.stats.rem;
+    return (
+      <div className="gap-pill" style={{pointerEvents:'auto',maxWidth:220}}>
+        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:8}}>
+          <Ico.Rule s={12}/><span style={{fontSize:14,fontWeight:700,color:'var(--ink)'}}>{t.remTitle}</span>
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          {[[t.remD,'d',doorGap,'#9a4a20'],[t.remW,'w',rightGap,'#3a6ea5'],[t.remH,'h',topGap,'#3a8a5c']].map(([lbl,k,gv,col],idx)=>(
+            <div key={k} style={{display:'flex',flexDirection:'column',paddingLeft:idx>0?10:0,borderLeft:idx>0?'1px solid var(--line)':'none'}}>
+              <span style={{fontSize:12,fontWeight:700,color:'var(--ink-ghost)',marginBottom:3,letterSpacing:'.3px'}}>{lbl}</span>
+              {result.stats.rem[k].map((g,i)=>(
+                <div key={i} style={{marginBottom:2}}>
+                  <span style={{fontWeight:700,fontSize:14,color:col,display:'block'}}>{g}mm</span>
+                  <span style={{fontSize:12,color:'var(--ink-ghost)'}}>{t.remInc}: {g+gv}mm</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div id="app-root" className="min-h-screen p-4 md:p-6 bg-slate-50">
+    <div id="app-root" style={{minHeight:'100vh',padding:'20px 24px',background:'var(--paper)'}}>
+      {/* ── Modals ── */}
       {helpOpen && <HelpModal onClose={()=>setHelpOpen(false)} lang={lang}/>}
       {saveOpen && <SaveHtmlModal onClose={()=>setSaveOpen(false)} onSave={doSaveHtml} lang={lang} t={t}/>}
+
       {fixOpen && (
-        <Modal onClose={()=>setFixOpen(false)} title={t.fixTitle} wide={true}>
-          <div className="p-4 space-y-2">
-            {[t.fix1,t.fix2,t.fix3,t.fix4,t.fix5,t.fix6,t.fix7,t.fix8,t.fix9,t.fix10,t.fix11,t.fix12,t.fix13,t.fix14,t.fix15,t.fix16,t.fix17].map((f,i)=>{
-              const cat=i<3?'bg-red-100 text-red-700':i<7?'bg-amber-100 text-amber-700':i<12?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-600';
-              const label=i<3?'Bug Fix':i<7?'改善':i<12?'新功能':'品質';
-              return (
-                <div key={i} className="flex items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mr-2 flex-shrink-0 mt-0.5 ${cat}`}>{label}</span>
-                  <span className="text-sm text-slate-700">{f}</span>
-                </div>
-              );
-            })}
+        <BaseModal onClose={()=>setFixOpen(false)} title={t.fixTitle} accent="var(--ok)"
+          footer={<button onClick={()=>setFixOpen(false)} className="btn btn-ink">{t.closeBtn}</button>}>
+          <div style={{padding:20}}>
+            <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:'var(--ok-soft)',borderRadius:8,border:'1px solid var(--ok)'}}>
+              <span className="tag tag-ok" style={{flexShrink:0,marginTop:1}}>{lang==='zh'?'新功能':'新機能'}</span>
+              <span style={{fontSize:15,color:'var(--ok)',lineHeight:1.7}}>{t.fixNotes}</span>
+            </div>
           </div>
-        </Modal>
+        </BaseModal>
       )}
-      {showPreloadBanner && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium pointer-events-none" style={{animation:'fadeUp .3s ease-out'}}>
-          <Ico.Chk c="w-4 h-4"/>{t.preloadBanner}
+
+      {interlockWarn && (
+        <div className="modal-backdrop">
+          <div className="modal-box" style={{width:'100%',maxWidth:420,border:'1px solid #f0d0d0'}}>
+            <div className="modal-header" style={{background:'#fef5f5',borderTop:'3px solid var(--danger)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <Ico.Warn s={16}/><span style={{fontWeight:700,fontSize:17,color:'var(--danger)'}}>{t.intFailTitle}</span>
+              </div>
+              <button onClick={()=>setInterlockWarn(false)} className="btn-danger-ghost btn" style={{padding:5}}><Ico.X s={14}/></button>
+            </div>
+            <div style={{padding:20}}>
+              <p style={{fontSize:15,color:'var(--ink-mid)',lineHeight:1.8,whiteSpace:'pre-line'}}>{t.intFailMsg}</p>
+            </div>
+            <div className="modal-footer">
+              <button onClick={()=>setInterlockWarn(false)} className="btn btn-ink">{t.closeBtn}</button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex flex-col md:flex-row items-start md:items-center justify-between pb-4 border-b border-slate-200 gap-3">
-          <div className="flex items-center gap-3 shrink-0">
-            <Ico.Pkg c="w-8 h-8 text-blue-600"/>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2 flex-wrap">
-              {t.title}
-              <button onClick={()=>setFixOpen(true)} className="text-xs font-medium px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md border border-emerald-200 hover:bg-emerald-200 transition-colors">
-                {'Ver.'+APP_VER+' · '+APP_DATE+' '+t.by}
-              </button>
-            </h1>
+      {showPreloadBanner && (
+        <div className="preload-banner">{t.preloadBanner}</div>
+      )}
+
+      <div style={{maxWidth:1480,margin:'0 auto',display:'flex',flexDirection:'column',gap:16}}>
+
+        {/* ── Header ── */}
+        <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 24px',background:'var(--paper-card)',borderRadius:'16px',marginBottom:'16px',border:'1px solid rgba(0,0,0,0.08)',gap:12,flexWrap:'wrap'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:40,height:40,background:'var(--brand)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',flexShrink:0,boxShadow:'0 2px 8px rgba(165,154,202,0.4)'}}>
+              <Ico.Pkg s={22}/>
+            </div>
+            <div>
+              <h1 style={{fontSize:22,fontWeight:800,color:'var(--brand)',letterSpacing:'-.3px',lineHeight:1.2}}>{t.title}</h1>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3}}>
+                <button onClick={()=>setFixOpen(true)} style={{fontSize:12,fontWeight:700,color:'var(--brand)',background:'var(--tertiary-soft)',border:'none',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontFamily:'inherit',letterSpacing:'.2px'}}>
+                  v{APP_VER} · {APP_DATE}
+                </button>
+                <span style={{fontSize:13,color:'var(--ink-ghost)',fontWeight:600}}>/ {t.by}</span>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-row flex-nowrap items-center gap-1.5 overflow-x-auto w-full md:w-auto hide-scroll pb-1 md:pb-0" style={{WebkitOverflowScrolling:'touch'}}>
-            <button onClick={doReport} disabled={isReporting||boxes.length===0}
-              className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap '+(isReporting?'bg-slate-300 text-slate-600 cursor-not-allowed':'bg-blue-600 hover:bg-blue-700 text-white')}>
-              {isReporting?<><Ico.Spin c="w-4 h-4 mr-1.5 animate-spin"/>{t.reportIng+' '+reportProgress+'%'}</>:<><Ico.Table c="w-4 h-4 mr-1.5"/>{t.reportBtn}</>}
+
+          {/* Action buttons */}
+          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+            <button onClick={doReport} disabled={isReporting||boxes.length===0} className="btn btn-primary">
+              {isReporting
+                ?<><Ico.Spin s={13} style={{animation:'spin 1s linear infinite'}}/>{t.reportIng} {reportProgress}%</>
+                :<><Ico.Table s={13}/>{t.reportBtn}</>}
             </button>
-            <button onClick={doExport} disabled={!hasPacked} className={'shrink-0 flex items-center px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap '+(hasPacked?'bg-indigo-600 hover:bg-indigo-700 text-white':'bg-slate-200 text-slate-400 cursor-not-allowed')}>
-              <Ico.Dl c="w-4 h-4 mr-1.5"/>{t.export}
+            <button onClick={doExport} disabled={!hasPacked} className={"btn "+(hasPacked?'btn-grape':'btn-ghost')} style={{opacity:hasPacked?1:.5}}>
+              <Ico.Dl s={13}/>{t.export}
             </button>
-            <button onClick={()=>setSaveOpen(true)} className="shrink-0 flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
-              <Ico.Save c="w-4 h-4 mr-1.5"/>{t.saveHtml}
+            <button onClick={()=>setSaveOpen(true)} className="btn btn-success">
+              <Ico.Save s={13}/>{t.saveHtml}
             </button>
-            <button onClick={doShot} className="shrink-0 flex items-center bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
-              <Ico.Cam c="w-4 h-4 mr-1.5"/>{t.shot}
+            <button onClick={doShot} className="btn btn-teal">
+              <Ico.Cam s={13}/>{t.shot}
             </button>
-            <button onClick={()=>setHelpOpen(true)} className="shrink-0 flex items-center bg-blue-100 hover:bg-blue-200 text-blue-800 px-2.5 py-1.5 rounded-lg text-sm shadow-sm font-medium transition-colors whitespace-nowrap">
-              <Ico.Book c="w-4 h-4 mr-1.5"/>{t.helpBtn}
+            <button onClick={()=>setHelpOpen(true)} className="btn btn-ghost">
+              <Ico.Book s={13}/>{t.helpBtn}
             </button>
-            <button onClick={()=>setLang(l=>l==='zh'?'ja':'zh')} className="shrink-0 flex items-center bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg text-sm shadow-sm transition-colors whitespace-nowrap">
-              <Ico.Glob c="w-4 h-4 mr-1.5"/>{t.lang}
+            <button onClick={()=>setLang(l=>l==='zh'?'ja':'zh')} className="btn btn-ink">
+              <Ico.Glob s={13}/>{t.lang}
             </button>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-5 space-y-5">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-              <h2 className="text-base font-semibold flex items-center mb-1"><Ico.Box c="w-4 h-4 mr-2 text-slate-500"/>{t.ctnSet}</h2>
-              <p className="text-xs text-slate-400 mb-3 ml-6">{t.ctnSub}</p>
-              <select className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                value={ctnType} onChange={e=>{setCtnType(e.target.value);clearResult();}}>
-                <option value="20GP">{t.ctn20}</option>
-                <option value="40GP">{t.ctn40}</option>
-                <option value="40HQ">{t.ctn40h}</option>
-              </select>
-              <div className="bg-slate-100 p-3.5 rounded-lg border border-slate-200 mb-4">
-                <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1.5 text-slate-500"/>{t.gAdv}</p>
-                <div className="grid grid-cols-2 gap-3">
+        {/* ── Main layout ── */}
+        <div style={{display:'grid',gridTemplateColumns:'368px 1fr',gap:16,alignItems:'start'}}>
+
+          {/* ══ LEFT PANEL (Asaginezumi #94A8B0) ══ */}
+          <div className="left-panel">
+
+            {/* ── Container Settings ── */}
+            <div className="left-card">
+              <div className="left-sec-header">
+                <div className="left-sec-dot"></div>
+                <span className="left-sec-title">{t.ctnSet}</span>
+                <span style={{fontSize:12,color:'var(--panel-sub)',marginLeft:'auto'}}>{t.ctnSub}</span>
+              </div>
+
+              <div style={{marginBottom:10}}>
+                <label className="left-label">{lang==='zh'?'貨櫃規格':'コンテナ規格'}</label>
+                <select className="ctrl-dark" value={ctnType} onChange={e=>{setCtnType(e.target.value);clearResult();}}>
+                  <option value="20GP">{t.ctn20}</option>
+                  <option value="40GP">{t.ctn40}</option>
+                  <option value="40HQ">{t.ctn40h}</option>
+                </select>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,background:'rgba(255,255,255,.15)',border:'1px solid rgba(255,255,255,.25)',borderRadius:8,padding:'10px 12px',marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimTotal}</div>
+                  <div style={{fontWeight:700,fontSize:14,color:'var(--panel-text)'}}>{c.d}x{c.w}x{c.h} mm</div>
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimD}</div>
+                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.d-doorGap-innerGap)} mm</div>
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimW}</div>
+                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.w-rightGap)} mm</div>
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimH}</div>
+                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.h-topGap)} mm</div>
+                </div>
+              </div>
+
+              <div className="dark-sub-panel" style={{marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:8}}>
+                  <Ico.Gear s={11}/><span style={{fontSize:13,fontWeight:700,color:'var(--panel-sub)',opacity:1}}>{t.gAdv}</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
                   {[[t.gInner,innerGap,setInnerGap],[t.gDoor,doorGap,setDoorGap],[t.gRight,rightGap,setRightGap],[t.gTop,topGap,setTopGap]].map(([lbl,v,fn],i)=>(
                     <div key={i}>
-                      <label className="block text-[11px] text-slate-500 mb-1">{lbl}</label>
-                      <input type="number" min="0" value={v} onChange={e=>{fn(Number(e.target.value));clearResult();}} className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"/>
+                      <label className="left-label">{lbl}</label>
+                      <input type="number" min="0" value={v} onChange={e=>{fn(Number(e.target.value));clearResult();}} className="ctrl-dark" style={{fontSize:15}}/>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-medium text-amber-800 flex items-center"><Ico.Gear c="w-3.5 h-3.5 mr-1"/>{t.gSupport}</label>
-                  <span className="text-sm font-bold text-amber-700 bg-amber-100 px-2 rounded">{suppPct}%</span>
+
+              <div className="dark-warn-panel">
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <span style={{fontSize:13,fontWeight:700,color:'var(--panel-sub)'}}>{t.gSupport}</span>
+                  <span style={{fontWeight:700,fontSize:16,color:'var(--panel-text)',background:'rgba(0,0,0,.08)',padding:'1px 8px',borderRadius:4}}>{suppPct}%</span>
                 </div>
-                <input type="range" min="20" max="80" step="5" value={suppPct} onChange={e=>{setSuppPct(Number(e.target.value));clearResult();}} className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
-                <div className="flex justify-between text-[10px] text-amber-600 mt-1"><span>{t.gSupportL}</span><span>{t.gSupportR}</span></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg">
-                {[[t.dimTotal,c.d+'x'+c.w+'x'+c.h+' mm','text-slate-700'],[t.dimD,Math.max(0,c.d-doorGap-innerGap)+' mm','text-blue-600'],[t.dimW,Math.max(0,c.w-rightGap)+' mm','text-blue-600'],[t.dimH,Math.max(0,c.h-topGap)+' mm','text-blue-600']].map(([lbl,v,cls],i)=>(
-                  <div key={i}><span className="block text-[10px] text-slate-400">{lbl}</span><span className={'font-medium text-sm '+cls}>{v}</span></div>
-                ))}
+                <input type="range" min="20" max="80" step="5" value={suppPct} onChange={e=>{setSuppPct(Number(e.target.value));clearResult();}} className="dark-range" style={{width:'100%'}}/>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:700,color:'rgba(0,0,0,.6)',marginTop:3}}>
+                  <span>{t.gSupportL}</span><span>{t.gSupportR}</span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-base font-semibold flex items-center"><Ico.Pkg c="w-4 h-4 mr-2 text-slate-500"/>{t.boxSet}</h2>
-                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length%26),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'max'}])}
-                  className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
-                  <Ico.Plus c="w-4 h-4 mr-1"/>{t.addBox}
+            {/* ── Box Settings ── */}
+            <div className="left-card">
+              <div className="left-sec-header">
+                <div className="left-sec-dot"></div>
+                <span className="left-sec-title">{t.boxSet}</span>
+                <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length%26),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'mid'}])}
+                  className="btn btn-panel-ghost" style={{marginLeft:'auto',padding:'4px 10px',fontSize:14}}>
+                  <Ico.Plus s={12}/>{t.addBox}
                 </button>
               </div>
-              <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1 scr">
+
+              <div style={{maxHeight:'42vh',overflowY:'auto',display:'flex',flexDirection:'column',gap:8,paddingRight:2}}>
                 {boxes.map(box=>{
                   const cb=CARDBOARD_TYPES[box.cbType||'none']||CARDBOARD_TYPES['none'];
                   const bL=box.L+cb.L,bW=box.W+cb.W,bH=box.H+cb.H;
@@ -1330,65 +1287,63 @@ function App(){
                   if(box.calcMode==='max'){finL+=box.tolPlus;finW+=box.tolPlus;finH+=box.tolPlus;}
                   else if(box.calcMode==='min'){finL-=box.tolMinus;finW-=box.tolMinus;finH-=box.tolMinus;}
                   else if(box.calcMode==='mid'){const d=(box.tolPlus-box.tolMinus)/2;finL+=d;finW+=d;finH+=d;}
-                  const showLabel=box.calcMode!=='nominal'||(box.cbType&&box.cbType!=='none');
+                  const showLabel = box.calcMode !== 'mid' || box.tolPlus !== 0 || box.tolMinus !== 0 || (box.cbType && box.cbType !== 'none');
                   return (
-                    <div key={box.id} className="p-4 border border-slate-200 bg-slate-50 rounded-lg relative group">
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={()=>setBoxes(bs=>{const idx=bs.findIndex(b=>b.id===box.id);const newBox={...box,id:uid(),name:box.name+' (2)'};return [...bs.slice(0,idx+1),newBox,...bs.slice(idx+1)];} )}
-                          className="text-blue-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50" title={t.copyBox}>
-                          <Ico.Copy c="w-3.5 h-3.5"/>
+                    <div key={box.id} className="box-card">
+                      <div className="box-card-actions">
+                        <button className="btn-dark-del" title={t.copyBox}
+                          onClick={()=>setBoxes(bs=>{const idx=bs.findIndex(b=>b.id===box.id);const nb={...box,id:uid(),name:box.name+' (2)'};return [...bs.slice(0,idx+1),nb,...bs.slice(idx+1)];})}>
+                          <Ico.Copy s={12}/>
                         </button>
-                        <button onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50">
-                          <Ico.Del c="w-3.5 h-3.5"/>
+                        <button className="btn-dark-del" onClick={()=>setBoxes(bs=>bs.filter(b=>b.id!==box.id))}>
+                          <Ico.Del s={12}/>
                         </button>
                       </div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="w-6 h-6 rounded border-0 p-0 cursor-pointer"/>
-                        <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} className="flex-1 bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none px-1 text-sm font-medium" placeholder={t.boxName}/>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
+                        <input type="color" value={box.color} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,color:e.target.value}:b))} className="color-swatch" style={{width:22,height:22}}/>
+                        <input type="text" value={box.name} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,name:e.target.value}:b))} placeholder={t.boxName} className="dark-text-input"/>
                       </div>
-                      <div className="mb-2">
-                        <label className="block text-[10px] text-slate-500 mb-1">{t.cbType}</label>
-                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
-                          <option value="none">{lang==='zh'?'無 (直接輸入外寸)':'なし (外寸を直接入力)'}</option>
-                          <option value="AB">AB段 {lang==='zh'?'(長寬+15, 高+30)':'(長幅+15, 高+30)'}</option>
-                          <option value="A">A段 {lang==='zh'?'(長寬+10, 高+20)':'(長幅+10, 高+20)'}</option>
-                          <option value="B">B段 {lang==='zh'?'(長寬+6, 高+12)':'(長幅+6, 高+12)'}</option>
-                          <option value="EB">EB段 {lang==='zh'?'(長寬+9, 高+18)':'(長幅+9, 高+18)'}</option>
-                          <option value="E">E段 {lang==='zh'?'(長寬+3, 高+6)':'(長幅+3, 高+6)'}</option>
+                      <div style={{marginBottom:8}}>
+                        <label className="left-label">{t.cbType}</label>
+                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14}}>
+                          <option value="none">{lang==='zh'?'無（直接輸入外寸）':'なし（外寸を直接入力）'}</option>
+                          <option value="AB">AB段 {lang==='zh'?'（長寬+15、高+30）':'（長幅+15、高+30）'}</option>
+                          <option value="A">A段 {lang==='zh'?'（長寬+10、高+20）':'（長幅+10、高+20）'}</option>
+                          <option value="B">B段 {lang==='zh'?'（長寬+6、高+12）':'（長幅+6、高+12）'}</option>
+                          <option value="EB">EB段 {lang==='zh'?'（長寬+9、高+18）':'（長幅+9、高+18）'}</option>
+                          <option value="E">E段 {lang==='zh'?'（長寬+3、高+6）':'（長幅+3、高+6）'}</option>
                         </select>
                       </div>
-
-                      <div className="grid grid-cols-4 gap-2">
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5,marginBottom:7}}>
                         {[['L',t.fL],['W',t.fW],['H',t.fH],['qty',t.fQ]].map(([f,lbl])=>(
                           <div key={f}>
-                            <label className="block text-[10px] text-slate-500 mb-1">{lbl}</label>
-                            <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-sm bg-white"/>
+                            <label className="left-label">{lbl}</label>
+                            <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:15,padding:'5px 6px'}}/>
                           </div>
                         ))}
                       </div>
-                      <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200">
+                      <div style={{borderTop:'1px solid var(--panel-line)',paddingTop:7,display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5}}>
                         <div>
-                          <label className="block text-[10px] text-slate-500 mb-1">{t.tPlus}</label>
-                          <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                          <label className="left-label">{t.tPlus}</label>
+                          <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14,padding:'5px 6px'}}/>
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-500 mb-1">{t.tMinus}</label>
-                          <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white"/>
+                          <label className="left-label">{t.tMinus}</label>
+                          <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14,padding:'5px 6px'}}/>
                         </div>
-                        <div className="col-span-2">
-                          <label className="block text-[10px] text-slate-500 mb-1">{t.calcMode}</label>
-                          <select value={box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="w-full p-1.5 border border-slate-300 rounded text-xs bg-white">
-                            <option value="nominal">{t.mNom}</option>
+                        <div style={{gridColumn:'span 2'}}>
+                          <label className="left-label">{t.calcMode}</label>
+                          <select value={box.calcMode==='nominal'?'mid':box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14}}>
+                            <option value="mid">{t.mMid}</option>
                             <option value="max">{t.mMax}</option>
                             <option value="min">{t.mMin}</option>
-                            <option value="mid">{t.mMid}</option>
                           </select>
                         </div>
                       </div>
-                      {showLabel&&(
-                        <div className="mt-3 text-[12px] text-blue-700 bg-blue-50/50 border border-blue-100 px-3 py-2 rounded-lg font-medium flex justify-between items-center">
-                          <span>{t.mLabel}</span>
-                          <span className="tracking-wide">{finL} x {finW} x {finH} <span className="text-[10px] text-blue-500 font-normal">mm</span></span>
+                      {showLabel && (
+                        <div className="box-computed">
+                          <span style={{fontSize:13,color:'var(--panel-sub)',fontWeight:700}}>{t.mLabel}</span>
+                          <span style={{fontSize:14,fontWeight:700,color:'var(--panel-text)',letterSpacing:'.4px'}}>{finL}x{finW}x{finH} <span style={{fontSize:12,fontWeight:400,opacity:.7}}>mm</span></span>
                         </div>
                       )}
                     </div>
@@ -1396,45 +1351,63 @@ function App(){
                 })}
               </div>
 
-              <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">{t.stratTitle}</label>
-                <select value={strat} onChange={e=>{setStrat(e.target.value);clearResult();}} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+              <div style={{marginTop:10,background:'rgba(255,255,255,.15)',border:'1px solid var(--panel-line)',borderRadius:8,padding:12}}>
+                <label className="left-label" style={{marginBottom:5}}>{t.stratTitle}</label>
+                <select value={strat} onChange={e=>{setStrat(e.target.value);clearResult();}} className="ctrl-dark" style={{marginBottom:10,fontSize:14}}>
                   <option value="auto">{t.stratAuto}</option>
                   <option value="length">{t.stratL}</option>
                   <option value="width">{t.stratW}</option>
                 </select>
-                <div className="mt-3 pt-3 border-t border-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
-                    <input type="checkbox" checked={isJapanBound} onChange={e=>{setIsJapanBound(e.target.checked);clearResult();}} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
-                    {t.japanBound}
-                  </label>
-                  {isJapanBound&&(
-                    <div className="mt-2 pl-6">
-                      <label className="block text-[11px] text-slate-500 mb-1">{t.palletType}</label>
-                      <select value={palletType} onChange={e=>{setPalletType(e.target.value);clearResult();}} className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none mb-2">
-                        <option value="1030">1030mm X 1030mm</option>
-                        <option value="sheet">シートパレット</option>
+                <div className="dark-divider"/>
+                <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',marginBottom:isJapanBound?10:0}}>
+                  <input type="checkbox" checked={isJapanBound} onChange={e=>{setIsJapanBound(e.target.checked);clearResult();}} className="dark-check"/>
+                  <span style={{fontSize:15,fontWeight:700,color:'var(--panel-text)'}}>{t.japanBound}</span>
+                </label>
+                {isJapanBound && (
+                  <div style={{paddingLeft:22,display:'flex',flexDirection:'column',gap:8}}>
+                    <div>
+                      <label className="left-label">{t.palletType}</label>
+                      <select value={palletType} onChange={e=>{setPalletType(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14}}>
+                        <option value="1030">1030mm x 1030mm</option>
+                        <option value="sheet">{lang==='zh'?'Sheet パレット':'シートパレット'}</option>
                       </select>
-                      <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
-                        <input type="checkbox" checked={interlockFirst} onChange={e=>{setInterlockFirst(e.target.checked);clearResult();}} className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"/>
-                        {t.interlockFirst}
-                      </label>
                     </div>
-                  )}
-                </div>
+                    <div>
+                      <label className="left-label">{t.xAlignTitle}</label>
+                      <select value={xAlign} onChange={e=>{setXAlign(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14}}>
+                        <option value="left">{t.xAlignLeft}</option>
+                        <option value="center">{t.xAlignCenter}</option>
+                        <option value="distributed">{t.xAlignDist}</option>
+                        <option value="distributed-around">{t.xAlignDistAround}</option>
+                      </select>
+                    </div>
+                    <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer'}}>
+                      <input type="checkbox" checked={interlockFirst} onChange={e=>{setInterlockFirst(e.target.checked);clearResult();}} className="dark-check"/>
+                      <span style={{fontSize:14,fontWeight:700,color:'var(--panel-text)'}}>{t.interlockFirst}</span>
+                    </label>
+                    {interlockFirst && (
+                      <div style={{paddingLeft:22,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                        {[['auto',t.intAuto,<Ico.Star s={18}/>],['single',t.intSingle,<Ico.WindSingle s={18}/>],['double',t.intDouble,<Ico.WindDouble s={18}/>]].map(([val,lbl,ico])=>(
+                          <button key={val} onClick={()=>{setInterlockType(val);clearResult();}} className={"int-btn "+(interlockType===val?'active':'')}>
+                            {ico}<span>{lbl}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <button onClick={()=>doCalc(false)} disabled={loading} className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
-                  {loading&&!graspOn?<Ico.Spin c="w-4 h-4 animate-spin mr-1.5"/>:<Ico.Play c="w-4 h-4 mr-1.5"/>}
-                  {loading&&!graspOn?t.calcIng:t.calcBtn}
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1.35fr',gap:8,marginTop:12}}>
+                <button onClick={()=>doCalc(false)} disabled={loading} className="btn" style={{background:'var(--accent)', color:'#3b4632', padding:'10px 4px', fontSize:15, boxShadow:'0 2px 8px rgba(200,213,187,0.4)'}}>
+                  {loading&&!graspOn?<><Ico.Spin s={14}/>{t.calcIng}</>:<><Ico.Play s={14}/>{t.calcBtn}</>}
                 </button>
-                <div className="flex flex-col">
-                  <button onClick={()=>doCalc(true)} disabled={loading} className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg disabled:opacity-50 transition-colors text-sm shadow-sm">
-                    {graspOn?<Ico.Spin c="w-4 h-4 animate-spin mr-1.5"/>:<Ico.Star c="w-4 h-4 mr-1.5"/>}
-                    {graspOn?(t.graspIng+' '+progress+'%'):t.graspBtn}
+                <div style={{display:'flex',flexDirection:'column',gap:5, minWidth: 0}}>
+                  <button onClick={()=>doCalc(true)} disabled={loading} className="btn" style={{background:'var(--panel-ghost)', color:'#ffffff', padding:'10px 4px', fontSize:14, letterSpacing:'-0.2px', boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}>
+                    {graspOn?<><Ico.Spin s={14}/>{t.graspIng} {progress}%</>:<><Ico.Star s={14}/>{t.graspBtn}</>}
                   </button>
-                  {graspOn&&(
-                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5 mx-0.5">
+                  {graspOn && (
+                    <div style={{height:4,background:'rgba(255,255,255,0.2)',borderRadius:99,overflow:'hidden'}}>
                       <div className="prog-bar" style={{width:progress+'%'}}></div>
                     </div>
                   )}
@@ -1443,140 +1416,130 @@ function App(){
             </div>
           </div>
 
-          {/* ── 右側 3D + 結果 ── */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 relative" style={{height:'620px'}}>
-              {/* 狀態遮罩 */}
-              {(!hasPacked && !loading && result.stats === null && step === 0) ? null : 
-               (result.stats === null && !loading) && (
-                 <div className="absolute inset-0 bg-slate-100/60 backdrop-blur-[2px] z-30 flex items-center justify-center rounded-xl">
-                   <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-amber-200 text-amber-700 font-medium text-sm flex items-center">
-                     <Ico.Warn c="w-4 h-4 mr-2"/>{t.staleWarning}
-                   </div>
-                 </div>
-               )}
+          {/* ══ RIGHT PANEL ══ */}
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
 
-              <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
-                {boxes.map(b=>(
-                  <div key={b.id} className="bg-white/90 backdrop-blur px-2 py-0.5 rounded border border-slate-200 shadow-sm flex items-center text-[10px]">
-                    <span className="w-2.5 h-2.5 rounded-full mr-1.5 flex-shrink-0" style={{backgroundColor:b.color}}></span>
-                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{b.name}</span>
-                  </div>
-                ))}
-                {result.stats?.rem&&hasPacked&&(
-                  <div className="bg-white/95 backdrop-blur p-2.5 rounded border border-slate-200 shadow-sm mt-1 pointer-events-auto w-max">
-                    <div className="flex items-center text-slate-800 font-bold text-xs mb-1.5"><Ico.Rule c="w-3.5 h-3.5 mr-1 text-blue-600"/>{t.remTitle}</div>
-                    <div className="flex gap-3 text-xs">
-                      {[[t.remD,'d',doorGap,'text-orange-600'],[t.remW,'w',rightGap,'text-blue-600'],[t.remH,'h',topGap,'text-green-600']].map(([lbl,k,gv,cls],idx)=>(
-                        <div key={k} className={'flex flex-col'+(idx>0?' border-l border-slate-200 pl-3':'')}>
-                          <span className="text-slate-400 font-bold mb-1">{lbl}</span>
-                          {result.stats.rem[k].map((g,i)=>(
-                            <div key={i} className="mb-1 last:mb-0">
-                              <span className={'font-bold block '+cls}>{g}mm</span>
-                              <span className="text-[9px] text-slate-400">{t.remInc}: {g+gv}mm</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+            {/* ── 3D Viewport ── */}
+            <div className="card" style={{position:'relative',height:680}}>
+              {/* Stale overlay */}
+              {result.stats === null && !loading && step === 0 && hasPacked===false ? null : (
+                result.stats === null && !loading && (
+                  <div className="stale-overlay">
+                    <div style={{display:'flex',alignItems:'center',gap:7,background:'var(--warn-soft)',border:'1px solid rgba(220,165,45,.4)',borderRadius:10,padding:'9px 16px'}}>
+                      <Ico.Warn s={14}/><span style={{fontSize:15,fontWeight:700,color:'var(--warn)'}}>{t.staleWarning}</span>
                     </div>
                   </div>
+                )
+              )}
+
+              {/* Box legend */}
+              <div style={{position:'absolute',top:12,left:12,zIndex:10,display:'flex',flexDirection:'column',gap:4,pointerEvents:'none'}}>
+                <LabelStrip/>
+                {result.stats?.rem && hasPacked && (
+                  <div style={{marginTop:6,pointerEvents:'auto'}}><GapStrip/></div>
                 )}
               </div>
 
-              <div className="absolute top-3 right-3 z-10 flex flex-wrap gap-1.5 justify-end max-w-[280px]">
+              {/* View preset buttons */}
+              <div style={{position:'absolute',top:12,right:12,zIndex:10,display:'flex',flexWrap:'wrap',gap:4,justifyContent:'flex-end',maxWidth:260}}>
                 {[['iso',t.vIso],['top',t.vTop],['bottom',t.vBottom],['front',t.vFront],['back',t.vBack],['left',t.vLeft],['right',t.vRight]].map(([v,lbl])=>(
-                  <button key={v} onClick={()=>changeView(v)} className="bg-white/90 backdrop-blur text-slate-700 hover:text-blue-600 px-2 py-1 rounded border border-slate-200 text-[11px] font-medium shadow-sm">{lbl}</button>
+                  <button key={v} onClick={()=>changeView(v)} className="view-btn">{lbl}</button>
                 ))}
               </div>
 
-              <div ref={canvasRef} className="rounded-lg cursor-move touch-none bg-slate-100" style={{position:'absolute',top:'8px',left:'8px',right:'8px',bottom:'8px'}}></div>
+              {/* Canvas */}
+              <div ref={canvasRef} className="touch-none" id="canvas-wrap" style={{background:'var(--paper-warm)'}}></div>
+
+              {/* Hint */}
               <div className="hint-overlay">
-                <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>
-                <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>
-                <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'縮尺'}</span>
+                <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>　
+                <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>　
+                <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'拡縮'}</span>
               </div>
 
-              {hasPacked&&(
-                <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur border border-slate-200 p-2.5 rounded-lg shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-20">
-                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    <span className="flex items-center text-blue-700 font-bold text-xs bg-blue-50 px-2 py-1 rounded">
-                      <Ico.Play c="w-3 h-3 mr-1"/>{t.play}{step}/{result.packed.length}
-                    </span>
-                    <label className="flex items-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs transition-colors">
-                      <input type="checkbox" checked={xray} onChange={e=>setXray(e.target.checked)} className="w-3 h-3 rounded accent-blue-600"/>
-                      <Ico.Eye c="w-3.5 h-3.5 text-slate-500"/>
-                      <span className="text-slate-700">{t.xray}</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs transition-colors">
-                      <input type="checkbox" checked={isPerspective} onChange={e=>setIsPerspective(e.target.checked)} className="w-3 h-3 rounded accent-blue-600"/>
-                      <Ico.Cam c="w-3.5 h-3.5 text-slate-500"/>
-                      <span className="text-slate-700">{t.perspective}</span>
-                    </label>
-                  </div>
-                  <div className="flex-grow flex items-center gap-2 w-full">
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{t.inner}</span>
-                    <input type="range" min="0" max={result.packed.length} value={step} onChange={e=>setStep(Number(e.target.value))} className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-blue-600 bg-slate-200"/>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{t.door}</span>
+              {/* Playback bar */}
+              {hasPacked && (
+                <div style={{position:'absolute',bottom:10,left:10,right:10,zIndex:20,background:'rgba(255,255,255,.9)',backdropFilter:'blur(8px)',border:'1px solid var(--line)',borderRadius:10,padding:'9px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',boxShadow:'0 4px 16px rgba(165,154,202,0.15)'}}>
+                  <span style={{fontSize:14,fontWeight:700,color:'var(--brand)',background:'var(--tertiary-soft)',padding:'3px 8px',borderRadius:5,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>
+                    <Ico.Play s={11}/>{t.play}{step}/{result.packed.length}
+                  </span>
+                  <label style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:14,fontWeight:700,color:'var(--ink-mid)',whiteSpace:'nowrap'}}>
+                    <input type="checkbox" checked={xray} onChange={e=>setXray(e.target.checked)}/>
+                    <Ico.Eye s={12}/>{t.xray}
+                  </label>
+                  <label style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:14,fontWeight:700,color:'var(--ink-mid)',whiteSpace:'nowrap'}}>
+                    <input type="checkbox" checked={isPerspective} onChange={e=>setIsPerspective(e.target.checked)}/>
+                    <Ico.Cam s={12}/>{t.perspective}
+                  </label>
+                  <div style={{flex:1,display:'flex',alignItems:'center',gap:6,minWidth:100}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'var(--ink-ghost)',whiteSpace:'nowrap'}}>{t.inner}</span>
+                    <input type="range" min="0" max={result.packed.length} value={step} onChange={e=>setStep(Number(e.target.value))} style={{flex:1,accentColor:'var(--brand)'}}/>
+                    <span style={{fontSize:12,fontWeight:700,color:'var(--ink-ghost)',whiteSpace:'nowrap'}}>{t.door}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* 結果摘要 */}
-            {result.stats&&(
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 flex items-center border-b border-slate-100 pb-3">
-                  <Ico.Chk c="w-5 h-5 mr-2 text-green-500"/>{t.sumTitle}
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <p className="text-xs text-slate-400 mb-1">{t.totBox}</p>
-                    <p className="text-xl font-bold text-slate-800">{result.stats.total}</p>
+            {/* ── Result Summary ── */}
+            {result.stats && (
+              <div className="card" style={{padding:16}} key="result">
+                <div className="sec-header">
+                  <div className="sec-dot"></div>
+                  <span style={{fontWeight:700,fontSize:16}}>{t.sumTitle}</span>
+                </div>
+
+                {/* Stats row */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8,marginBottom:14}}>
+                  <div className="stat-box">
+                    <div className="text-caption">{t.totBox}</div>
+                    <div className="stat-num" style={{color:'var(--ink)'}}>{result.stats.total}</div>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <p className="text-xs text-slate-400 mb-1">{t.util}</p>
-                    <p className="text-xl font-bold text-blue-600">{result.stats.util}%</p>
+                  <div className="stat-box">
+                    <div className="text-caption">{t.util}</div>
+                    <div className="stat-num" style={{color:'var(--brand)',fontWeight:800}}>{result.stats.util}%</div>
                   </div>
-                  {result.stats.palletCount>0&&(
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-xs text-slate-400 mb-1">{t.palletUsage}</p>
-                      <p className="text-xl font-bold text-orange-600">{result.stats.palletCount}</p>
+                  {result.stats.palletCount>0 && (
+                    <div className="stat-box">
+                      <div className="text-caption">{t.palletUsage}</div>
+                      <div className="stat-num" style={{color:'#9a5a20'}}>{result.stats.palletCount}</div>
                     </div>
                   )}
-                  <div className={`bg-slate-50 p-3 rounded-lg border border-slate-100 ${result.stats.palletCount>0?'col-span-2 md:col-span-1':'col-span-2'}`}>
-                    <p className="text-xs text-slate-400 mb-1">{t.effVol}</p>
-                    <p className="text-xl font-bold text-slate-800">{(result.stats.vol/1e9).toFixed(2)} m³ <span className="text-xs font-normal text-slate-400">/ {t.totVol} {((c.w*c.h*c.d)/1e9).toFixed(2)}m³</span></p>
+                  <div className="stat-box" style={{gridColumn: result.stats.palletCount>0?'span 1':'span 1'}}>
+                    <div className="text-caption">{t.effVol}</div>
+                    <div style={{fontWeight:700,fontSize:19,color:'var(--ink)',marginTop:3}}>
+                      {(result.stats.vol/1e9).toFixed(2)} <span style={{fontSize:14,fontWeight:400,color:'var(--ink-ghost)'}}>m³</span>
+                    </div>
+                    <div style={{fontSize:13,color:'var(--ink-ghost)',marginTop:1}}>{t.totVol} {((c.w*c.h*c.d)/1e9).toFixed(2)} m³</div>
                   </div>
                 </div>
 
-                {/* C3: 棧板層數明細 */}
-                {result.stats.palletDetail&&(
-                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
-                    <Ico.Layers c="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5"/>
-                    <div>
-                      <p className="text-xs font-bold text-orange-800 mb-0.5">{t.palletDetail}</p>
-                      <p className="text-xs text-orange-700">
-                        {t.palletLayerFmt.replace('{n}',result.stats.palletDetail.boxesPerLayer).replace('{l}',result.stats.palletDetail.layers)}
-                        {' · '}
-                        {t.palletCountFmt.replace('{c}',result.stats.palletCount)}
-                      </p>
-                    </div>
+                {/* Pallet detail */}
+                {result.stats.palletDetail && (
+                  <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',background:'var(--warn-pale)',border:'1px solid var(--warn)',borderRadius:8,marginBottom:12}}>
+                    <Ico.Layers s={14}/><span style={{fontSize:15,fontWeight:700,color:'var(--ink-mid)'}}>{t.palletDetail}：</span>
+                    <span style={{fontSize:15,color:'var(--ink-soft)'}}>
+                      {t.palletLayerFmt.replace('{n}',result.stats.palletDetail.boxesPerLayer).replace('{l}',result.stats.palletDetail.layers)}
+                      {' · '}
+                      {t.palletCountFmt.replace('{c}',result.stats.palletCount)}
+                    </span>
                   </div>
                 )}
 
+                {/* Per-box counts */}
                 <div>
-                  <p className="text-sm font-medium text-slate-600 mb-2">{t.detail}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--ink-mid)',marginBottom:8}}>{t.detail}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                     {boxes.map(b=>{
                       const cnt=result.stats.counts[b.id]||0;
                       if(cnt===0&&b.qty===0) return null;
+                      const short = b.qty>0 && cnt<b.qty;
                       return (
-                        <div key={b.id} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg text-sm">
-                          <span className="flex items-center font-medium text-slate-700">
-                            <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{backgroundColor:b.color}}></span>
-                            {b.name}
+                        <div key={b.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'var(--paper-warm)',border:'1px solid var(--line)',borderRadius:7,fontSize:15}}>
+                          <span style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,color:'var(--ink-mid)'}}>
+                            <span style={{width:8,height:8,borderRadius:'50%',background:b.color,flexShrink:0,display:'inline-block'}}></span>
+                            <span style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.name}</span>
                           </span>
-                          <span className={'font-bold px-2 py-0.5 rounded '+(b.qty>0&&cnt<b.qty?'bg-red-100 text-red-700':'bg-slate-100 text-slate-700')}>
+                          <span className={"tag "+(short?'tag-danger':'tag-ink')} style={{fontWeight:700}}>
                             {cnt}{b.qty>0?' / '+b.qty:''} {t.boxU}
                           </span>
                         </div>
@@ -1584,19 +1547,26 @@ function App(){
                     })}
                   </div>
                 </div>
-                {result.stats.warns?.length>0&&(
-                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                    <h4 className="flex items-center text-orange-800 font-bold mb-2 text-sm"><Ico.Warn c="w-4 h-4 mr-2"/>{t.warnTitle}</h4>
-                    <ul className="space-y-1.5 mb-3">
+
+                {/* Warnings */}
+                {result.stats.warns?.length>0 && (
+                  <div style={{marginTop:12,background:'var(--warn-soft)',border:'1px solid rgba(220,165,45,.4)',borderRadius:10,padding:14}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,fontSize:15,color:'var(--warn)',marginBottom:10}}>
+                      <Ico.Warn s={14}/>{t.warnTitle}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:10}}>
                       {result.stats.warns.map((w,i)=>(
-                        <li key={i} className="flex items-center justify-between bg-white px-3 py-1.5 rounded border border-orange-100 text-sm">
-                          <span className="flex items-center font-medium"><span className="w-2.5 h-2.5 rounded-full mr-2" style={{backgroundColor:w.color}}></span>{w.name}</span>
-                          <span className="text-orange-700 font-semibold text-xs">{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req}/{t.wPack} {w.pk})</span>
-                        </li>
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'var(--paper-card)',padding:'7px 10px',borderRadius:8,border:'1px solid var(--warn)',fontSize:15}}>
+                          <span style={{display:'flex',alignItems:'center',gap:5,fontWeight:700}}>
+                            <span style={{width:7,height:7,borderRadius:'50%',background:w.color,flexShrink:0,display:'inline-block'}}></span>
+                            {w.name}
+                          </span>
+                          <span style={{color:'var(--warn)',fontWeight:700,fontSize:14}}>{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req} / {t.wPack} {w.pk})</span>
+                        </div>
                       ))}
-                    </ul>
-                    <p className="text-xs text-slate-600">{t.wAnal}</p>
-                    <p className="text-xs text-slate-600 mt-1">{t.wSug}</p>
+                    </div>
+                    <p style={{fontSize:14,color:'var(--warn)',lineHeight:1.7}}>{t.wAnal}</p>
+                    <p style={{fontSize:14,color:'var(--warn)',lineHeight:1.7,marginTop:4}}>{t.wSug}</p>
                   </div>
                 )}
               </div>
