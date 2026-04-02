@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v3.3</title>
+  <title>貨櫃裝載計算器 v2.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -19,62 +19,54 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
 
   <style>
     :root {
-      /* ── Design system updated ── */
-      /* ── Right panel base ── */
-      --ink:        #3a3642;
-      --ink-mid:    #555060;
-      --ink-soft:   #787285;
-      --ink-ghost:  #a6a0b2;
-      --line:       #e0e0e0;
-      --paper:      #ffffff; /* 全局背景改為純白 */
-      --paper-warm: #f4f4f4; /* 稍微帶點灰色的區塊，用於區分卡片內部 */
-      --paper-card: #ffffff; /* 卡片背景為純白 */
+      /* ── 核心設計系統更新 (Opacity 80%) ── */
+      /* ── 右側面板與全局 ── */
+      --ink:        #2b2b2b;
+      --ink-mid:    #4a4a4a;
+      --ink-soft:   #666666;
+      --ink-ghost:  #999999;
+      --line:       rgba(181, 107, 69, 0.2); /* Cinnamon Wood light */
+      --paper:      #ffffff; /* 背景為純白色 */
+      --paper-warm: rgba(249, 237, 204, 0.2); /* Cornsilk very light */
+      --paper-card: #ffffff; 
 
-      /* ── Left panel: 淺蔥鼠 (Asaginezumi #94a8b0) hierarchy ── */
-      --panel-bg:   #94a8b0; /* Sidebar base */
-      --panel-mid:  #869ca5; /* Inputs */
-      --panel-card: #a3b6be; /* Internal cards */
-      --panel-line: #b5c6cc; /* Borders */
+      /* ── 左側面板：水色系 (Mizuiro) ── */
+      --panel-bg:   rgba(188, 226, 232, 0.8); /* 水色 #bce2e8 */
+      --panel-mid:  rgba(255, 255, 255, 0.85); 
+      --panel-card: rgba(171, 206, 216, 0.6); /* 秘色色 #abced8 */
+      --panel-line: rgba(137, 195, 235, 0.8); /* 勿忘草色 #89c3eb */
       
-      /* 左側欄字體變更為純黑色 */
-      --panel-text: #000000; 
-      --panel-sub:  #333333; /* 次要文字也改為深灰色以適應黑色系 */
-      --panel-ghost:#555555;
+      --panel-text: #000000; /* 純黑色 */
+      --panel-sub:  #222222; 
+      --panel-ghost:#444444;
       
-      --panel-accent:#a2d7dd; /* 瓶覗 Kamenozoki for active states */
-      --nakabeni:   #db4d6d; /* 中紅 Nakabeni 用於亮點數字 */
+      --panel-accent: rgba(232, 72, 85, 0.8); /* Watermelon (Checkbox, borders) */
+      --highlight:    #db4d6d; /* 中紅 Nakabeni 用於亮點數字 */
 
-      /* ── Accent (Primary Button): 柳鼠 (Yanaginezumi #c8d5bb) ── */
-      --accent:     #c8d5bb;
-      --accent-mid: #b5c4a6;
-      --accent-soft:#e6ecdf;
-      --accent-pale:#f4f7f1;
+      /* ── 左側面板新增點綴色 (和名粉色系) ── */
+      --panel-mizugaki: rgba(228, 171, 155, 0.55); /* 水柿 #e4ab9b */
+      --panel-tokigara: rgba(224, 158, 135, 0.55); /* ときがら茶 #e09e87 */
+      --panel-arazome:  rgba(214, 144, 144, 0.55); /* 退紅 #d69090 */
+      --panel-usugaki:  rgba(212, 172, 173, 0.55); /* 薄柿 #d4acad */
+      --panel-choshun:  rgba(201, 117, 134, 0.55); /* 長春色 #c97586 */
 
-      /* ── Semantic ── */
-      --ok:         #c8d5bb;
-      --ok-soft:    #e6ecdf;
-      --ok-pale:    #f4f7f1;
-      --warn:       #f9bf45;
-      --warn-soft:  #fdf3da;
-      --warn-pale:  #fffbf2;
-      --danger:     #e05050;
-      --danger-soft:#fce8e8;
+      /* ── Accent ── */
+      --brand:        rgba(43, 58, 103, 0.8); /* Twilight Indigo */
+      --accent:       rgba(232, 72, 85, 0.8); /* Watermelon */
+      --accent-mid:   rgba(234, 43, 31, 0.8); /* Burnt Tangerine */
+      --accent-soft:  rgba(232, 72, 85, 0.15);
+      --accent-pale:  rgba(232, 72, 85, 0.05);
 
-      /* ── Tertiary / Brand: 藤鼠 (Fujinezumi #a59aca) ── */
-      --brand:       #a59aca;
-      --tertiary:    #a59aca;
-      --tertiary-mid:#9387bb;
-      --tertiary-soft:#e2def0;
+      /* ── 語義化顏色 ── */
+      --ok:           rgba(181, 107, 69, 0.8); /* Cinnamon Wood */
+      --ok-soft:      rgba(181, 107, 69, 0.15);
+      --warn:         rgba(237, 174, 73, 0.8); /* Honey Bronze */
+      --warn-soft:    rgba(237, 174, 73, 0.15);
+      --danger:       rgba(234, 43, 31, 0.8); /* Burnt Tangerine */
+      --danger-soft:  rgba(234, 43, 31, 0.15);
 
-      /* ── Secondary palette / Highlights: 瓶覗 (Kamenozoki #a2d7dd) ── */
-      --secondary:   #a2d7dd;
-      --secondary-mid:#8bc5cc;
-      --secondary-soft:#e2f3f5;
-
-      /* ── Aliases for backward compat ── */
-      --grape:      #a59aca;
-      --grape-mid:  #9387bb;
-      --teal:       #a2d7dd;
+      --tertiary:     rgba(97, 33, 15, 0.8); /* Dark Walnut */
+      --secondary:    rgba(255, 155, 113, 0.8); /* Tangerine Dream */
     }
 
     * { box-sizing: border-box; }
@@ -86,25 +78,24 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── Scrollbar ── */
+    /* ── 捲軸樣式 ── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 99px; }
-    .right-scroll::-webkit-scrollbar-thumb { background: var(--line); }
 
-    /* ── LEFT PANEL ── */
+    /* ── 左側面板 ── */
     .left-panel {
       background: var(--panel-bg);
       border-radius: 16px;
       display: flex; flex-direction: column; gap: 10px;
       padding: 16px;
-      box-shadow: 0 8px 24px rgba(148, 168, 176, 0.25);
+      box-shadow: 0 8px 24px rgba(148, 168, 176, 0.2);
     }
     .left-card {
       background: var(--panel-card);
       border: 1px solid var(--panel-line);
       border-radius: 12px;
-      padding: 14px 16px;
+      padding: 20px 16px 14px 16px;
     }
     .left-sec-header {
       display: flex; align-items: center; gap: 7px;
@@ -114,7 +105,7 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     }
     .left-sec-dot {
       width: 3px; height: 15px;
-      background: var(--nakabeni); /* 使用中紅作為側邊欄標題點綴 */
+      background: var(--highlight);
       border-radius: 99px; flex-shrink: 0;
     }
     .left-sec-title {
@@ -122,131 +113,94 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       color: var(--panel-text); letter-spacing: .2px;
     }
     .left-label {
-      display: block; font-size: 12px; font-weight: 700;
+      display: block; font-size: 12px; font-weight: 800;
       color: var(--panel-text); letter-spacing: .5px;
       text-transform: uppercase; margin-bottom: 4px;
-      opacity: .85;
     }
-    /* Dark-panel form controls */
     .ctrl-dark {
       width: 100%;
-      padding: 7px 10px;
-      border: 1px solid var(--panel-line);
+      border: 1.5px solid var(--panel-line);
       border-radius: 6px;
-      background: var(--panel-mid);
-      color: var(--panel-text);
+      background: #f9fbfa; 
+      color: #000;
       font-family: inherit; font-size: 16px; font-weight: 700;
       outline: none;
-      transition: border-color .15s, box-shadow .15s;
+      transition: all .15s;
       appearance: none; -webkit-appearance: none;
     }
     .ctrl-dark:focus {
-      border-color: var(--panel-text);
-      box-shadow: 0 0 0 3px rgba(0,0,0,.15);
+      border-color: var(--highlight);
+      box-shadow: 0 0 0 3px rgba(219,77,109,.15);
     }
-    .ctrl-dark option { background: var(--panel-mid); color: var(--panel-text); }
     select.ctrl-dark {
-      /* 修改下拉箭頭顏色以搭配黑色字體 */
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23333333'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23000000'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 10px center;
       padding-right: 28px;
     }
-    input[type=range].dark-range {
-      appearance: none; -webkit-appearance: none;
-      height: 4px; border-radius: 99px;
-      background: rgba(0,0,0,0.15); outline: none;
-    }
-    input[type=range].dark-range::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px; height: 14px; border-radius: 50%;
-      background: var(--panel-text); border: 2px solid var(--panel-card);
-      box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer;
-    }
-    input[type=number].ctrl-dark::-webkit-inner-spin-button,
-    input[type=number].ctrl-dark::-webkit-outer-spin-button { opacity: .4; }
     input[type=checkbox].dark-check {
       appearance: none; -webkit-appearance: none;
-      width: 15px; height: 15px;
-      border: 1.5px solid var(--panel-sub);
-      border-radius: 4px; background: var(--panel-mid);
+      width: 16px; height: 16px;
+      border: 2px solid var(--panel-text);
+      border-radius: 4px; background: #fff;
       cursor: pointer; position: relative; flex-shrink: 0;
-      transition: all .15s;
     }
     input[type=checkbox].dark-check:checked {
-      background: var(--panel-text); border-color: var(--panel-text);
+      background: var(--panel-accent); border-color: var(--panel-accent);
     }
     input[type=checkbox].dark-check:checked::after {
       content: ''; position: absolute;
-      left: 3px; top: 1px; width: 5px; height: 8px;
-      border: 2px solid #ffffff; /* Checkmark is white to contrast with black */
-      border-top: none; border-left: none;
+      left: 4px; top: 1px; width: 5px; height: 9px;
+      border: 2px solid #fff; border-top: none; border-left: none;
       transform: rotate(45deg);
-    }
-    input[type=color].color-swatch {
-      padding: 0; border: 1px solid var(--panel-line);
-      border-radius: 4px; cursor: pointer; background: none;
     }
     .dark-text-input {
       flex: 1; background: transparent;
-      border: none; border-bottom: 1px solid var(--panel-line);
-      padding: 2px 4px; font-size: 15px; font-weight: 700;
+      border: none; border-bottom: 2px solid var(--panel-text);
+      padding: 2px 4px; font-size: 15px; font-weight: 800;
       color: var(--panel-text); outline: none; font-family: inherit;
     }
-    .dark-text-input:focus { border-bottom-color: var(--panel-text); }
+    .dark-text-input:focus { border-bottom-color: var(--highlight); }
     
+    .box-computed {
+      margin-top: 8px; padding: 6px 10px;
+      background: var(--panel-arazome);
+      border: 1px solid #d69090;
+      border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
     .dark-sub-panel {
-      background: var(--panel-mid);
+      background: rgba(160, 216, 239, 0.4);
       border: 1px solid var(--panel-line);
       border-radius: 8px; padding: 10px 12px;
     }
     .dark-warn-panel {
-      background: rgba(0,0,0, 0.05);
-      border: 1px solid rgba(0,0,0, 0.15);
+      background: rgba(162, 215, 221, 0.4);
+      border: 1px solid var(--panel-line);
       border-radius: 8px; padding: 10px 12px;
     }
     .dark-divider { height: 1px; background: var(--panel-line); margin: 10px 0; }
 
-    /* ── Interlock selector ── */
-    .int-btn {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 8px 4px; border-radius: 7px;
-      border: 1.5px solid var(--panel-line);
-      background: var(--panel-mid);
-      cursor: pointer;
-      font-size: 13px; font-weight: 700; color: var(--panel-sub);
-      gap: 4px; transition: all .15s; font-family: inherit;
-    }
-    .int-btn:hover { border-color: var(--panel-text); color: var(--panel-text); background: rgba(0,0,0,0.05); }
-    .int-btn.active { border-color: var(--panel-text); background: rgba(0,0,0,0.1); color: var(--panel-text); }
-
-    /* ── Box card (in dark panel) ── */
     .box-card {
       background: var(--panel-card);
       border: 1px solid var(--panel-line);
-      border-radius: 10px; padding: 12px 14px;
-      transition: border-color .15s; position: relative;
+      border-radius: 12px;
+      padding: 14px 16px;
+      position: relative;
     }
-    .box-card:hover { border-color: var(--panel-text); }
     .box-card-actions {
       position: absolute; top: 9px; right: 9px;
       display: flex; gap: 3px; opacity: 0; transition: opacity .15s;
     }
     .box-card:hover .box-card-actions { opacity: 1; }
-    .box-computed {
-      margin-top: 8px; padding: 6px 10px;
-      background: rgba(255,255,255,.2);
-      border: 1px solid rgba(255,255,255,.3);
-      border-radius: 6px;
-      display: flex; justify-content: space-between; align-items: center;
-    }
 
-    /* ── RIGHT PANEL ── */
+    /* ── 右側面板 ── */
     .card {
       background: var(--paper-card);
       border: 1px solid var(--line);
       border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }
     .sec-header {
       display: flex; align-items: center; gap: 7px;
@@ -254,6 +208,12 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       border-bottom: 1px solid var(--line); margin-bottom: 14px;
     }
     .sec-dot { width: 3px; height: 16px; background: var(--brand); border-radius: 99px; flex-shrink: 0; }
+    .stat-box {
+      background: var(--paper-warm);
+      border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .stat-num { font-size: 25px; font-weight: 800; letter-spacing: -.5px; line-height: 1.2; }
     .text-caption { font-size: 13px; color: var(--ink-ghost); }
     .tag {
       display: inline-flex; align-items: center;
@@ -265,43 +225,31 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     .tag-warn    { background: var(--warn-soft); color: var(--warn); }
     .tag-danger  { background: var(--danger-soft); color: var(--danger); }
     .tag-ink     { background: var(--paper-warm); color: var(--ink-mid); border: 1px solid var(--line); }
-    .stat-box {
-      background: var(--paper-warm);
-      border: 1px solid var(--line);
-      border-radius: 10px; padding: 12px 14px;
-    }
-    .stat-num { font-size: 25px; font-weight: 700; letter-spacing: -.5px; line-height: 1.2; }
     
-    /* ── Buttons ── */
+    /* ── 按鈕系統 ── */
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
-      gap: 5px; padding: 7px 14px; border-radius: 8px;
-      font-family: inherit; font-size: 15px; font-weight: 700;
-      border: none; cursor: pointer; transition: all .15s;
-      white-space: nowrap; letter-spacing: .2px;
+      gap: 5px; padding: 8px 16px; border-radius: 8px;
+      font-family: inherit; font-size: 15px; font-weight: 800;
+      border: none; cursor: pointer; transition: all .2s;
+      white-space: nowrap;
     }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
-    .btn-primary  { background: var(--accent); color: #3b4632; font-weight: 800; }
-    .btn-primary:not(:disabled):hover  { background: var(--accent-mid); }
-    .btn-grape    { background: var(--tertiary); color: #fff; font-weight: 800; }
-    .btn-grape:not(:disabled):hover    { background: var(--tertiary-mid); }
-    .btn-success  { background: var(--accent); color: #3b4632; }
-    .btn-success:not(:disabled):hover  { background: var(--accent-mid); }
-    .btn-teal     { background: var(--secondary); color: #2b4549; }
-    .btn-teal:not(:disabled):hover     { background: var(--secondary-mid); }
-    .btn-ink      { background: var(--ink); color: #fff; }
-    .btn-ink:not(:disabled):hover      { background: var(--ink-mid); }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:not(:disabled):hover  { transform: translateY(-1px); filter: brightness(1.05); }
+    .btn-grape    { background: var(--brand); color: #fff; }
+    .btn-teal     { background: var(--secondary); color: #fff; }
+    .btn-ink      { background: var(--brand); color: #fff; }
+    .btn-success  { background: var(--ok); color: #fff; }
     .btn-ghost {
       background: var(--paper-warm); color: var(--ink-mid);
       border: 1px solid var(--line);
     }
-    .btn-ghost:not(:disabled):hover { background: var(--tertiary-pale); color: var(--tertiary); border-color: var(--tertiary); }
-    /* Dark ghost (in left panel) */
     .btn-panel-ghost {
-      background: rgba(255,255,255,.3); color: var(--panel-text);
-      border: 1px solid var(--panel-text);
+      background: var(--panel-usugaki); color: var(--panel-text);
+      border: 1.5px solid #c97586;
     }
-    .btn-panel-ghost:not(:disabled):hover { background: var(--panel-text); color: #ffffff; font-weight: 800; }
+    .btn-panel-ghost:hover { background: #c97586; color: #fff; border-color: #c97586; font-weight: 800; }
     .btn-danger-ghost {
       background: transparent; color: var(--ink-ghost); border: none; padding: 4px;
     }
@@ -310,57 +258,42 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       background: transparent; color: var(--panel-sub); border: none; padding: 5px; cursor: pointer;
       border-radius: 4px; transition: all .12s;
     }
-    .btn-dark-del:hover { color: var(--panel-text); background: rgba(0,0,0,.1); }
-    .btn-lg { padding: 10px 20px; font-size: 17px; border-radius: 8px; }
+    .btn-dark-del:hover { background: rgba(0,0,0,.1); }
 
-    /* ── View buttons (on 3D viewport) ── */
+    /* ── 3D 視角按鈕 ── */
     .view-btn {
-      padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 700;
-      background: rgba(255,255,255,.88); backdrop-filter: blur(6px);
-      border: 1px solid rgba(0,0,0,.08); color: var(--ink-mid);
-      cursor: pointer; transition: all .12s; letter-spacing: .2px; font-family: inherit;
+      padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 800;
+      background: rgba(255,255,255,.9);
+      border: 1px solid #ddd; color: var(--ink-mid);
+      cursor: pointer; transition: all .15s;
     }
-    .view-btn:hover { background: #fff; color: var(--brand); border-color: var(--brand); font-weight: 800; }
+    .view-btn:hover { border-color: var(--brand); color: var(--brand); }
 
-    /* ── Gap pill ── */
+    /* ── 其他 UI 元件 ── */
     .gap-pill {
-      background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
-      border: 1px solid var(--line); border-radius: 10px;
-      padding: 10px 14px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      background: rgba(255,255,255,.95); border: 1.5px solid var(--line); 
+      border-radius: 12px; padding: 12px 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     }
-
-    /* ── Progress bar ── */
-    @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
     .prog-bar {
       height: 100%; border-radius: 99px;
-      background: linear-gradient(90deg,var(--secondary-mid) 0%,#ffffff 40%,var(--secondary-mid) 60%,var(--secondary-mid) 100%);
-      background-size: 200% auto;
-      animation: shimmer 1.5s linear infinite;
-      transition: width .3s ease;
+      background: linear-gradient(90deg, var(--secondary) 0%, #ffffff 50%, var(--secondary) 100%);
+      background-size: 200% auto; animation: shimmer 1.5s linear infinite;
     }
-
-    /* ── Hint overlay ── */
-    .hint-overlay {
-      position: absolute; bottom: 68px; right: 10px;
-      background: rgba(45,43,51,.82); backdrop-filter: blur(8px);
-      color: rgba(255,255,255,.9); font-size: 13px; font-weight: 700;
-      padding: 6px 10px; border-radius: 8px;
-      pointer-events: none; z-index: 15; line-height: 2;
-      border: 1px solid rgba(255,255,255,.15);
-    }
-    .hint-key {
-      display: inline-block; background: rgba(255,255,255,.15);
-      border-radius: 4px; padding: 0 5px; margin-right: 4px;
-      font-family: monospace; font-size: 12px;
+    @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+    #canvas-wrap { position: absolute; inset: 8px; border-radius: 12px; overflow: hidden; border: 2px solid #434343; }
+    .stale-overlay {
+      position: absolute; inset: 0; background: rgba(255,255,255,.8); 
+      backdrop-filter: blur(4px); z-index: 30; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
     }
 
     /* ── Modal ── */
     @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
     .modal-backdrop {
-      position: fixed; inset: 0; z-index: 50;
-      background: rgba(45,43,51,.6); backdrop-filter: blur(6px);
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(43,58,103,.6); backdrop-filter: blur(6px);
       display: flex; align-items: center; justify-content: center;
       padding: 16px; animation: fadeIn .18s ease-out;
     }
@@ -382,35 +315,12 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       display: flex; justify-content: flex-end; align-items: center;
       gap: 8px; flex-shrink: 0;
     }
-
-    /* ── Stale overlay ── */
-    .stale-overlay {
-      position: absolute; inset: 0;
-      background: rgba(255,255,255,.78); backdrop-filter: blur(3px);
-      z-index: 30; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    /* ── Misc ── */
-    .touch-none { touch-action: none; }
-    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-    .hide-scroll::-webkit-scrollbar { display: none; }
-    #canvas-wrap { position: absolute; inset: 8px; border-radius: 10px; overflow: hidden; }
-
-    .preload-banner {
-      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
-      z-index: 60; background: var(--brand); color: #fff;
-      padding: 8px 18px; border-radius: 99px; font-size: 15px; font-weight: 700;
-      box-shadow: 0 4px 16px rgba(0,0,0,.15);
-      display: flex; align-items: center; gap: 6px;
-      pointer-events: none; animation: fadeUp .25s ease-out;
-    }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 let _uidCounter = 1;
 const uid = () => 'box_' + (_uidCounter++).toString(36).padStart(4,'0');
@@ -425,9 +335,10 @@ const CARDBOARD_TYPES = {
   'none': {L:0,W:0,H:0}, 'AB': {L:15,W:15,H:30}, 'A': {L:10,W:10,H:20},
   'B': {L:6,W:6,H:12}, 'EB': {L:9,W:9,H:18}, 'E': {L:3,W:3,H:6}
 };
-const COLORS = ['#a59aca', '#db4d6d', '#c8d5bb', '#94a8b0', '#a2d7dd', '#eb7a77', '#f9bf45'];
-const APP_VER = '2.01';
-const APP_DATE = '2026/03/31';
+// Use new colors (Index 0 changed to Araisyu with 90% opacity)
+const COLORS = ['rgba(251,150,110,0.9)', 'rgba(232,72,85,0.8)', 'rgba(181,107,69,0.8)', 'rgba(255,155,113,0.8)', 'rgba(249,223,116,0.8)', 'rgba(237,174,73,0.8)', 'rgba(97,33,15,0.8)'];
+const APP_VER = '2.0';
+const APP_DATE = '2026/04/01';
 
 // WORKER_CODE is defined in the preceding <script> tag
 
@@ -444,15 +355,16 @@ const T = {
     intAuto:'自動混合', intSingle:'單箱風車', intDouble:'雙箱風車',
     intFailTitle: '無法產生互扣排列', intFailMsg: '目前的紙箱尺寸無法以您選擇的「互扣方式」進行排列。\n\n系統已取消本次計算，請嘗試更換紙箱尺寸，或是取消勾選「強制互扣優先」。',
     calcBtn:'標準計算', calcIng:'計算中…', graspBtn:'深層優化 (GRASP)', graspIng:'優化中',
-    vIso:'等角', vTop:'俯視', vBottom:'仰視', vFront:'前視', vBack:'後視', vLeft:'左視', vRight:'右視',
+    vIso:'等角', vTop:'上', vBottom:'下', vFront:'前', vBack:'後', vLeft:'左', vRight:'右',
     play:'裝載順序：', xray:'透視', perspective:'透視投影', inner:'最內側', door:'門口', export:'導出3視圖 (.dxf)',
     saveHtml:'儲存設定', saveHtmlTitle:'儲存為 HTML 檔', saveHtmlDesc:'將當前所有輸入設定封裝進 HTML 檔案，其他人開啟後即可看到相同的設定，無需重新輸入。', saveHtmlBtn:'下載 HTML 檔案', saveHtmlDone:'已儲存！',
     reportBtn:'報告書 (.xlsx)', reportIng:'產出中…', palletUsage:'棧板所需數量', palletDetail:'棧板層數明細', palletPerUnit:'每棧板', palletLayerFmt:'每層{n}箱 × {l}層', palletCountFmt:'共{c}個棧板',
     sumTitle:'裝載結果', totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積', detail:'各類別裝載數量', boxU:'箱',
     warnTitle:'部分箱體未能完全裝入', wShort:'短缺', wReq:'需求', wPack:'實裝', wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。', wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。', staleWarning:'設定已變更，請重新計算',
     remTitle:'剩餘間隙', remD:'深度 (Z)', remW:'寬度 (X)', remH:'高度 (Y)', remInc:'含預留', helpBtn:'使用說明', helpTitle:'操作說明', closeBtn:'關閉',
-    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'新增互扣失敗防呆機制，若紙箱尺寸無法支援強制互扣條件，將立即中斷並顯示警告視窗，提示使用者更換排版策略，避免空轉。',
+    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'移除浮水印文字，並將右上角按鈕整合成互動式 3D 視角方塊 (ViewCube)，帶來更直覺的視點切換體驗！',
     ctn20:"20呎標準櫃 (20' GP)", ctn40:"40呎標準櫃 (40' GP)", ctn40h:"40呎高櫃 (40' HQ)", preloadBanner:'✓ 已載入預存設定',
+    groupUnit: '棧板',
   },
   ja:{
     title:'コンテナ積載計算ツール', lang:'中文切替', shot:'撮影', by:'作成：分室', ctnSet:'コンテナ設定', ctnSub:'JIS/ISO 規定の最小内部寸法を使用',
@@ -466,15 +378,16 @@ const T = {
     intAuto:'自動ミックス', intSingle:'シングル風車', intDouble:'ダブル風車',
     intFailTitle: 'インターロック配置不可', intFailMsg: '現在の箱の寸法では、選択した「インターロック」を生成できません。\n\n計算をキャンセルしました。箱の寸法を変更するか、「インターロック優先」のチェックを外してください。',
     calcBtn:'標準計算', calcIng:'計算中…', graspBtn:'深層最適化（GRASP）', graspIng:'最適化中',
-    vIso:'等角', vTop:'平面', vBottom:'底面', vFront:'正面', vBack:'背面', vLeft:'左側面', vRight:'右側面',
+    vIso:'等角', vTop:'上', vBottom:'下', vFront:'前', vBack:'後', vLeft:'左', vRight:'右',
     play:'積載順序：', xray:'透過表示', perspective:'透視投影', inner:'最奥', door:'ドア側', export:'3面図を出力（.dxf）',
     saveHtml:'設定を保存', saveHtmlTitle:'HTML ファイルとして保存', saveHtmlDesc:'現在の入力設定を HTML ファイルに埋め込みます。他のユーザーがファイルを開くと、同じ設定が自動的に読み込まれます。', saveHtmlBtn:'HTML ファイルをダウンロード', saveHtmlDone:'保存完了！',
     reportBtn:'レポート（.xlsx）', reportIng:'出力中…', palletUsage:'パレット必要数', palletDetail:'パレット積付け詳細', palletPerUnit:'パレット毎', palletLayerFmt:'1層{n}箱 × {l}層', palletCountFmt:'計{c}パレット',
     sumTitle:'積載結果', totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積', detail:'種類別積載数', boxU:'箱',
     warnTitle:'一部の箱が積載できませんでした', wShort:'不足', wReq:'要求', wPack:'実積載', wAnal:'🔍 原因：残りスペースが分断されており、箱を収められません。', wSug:'💡 提案：深層最適化 / 大きなコンテナに変更 / 余白を縮小。', staleWarning:'設定が変更されました。再計算してください',
     remTitle:'残りスペース', remD:'奥行（Z）', remW:'幅（X）', remH:'高さ（Y）', remInc:'余白含む', helpBtn:'ヘルプ', helpTitle:'操作ガイド', closeBtn:'閉じる',
-    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'インターロック失敗防止機能を追加しました。箱のサイズが強制インターロックの条件を満たさない場合、即座に計算を中断し警告ウィンドウを表示します。',
+    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'ビューキューブ（3D視点切り替えブロック）を実装し、操作をより直感的にしました。',
     ctn20:"20フィート標準（20' GP）", ctn40:"40フィート標準（40' GP）", ctn40h:"40フィートHQ（40' HQ）", preloadBanner:'✓ 保存済み設定を読み込みました',
+    groupUnit: 'パレット',
   }
 };
 
@@ -495,13 +408,14 @@ const Ico = {
   Book: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
   Star: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>,
   Chk:  ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Gear: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   X:    ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  Save: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
-  Table:({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
   Layers:({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
   WindSingle:({s})=><svg width={s||18} height={s||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="10" height="7" rx="1"/><rect x="14" y="3" width="7" height="10" rx="1"/><rect x="11" y="14" width="10" height="7" rx="1"/><rect x="3" y="11" width="7" height="10" rx="1"/></svg>,
   WindDouble:({s})=><svg width={s||18} height={s||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="10" height="3" rx=".5"/><rect x="3" y="7" width="10" height="3" rx=".5"/><rect x="14" y="3" width="3" height="10" rx=".5"/><rect x="18" y="3" width="3" height="10" rx=".5"/><rect x="11" y="14" width="10" height="3" rx=".5"/><rect x="11" y="18" width="10" height="3" rx=".5"/><rect x="3" y="11" width="3" height="10" rx=".5"/><rect x="7" y="11" width="3" height="10" rx=".5"/></svg>,
+  Gear: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  Save: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+  Table:({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
+  Home: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
 };
 
 // ── Helpers ────────────────────────────────────────────
@@ -533,7 +447,7 @@ function BaseModal({onClose, title, children, footer, wide, accent}){
     <div className="modal-backdrop">
       <div className={"modal-box "+(wide?'w-full max-w-4xl max-h-[92vh]':'w-full max-w-lg max-h-[88vh]')}>
         <div className="modal-header" style={accent?{borderTop:`3px solid ${accent}`,background:'var(--paper-warm)'}:{}}>
-          <span style={{fontWeight:700, fontSize:17}}>{title}</span>
+          <span style={{fontWeight:700, fontSize:17, color: 'var(--brand)'}}>{title}</span>
           <button onClick={onClose} className="btn-danger-ghost btn" style={{padding:'5px'}}><Ico.X s={14}/></button>
         </div>
         <div className="modal-body">{children}</div>
@@ -610,10 +524,10 @@ function HelpModal({onClose, lang}){
       <F name="計算基準" type="下拉選單" c="標準尺寸：不考慮公差。最大：假設最大狀態。最小：假設最小狀態。中間值：取正負公差平均，模擬整批平均預期尺寸。"/>
     </div>,
     <div key="q3" style={{padding:20}}>
-      <F name="標準計算" type="青綠色按鈕" c="快速裝載演算（約 1 秒）。"/>
-      <F name="深層優化（GRASP）" type="淺藍色按鈕" c="100 次隨機迭代搜尋最佳排列（約 5～15 秒），UI 不卡頓。"/>
-      <F name="報告書（.xlsx）" type="表格按鈕" c="三種公差各算一次，輸出 Excel 比較表，含 3D 截圖。"/>
-      <F name="導出3視圖（.dxf）" type="下載按鈕" c="1:40 比例 DXF 三視圖，含尺寸標註線，可在 AutoCAD 直接讀值。"/>
+      <F name="標準計算" type="主要按鈕" c="快速裝載演算（約 1 秒）。"/>
+      <F name="深層優化（GRASP）" type="次要按鈕" c="100 次隨機迭代搜尋最佳排列（約 5～15 秒），UI 不卡頓。"/>
+      <F name="報告書（.xlsx）" type="頂部按鈕" c="三種公差各算一次，輸出 Excel 比較表，含 3D 截圖。"/>
+      <F name="導出3視圖（.dxf）" type="頂部按鈕" c="1:40 比例 DXF 三視圖，含尺寸標註線，可在 AutoCAD 直接讀值。"/>
       <F name="複製（箱體）" type="圖示按鈕" c="快速複製相同規格箱體，省去重複輸入。"/>
     </div>,
     <div key="q4" style={{padding:20}}>
@@ -748,11 +662,10 @@ function App(){
   const [saveOpen, setSaveOpen]   = useState(false);
   const [showPreloadBanner, setShowPreloadBanner] = useState(!!PS);
   const [interlockWarn, setInterlockWarn] = useState(false);
+
   const workerRef = useRef(null);
 
   const clearResult = useCallback(() => { setResult({packed:[],stats:null}); setStep(0); }, []);
-
-  useEffect(()=>{ if(showPreloadBanner){ const tm=setTimeout(()=>setShowPreloadBanner(false),4000); return ()=>clearTimeout(tm); } },[showPreloadBanner]);
 
   const canvasRef    = useRef(null);
   const meshesRef    = useRef([]);
@@ -762,6 +675,12 @@ function App(){
   const sceneRef     = useRef(null);
   const rendererRef  = useRef(null);
   const meshGroupRef = useRef(null);
+
+  // Compass 3D References
+  const compassRef = useRef(null);
+  const compassRendererRef = useRef(null);
+  const compassSceneRef = useRef(null);
+  const compassCameraRef = useRef(null);
 
   const doSaveHtml = useCallback(() => {
     const state = { lang, ctnType, doorGap, innerGap, rightGap, topGap, suppPct, strat, boxes, isJapanBound, palletType, interlockFirst, interlockType, xAlign };
@@ -801,23 +720,38 @@ function App(){
       setReportProgress(20);
       await new Promise(r=>setTimeout(r,10));
 
-      const runModeForReport = (mode) => {
+      const runWorkerSim = (testBoxes) => {
+        return new Promise((resolve, reject) => {
+          const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
+          const url  = URL.createObjectURL(blob);
+          const worker = new Worker(url);
+          worker.onmessage = (e) => {
+            if (e.data.type === 'done') {
+              worker.terminate(); URL.revokeObjectURL(url);
+              resolve(e.data);
+            }
+          };
+          worker.onerror = (err) => {
+            worker.terminate(); URL.revokeObjectURL(url);
+            reject(err);
+          };
+          worker.postMessage({ boxes: testBoxes, innerGap, maxX, maxY, maxZ, strat, thresh: thr, isJapanBound, palletType, interlockFirst, interlockType, xAlign, ITER: 1 });
+        });
+      };
+
+      const runModeForReport = async (mode) => {
         const testBoxes = boxes.map(b=>Object.assign({},b,{calcMode:mode}));
-        let best=[], bestVol=-1;
-        const tryIt = arr => { const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0); if(v>bestVol){bestVol=v;best=arr;} };
-        const unpack = (res) => res.packed || [];
-        const runSim = (arr,s,rand) => isJapanBound ? unpack(simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst,interlockType,xAlign)) : unpack(simulate(arr,innerGap,maxX,maxY,maxZ,s,thr,rand));
-        if(strat==='auto'){tryIt(runSim(testBoxes,'length',false));tryIt(runSim(testBoxes,'width',false));}
-        else tryIt(runSim(testBoxes,strat,false));
+        const res = await runWorkerSim(testBoxes);
+        const best = res.packed || [];
         let vol=0; const counts={};
         best.forEach(p=>{if(p.isPallet||p.isPad) return; vol+=p.w*p.h*p.d; counts[p.typeId]=(counts[p.typeId]||0)+1;});
         const rem={w:getGaps(best,c,'X',maxX),h:getGaps(best,c,'Y',maxY),d:getGaps(best,c,'Z',maxZ)};
         return {total:Object.values(counts).reduce((a,b)=>a+b,0),counts,rem};
       };
 
-      const resMax = runModeForReport('max'); setReportProgress(40); await new Promise(r=>setTimeout(r,10));
-      const resMid = runModeForReport('mid'); setReportProgress(60); await new Promise(r=>setTimeout(r,10));
-      const resMin = runModeForReport('min'); setReportProgress(75); await new Promise(r=>setTimeout(r,10));
+      const resMax = await runModeForReport('max'); setReportProgress(40); await new Promise(r=>setTimeout(r,10));
+      const resMid = await runModeForReport('mid'); setReportProgress(60); await new Promise(r=>setTimeout(r,10));
+      const resMin = await runModeForReport('min'); setReportProgress(75); await new Promise(r=>setTimeout(r,10));
 
       const wb = new window.ExcelJS.Workbook();
       const ws = wb.addWorksheet('分析レポート');
@@ -933,14 +867,58 @@ function App(){
     setLoading(false); setGraspOn(false);
   };
 
-  // ── Three.js scene ──
+  const changeView=(v)=>{
+    const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
+    if(!cam||!ctrl) return;
+    ctrl.target.set(0,0,0);
+    const dist=Math.max(c.w,c.d)*1.5;
+    if(v==='iso')    cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
+    if(v==='top')    cam.position.set(0,dist,0);
+    if(v==='bottom') cam.position.set(0,-dist,0);
+    if(v==='front')  cam.position.set(0,0,dist);
+    if(v==='back')   cam.position.set(0,0,-dist);
+    if(v==='left')   cam.position.set(-dist,0,0);
+    if(v==='right')  cam.position.set(dist,0,0);
+    ctrl.update();
+  };
+
+  const doExport=()=>{
+    if(!result.packed.length) return;
+    const c=CONTAINERS[ctnType], sc=1/40, gap=1500*sc, eps=1e-4;
+    let dxf='0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+    const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
+    const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
+    const aci=id=>{if(id==='pallet')return 33;if(id==='pad')return 9;const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
+    const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
+    rect(0,0,cW,cH,'CONTAINER',7);rect(0,cH+gap,cW,cD,'CONTAINER',7);rect(cW+gap,0,cD,cH,'CONTAINER',7);
+    const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
+    const pview=(faces,dx,dy)=>{
+      for(let i=0;i<faces.length;i++){
+        const F=faces[i];
+        let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];
+        for(let j=0;j<faces.length;j++){if(i===j)continue;const O=faces[j];if(O.depth>F.depth+eps){if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);}}
+        tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});
+        bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});
+        lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});
+        rS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+F.w+dx,s.s+dy,F.x+F.w+dx,s.e+dy,F.lay,F.col);});
+      }
+    };
+    pview(result.packed.map(p=>({x:p.x*sc,y:p.y*sc,w:p.w*sc,h:p.h*sc,depth:(p.z+p.d)*sc,col:aci(p.typeId),lay:'FRONT'})),0,0);
+    pview(result.packed.map(p=>({x:p.x*sc,y:cD-(p.z+p.d)*sc,w:p.w*sc,h:p.d*sc,depth:(p.y+p.h)*sc,col:aci(p.typeId),lay:'TOP'})),0,cH+gap);
+    pview(result.packed.map(p=>({x:cD-(p.z+p.d)*sc,y:p.y*sc,w:p.d*sc,h:p.h*sc,depth:(p.x+p.w)*sc,col:aci(p.typeId),lay:'SIDE'})),cW+gap,0);
+    dxf+='0\nENDSEC\n0\nEOF\n';
+    const blob=new Blob([dxf],{type:'application/dxf'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='3view_'+ctnType+'.dxf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
   useEffect(()=>{
     if(!canvasRef.current||!window.THREE) return;
     const THREE=window.THREE;
     canvasRef.current.innerHTML='';
-    meshesRef.current=[]; meshGroupRef.current=null; dimRef.current=null;
     const W=canvasRef.current.clientWidth, H=canvasRef.current.clientHeight;
-    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf4f4f4); /* 清新亮灰白，配合整體純白設計 */
+    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xffffff);
     sceneRef.current=scene;
     const c=CONTAINERS[ctnType];
     const aspect=W/H;
@@ -951,18 +929,18 @@ function App(){
     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
     rendererRef.current=renderer;
     renderer.setSize(W,H); canvasRef.current.appendChild(renderer.domElement);
-    renderer.domElement.style.borderRadius='8px';
+    renderer.domElement.style.borderRadius='10px';
     const controls=new THREE.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=true; ctrlRef.current=controls;
     scene.add(new THREE.AmbientLight(0xffffff,.65));
     const dl=new THREE.DirectionalLight(0xffffff,.55); dl.position.set(10000,20000,10000); scene.add(dl);
     const dl2=new THREE.DirectionalLight(0xffffff,.2); dl2.position.set(-8000,5000,-6000); scene.add(dl2);
-    // Container wireframe — refined grey
+    
     scene.add(new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(c.w,c.h,c.d)),
       new THREE.LineBasicMaterial({color:0x8a8a82,linewidth:1.5})
     ));
-    // Effective zone dashed lines
+    
     const eX0=-c.w/2, eX1=eX0+(c.w-rightGap), eY0=-c.h/2, eY1=eY0+(c.h-topGap), eZ0=-c.d/2+innerGap, eZ1=c.d/2-doorGap;
     const corners=[new THREE.Vector3(eX0,eY0,eZ0),new THREE.Vector3(eX1,eY0,eZ0),new THREE.Vector3(eX0,eY1,eZ0),new THREE.Vector3(eX1,eY1,eZ0),new THREE.Vector3(eX0,eY0,eZ1),new THREE.Vector3(eX1,eY0,eZ1),new THREE.Vector3(eX0,eY1,eZ1),new THREE.Vector3(eX1,eY1,eZ1)];
     const edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
@@ -974,12 +952,107 @@ function App(){
     });
     scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xc05858,linewidth:1.5})));
     camera.position.set(c.w*1.8,c.h*1.8,c.d*1.5); controls.update();
-    const animate=()=>{requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
+
+    // ── Setup 3D Compass (ViewCube) ──
+    if (compassRef.current) {
+      compassRef.current.innerHTML = '';
+      const cW = 100, cH = 100;
+      const compScene = new THREE.Scene();
+      const compCam = new THREE.OrthographicCamera(-2.5, 2.5, 2.5, -2.5, 0.1, 100);
+      compCam.position.set(0, 0, 5);
+
+      const compRend = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      compRend.setSize(cW, cH);
+      compassRef.current.appendChild(compRend.domElement);
+
+      const createTextTexture = (text, bgStr) => {
+        const cv = document.createElement('canvas');
+        cv.width = 128; cv.height = 128;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = bgStr;
+        ctx.fillRect(0,0,128,128);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 50px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 64, 64);
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(0,0,128,128);
+        return new THREE.CanvasTexture(cv);
+      };
+
+      const mats = [
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vRight, '#eb7a77')}), // +x (Right)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vLeft, '#eb7a77')}),  // -x (Left)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vTop, '#c8d5bb')}),   // +y (Top)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBottom, '#c8d5bb')}),// -y (Bottom)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vFront, '#51a8dd')}), // +z (Front)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBack, '#51a8dd')})   // -z (Back)
+      ];
+      const compCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mats);
+      compScene.add(compCube);
+      
+      const compEdges = new THREE.EdgesGeometry(compCube.geometry);
+      compCube.add(new THREE.LineSegments(compEdges, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })));
+
+      compassSceneRef.current = compScene;
+      compassCameraRef.current = compCam;
+      compassRendererRef.current = compRend;
+
+      const compRaycaster = new THREE.Raycaster();
+      const compMouse = new THREE.Vector2();
+
+      const onCompassClick = (e) => {
+        const rect = compRend.domElement.getBoundingClientRect();
+        compMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        compMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        compRaycaster.setFromCamera(compMouse, compCam);
+        const intersects = compRaycaster.intersectObject(compCube);
+        if (intersects.length > 0) {
+          const fIdx = intersects[0].face.materialIndex;
+          const vMap = { 0: 'right', 1: 'left', 2: 'top', 3: 'bottom', 4: 'front', 5: 'back' };
+          changeView(vMap[fIdx]);
+        }
+      };
+
+      const onCompassHover = (e) => {
+        const rect = compRend.domElement.getBoundingClientRect();
+        compMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        compMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        compRaycaster.setFromCamera(compMouse, compCam);
+        const intersects = compRaycaster.intersectObject(compCube);
+        compRend.domElement.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
+      };
+
+      compRend.domElement.addEventListener('click', onCompassClick);
+      compRend.domElement.addEventListener('mousemove', onCompassHover);
+    }
+
+    const animate=()=>{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene,camera);
+
+      // Sync Compass
+      if (compassRendererRef.current && compassSceneRef.current && compassCameraRef.current) {
+        const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+        compassCameraRef.current.position.copy(offset).normalize().multiplyScalar(6);
+        compassCameraRef.current.lookAt(0, 0, 0);
+        compassCameraRef.current.up.copy(camera.up);
+        compassRendererRef.current.render(compassSceneRef.current, compassCameraRef.current);
+      }
+    };
     animate();
+
     const onResize=()=>{if(!canvasRef.current)return;const ratio=canvasRef.current.clientWidth/canvasRef.current.clientHeight;if(isPerspective){camera.aspect=ratio;camera.updateProjectionMatrix();}renderer.setSize(canvasRef.current.clientWidth,canvasRef.current.clientHeight);};
     window.addEventListener('resize',onResize);
-    return()=>{window.removeEventListener('resize',onResize);renderer.dispose();};
-  },[ctnType,isPerspective]);
+    return()=>{
+      window.removeEventListener('resize',onResize);
+      renderer.dispose();
+      if(compassRendererRef.current) compassRendererRef.current.dispose();
+    };
+  },[ctnType,isPerspective,lang]);
 
   useEffect(()=>{
     if(!sceneRef.current||!window.THREE) return;
@@ -1026,56 +1099,33 @@ function App(){
     if(dimRef.current) dimRef.current.visible=(step===result.packed.length&&result.packed.length>0);
   },[step,xray,result]);
 
-  const changeView=(v)=>{
-    const c=CONTAINERS[ctnType], cam=camRef.current, ctrl=ctrlRef.current;
-    if(!cam||!ctrl) return;
-    ctrl.target.set(0,0,0);
-    const dist=Math.max(c.w,c.d)*1.5;
-    if(v==='iso')    cam.position.set(c.w*1.8,c.h*1.8,c.d*1.5);
-    if(v==='top')    cam.position.set(0,dist,0);
-    if(v==='bottom') cam.position.set(0,-dist,0);
-    if(v==='front')  cam.position.set(0,0,dist);
-    if(v==='back')   cam.position.set(0,0,-dist);
-    if(v==='left')   cam.position.set(-dist,0,0);
-    if(v==='right')  cam.position.set(dist,0,0);
-    ctrl.update();
-  };
-
-  const doExport=()=>{
-    if(!result.packed.length) return;
-    const c=CONTAINERS[ctnType], sc=1/40, gap=1500*sc, eps=1e-4;
-    let dxf='0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
-    const ln=(x1,y1,x2,y2,lay,col)=>{dxf+='0\nLINE\n8\n'+lay+'\n62\n'+col+'\n10\n'+x1.toFixed(4)+'\n20\n'+y1.toFixed(4)+'\n30\n0.0\n11\n'+x2.toFixed(4)+'\n21\n'+y2.toFixed(4)+'\n31\n0.0\n';};
-    const rect=(x,y,w,h,l,co)=>{ln(x,y,x+w,y,l,co);ln(x+w,y,x+w,y+h,l,co);ln(x+w,y+h,x,y+h,l,co);ln(x,y+h,x,y,l,co);};
-    // dimLine removed per requirement
-    const aci=id=>{if(id==='pallet')return 33;if(id==='pad')return 9;const i=boxes.findIndex(b=>b.id===id);return [5,1,3,2,6,4][i%6]||7;};
-    const cW=c.w*sc,cH=c.h*sc,cD=c.d*sc;
-    rect(0,0,cW,cH,'CONTAINER',7);rect(0,cH+gap,cW,cD,'CONTAINER',7);rect(cW+gap,0,cD,cH,'CONTAINER',7);
-    // no dimension annotations
-    const clip=(segs,lo,hi)=>{let r=[];for(const s of segs){if(hi<=s.s+eps||lo>=s.e-eps){r.push(s);}else{if(lo>s.s+eps)r.push({s:s.s,e:lo});if(hi<s.e-eps)r.push({s:hi,e:s.e});}}return r;};
-    const pview=(faces,dx,dy)=>{
-      for(let i=0;i<faces.length;i++){
-        const F=faces[i];
-        let tS=[{s:F.x,e:F.x+F.w}],bS=[{s:F.x,e:F.x+F.w}],lS=[{s:F.y,e:F.y+F.h}],rS=[{s:F.y,e:F.y+F.h}];
-        for(let j=0;j<faces.length;j++){if(i===j)continue;const O=faces[j];if(O.depth>F.depth+eps){if(O.y-eps<=F.y+F.h&&F.y+F.h<=O.y+O.h+eps)tS=clip(tS,O.x,O.x+O.w);if(O.y-eps<=F.y&&F.y<=O.y+O.h+eps)bS=clip(bS,O.x,O.x+O.w);if(O.x-eps<=F.x&&F.x<=O.x+O.w+eps)lS=clip(lS,O.y,O.y+O.h);if(O.x-eps<=F.x+F.w&&F.x+F.w<=O.x+O.w+eps)rS=clip(rS,O.y,O.y+O.h);}}
-        tS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+F.h+dy,s.e+dx,F.y+F.h+dy,F.lay,F.col);});
-        bS.forEach(s=>{if(s.e-s.s>eps)ln(s.s+dx,F.y+dy,s.e+dx,F.y+dy,F.lay,F.col);});
-        lS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+dx,s.s+dy,F.x+dx,s.e+dy,F.lay,F.col);});
-        rS.forEach(s=>{if(s.e-s.s>eps)ln(F.x+F.w+dx,s.s+dy,F.x+F.w+dx,s.e+dy,F.lay,F.col);});
-      }
-    };
-    pview(result.packed.map(p=>({x:p.x*sc,y:p.y*sc,w:p.w*sc,h:p.h*sc,depth:(p.z+p.d)*sc,col:aci(p.typeId),lay:'FRONT'})),0,0);
-    pview(result.packed.map(p=>({x:p.x*sc,y:cD-(p.z+p.d)*sc,w:p.w*sc,h:p.d*sc,depth:(p.y+p.h)*sc,col:aci(p.typeId),lay:'TOP'})),0,cH+gap);
-    pview(result.packed.map(p=>({x:cD-(p.z+p.d)*sc,y:p.y*sc,w:p.d*sc,h:p.h*sc,depth:(p.x+p.w)*sc,col:aci(p.typeId),lay:'SIDE'})),cW+gap,0);
-    dxf+='0\nENDSEC\n0\nEOF\n';
-    const blob=new Blob([dxf],{type:'application/dxf'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='3view_'+ctnType+'.dxf';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  };
-
-  const c=CONTAINERS[ctnType];
   const hasPacked=result.packed.length>0;
+
+  // ── 處理進度條群組化邏輯 ──
+  const isGrouped = result.stats && result.stats.palletCount > 0;
+  const groupSteps = useMemo(() => {
+    if (!result.packed || result.packed.length === 0) return [0];
+    if (!isGrouped) return Array.from({ length: result.packed.length + 1 }, (_, i) => i);
+    
+    const steps = [0];
+    for (let i = 0; i < result.packed.length; i++) {
+      if (result.packed[i].isPallet && result.packed[i].typeId === 'pallet' && i > 0) {
+        steps.push(i);
+      }
+    }
+    steps.push(result.packed.length);
+    return steps;
+  }, [result.packed, isGrouped]);
+
+  let currentSliderVal = groupSteps.indexOf(step);
+  if (currentSliderVal === -1) {
+    currentSliderVal = groupSteps.length - 1;
+    for (let i = 0; i < groupSteps.length; i++) {
+      if (groupSteps[i] >= step) {
+        currentSliderVal = i; break;
+      }
+    }
+  }
 
   // ── Label strip ──
   const LabelStrip = () => (
@@ -1115,6 +1165,8 @@ function App(){
     );
   };
 
+  const c=CONTAINERS[ctnType];
+
   return (
     <div id="app-root" style={{minHeight:'100vh',padding:'20px 24px',background:'var(--paper)'}}>
       {/* ── Modals ── */}
@@ -1122,7 +1174,7 @@ function App(){
       {saveOpen && <SaveHtmlModal onClose={()=>setSaveOpen(false)} onSave={doSaveHtml} lang={lang} t={t}/>}
 
       {fixOpen && (
-        <BaseModal onClose={()=>setFixOpen(false)} title={t.fixTitle} accent="var(--ok)"
+        <BaseModal onClose={()=>setFixOpen(false)} title={t.fixTitle} accent="var(--brand)"
           footer={<button onClick={()=>setFixOpen(false)} className="btn btn-ink">{t.closeBtn}</button>}>
           <div style={{padding:20}}>
             <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',background:'var(--ok-soft)',borderRadius:8,border:'1px solid var(--ok)'}}>
@@ -1161,7 +1213,7 @@ function App(){
         {/* ── Header ── */}
         <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 24px',background:'var(--paper-card)',borderRadius:'16px',marginBottom:'16px',border:'1px solid rgba(0,0,0,0.08)',gap:12,flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <div style={{width:40,height:40,background:'var(--brand)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',flexShrink:0,boxShadow:'0 2px 8px rgba(165,154,202,0.4)'}}>
+            <div style={{width:40,height:40,background:'var(--brand)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',flexShrink:0}}>
               <Ico.Pkg s={22}/>
             </div>
             <div>
@@ -1203,7 +1255,7 @@ function App(){
         {/* ── Main layout ── */}
         <div style={{display:'grid',gridTemplateColumns:'368px 1fr',gap:16,alignItems:'start'}}>
 
-          {/* ══ LEFT PANEL (Asaginezumi #94A8B0) ══ */}
+          {/* ══ LEFT PANEL ══ */}
           <div className="left-panel">
 
             {/* ── Container Settings ── */}
@@ -1216,29 +1268,29 @@ function App(){
 
               <div style={{marginBottom:10}}>
                 <label className="left-label">{lang==='zh'?'貨櫃規格':'コンテナ規格'}</label>
-                <select className="ctrl-dark" value={ctnType} onChange={e=>{setCtnType(e.target.value);clearResult();}}>
+                <select className="ctrl-dark" value={ctnType} onChange={e=>{setCtnType(e.target.value);clearResult();}} style={{height: '36px', padding: '0 10px', boxSizing: 'border-box'}}>
                   <option value="20GP">{t.ctn20}</option>
                   <option value="40GP">{t.ctn40}</option>
                   <option value="40HQ">{t.ctn40h}</option>
                 </select>
               </div>
 
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,background:'rgba(255,255,255,.15)',border:'1px solid rgba(255,255,255,.25)',borderRadius:8,padding:'10px 12px',marginBottom:10}}>
-                <div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,background:'var(--panel-mizugaki)',border:'1px solid #e4ab9b',borderRadius:8,padding:'10px 12px',marginBottom:10}}>
+                <div style={{gridColumn:'span 3', borderBottom:'1px solid rgba(255,255,255,0.4)', paddingBottom:6, marginBottom:2}}>
                   <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimTotal}</div>
-                  <div style={{fontWeight:700,fontSize:14,color:'var(--panel-text)'}}>{c.d}x{c.w}x{c.h} mm</div>
+                  <div style={{fontWeight:700,fontSize:15,color:'var(--panel-text)'}}>{c.d}x{c.w}x{c.h} mm</div>
                 </div>
                 <div>
                   <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimD}</div>
-                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.d-doorGap-innerGap)} mm</div>
+                  <div style={{fontWeight:800,fontSize:15,color:'var(--highlight)'}}>{Math.max(0,c.d-doorGap-innerGap)} mm</div>
                 </div>
                 <div>
                   <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimW}</div>
-                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.w-rightGap)} mm</div>
+                  <div style={{fontWeight:800,fontSize:15,color:'var(--highlight)'}}>{Math.max(0,c.w-rightGap)} mm</div>
                 </div>
                 <div>
                   <div style={{fontSize:12,color:'var(--panel-sub)',fontWeight:700,letterSpacing:'.3px',marginBottom:2}}>{t.dimH}</div>
-                  <div style={{fontWeight:700,fontSize:15,color:'var(--nakabeni)'}}>{Math.max(0,c.h-topGap)} mm</div>
+                  <div style={{fontWeight:800,fontSize:15,color:'var(--highlight)'}}>{Math.max(0,c.h-topGap)} mm</div>
                 </div>
               </div>
 
@@ -1250,7 +1302,7 @@ function App(){
                   {[[t.gInner,innerGap,setInnerGap],[t.gDoor,doorGap,setDoorGap],[t.gRight,rightGap,setRightGap],[t.gTop,topGap,setTopGap]].map(([lbl,v,fn],i)=>(
                     <div key={i}>
                       <label className="left-label">{lbl}</label>
-                      <input type="number" min="0" value={v} onChange={e=>{fn(Number(e.target.value));clearResult();}} className="ctrl-dark" style={{fontSize:15}}/>
+                      <input type="number" min="0" value={v} onChange={e=>{fn(Number(e.target.value));clearResult();}} className="ctrl-dark" style={{fontSize:15, height: '36px', padding: '0 8px'}}/>
                     </div>
                   ))}
                 </div>
@@ -1274,7 +1326,7 @@ function App(){
                 <div className="left-sec-dot"></div>
                 <span className="left-sec-title">{t.boxSet}</span>
                 <button onClick={()=>setBoxes(bs=>[...bs,{id:uid(),name:t.boxPfx+' '+String.fromCharCode(65+bs.length%26),cbType:'none',L:500,W:400,H:300,color:COLORS[bs.length%COLORS.length],qty:0,tolPlus:0,tolMinus:0,calcMode:'mid'}])}
-                  className="btn btn-panel-ghost" style={{marginLeft:'auto',padding:'4px 10px',fontSize:14}}>
+                  className="btn btn-panel-ghost" style={{marginLeft:'auto',padding:'4px 10px',fontSize:14, marginTop:'2px'}}>
                   <Ico.Plus s={12}/>{t.addBox}
                 </button>
               </div>
@@ -1305,7 +1357,7 @@ function App(){
                       </div>
                       <div style={{marginBottom:8}}>
                         <label className="left-label">{t.cbType}</label>
-                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14}}>
+                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px'}}>
                           <option value="none">{lang==='zh'?'無（直接輸入外寸）':'なし（外寸を直接入力）'}</option>
                           <option value="AB">AB段 {lang==='zh'?'（長寬+15、高+30）':'（長幅+15、高+30）'}</option>
                           <option value="A">A段 {lang==='zh'?'（長寬+10、高+20）':'（長幅+10、高+20）'}</option>
@@ -1314,26 +1366,26 @@ function App(){
                           <option value="E">E段 {lang==='zh'?'（長寬+3、高+6）':'（長幅+3、高+6）'}</option>
                         </select>
                       </div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5,marginBottom:7}}>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1.2fr',gap:5,marginBottom:7}}>
                         {[['L',t.fL],['W',t.fW],['H',t.fH],['qty',t.fQ]].map(([f,lbl])=>(
-                          <div key={f}>
-                            <label className="left-label">{lbl}</label>
-                            <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:15,padding:'5px 6px'}}/>
+                          <div key={f} style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%'}}>
+                            <label className="left-label" style={{marginBottom: 4, lineHeight: 1.2}}>{lbl}</label>
+                            <input type="number" min={f==='qty'?0:1} value={box[f]} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,[f]:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:15, padding:'0 8px', height: '36px', boxSizing:'border-box'}}/>
                           </div>
                         ))}
                       </div>
-                      <div style={{borderTop:'1px solid var(--panel-line)',paddingTop:7,display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5}}>
-                        <div>
-                          <label className="left-label">{t.tPlus}</label>
-                          <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14,padding:'5px 6px'}}/>
+                      <div style={{borderTop:'1px solid var(--panel-line)',paddingTop:7,display:'grid',gridTemplateColumns:'1fr 1fr 2fr',gap:5}}>
+                        <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%'}}>
+                          <label className="left-label" style={{marginBottom: 4, lineHeight: 1.2}}>{t.tPlus}</label>
+                          <input type="number" value={box.tolPlus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolPlus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14, padding:'0 8px', height: '36px', boxSizing:'border-box'}}/>
                         </div>
-                        <div>
-                          <label className="left-label">{t.tMinus}</label>
-                          <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14,padding:'5px 6px'}}/>
+                        <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%'}}>
+                          <label className="left-label" style={{marginBottom: 4, lineHeight: 1.2}}>{t.tMinus}</label>
+                          <input type="number" value={box.tolMinus} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,tolMinus:Number(e.target.value)}:b))} className="ctrl-dark" style={{fontSize:14, padding:'0 8px', height: '36px', boxSizing:'border-box'}}/>
                         </div>
-                        <div style={{gridColumn:'span 2'}}>
-                          <label className="left-label">{t.calcMode}</label>
-                          <select value={box.calcMode==='nominal'?'mid':box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14}}>
+                        <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%'}}>
+                          <label className="left-label" style={{marginBottom: 4, lineHeight: 1.2}}>{t.calcMode}</label>
+                          <select value={box.calcMode==='nominal'?'mid':box.calcMode} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,calcMode:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px', boxSizing:'border-box'}}>
                             <option value="mid">{t.mMid}</option>
                             <option value="max">{t.mMax}</option>
                             <option value="min">{t.mMin}</option>
@@ -1343,7 +1395,7 @@ function App(){
                       {showLabel && (
                         <div className="box-computed">
                           <span style={{fontSize:13,color:'var(--panel-sub)',fontWeight:700}}>{t.mLabel}</span>
-                          <span style={{fontSize:14,fontWeight:700,color:'var(--panel-text)',letterSpacing:'.4px'}}>{finL}x{finW}x{finH} <span style={{fontSize:12,fontWeight:400,opacity:.7}}>mm</span></span>
+                          <span style={{fontSize:14,fontWeight:700,color:'var(--highlight)',letterSpacing:'.4px'}}>{finL}x{finW}x{finH} <span style={{fontSize:12,fontWeight:400,opacity:.7}}>mm</span></span>
                         </div>
                       )}
                     </div>
@@ -1351,9 +1403,9 @@ function App(){
                 })}
               </div>
 
-              <div style={{marginTop:10,background:'rgba(255,255,255,.15)',border:'1px solid var(--panel-line)',borderRadius:8,padding:12}}>
+              <div style={{marginTop:10,background:'var(--panel-tokigara)',border:'1px solid #e09e87',borderRadius:8,padding:12}}>
                 <label className="left-label" style={{marginBottom:5}}>{t.stratTitle}</label>
-                <select value={strat} onChange={e=>{setStrat(e.target.value);clearResult();}} className="ctrl-dark" style={{marginBottom:10,fontSize:14}}>
+                <select value={strat} onChange={e=>{setStrat(e.target.value);clearResult();}} className="ctrl-dark" style={{marginBottom:10,fontSize:14, height: '36px', padding: '0 8px'}}>
                   <option value="auto">{t.stratAuto}</option>
                   <option value="length">{t.stratL}</option>
                   <option value="width">{t.stratW}</option>
@@ -1367,14 +1419,14 @@ function App(){
                   <div style={{paddingLeft:22,display:'flex',flexDirection:'column',gap:8}}>
                     <div>
                       <label className="left-label">{t.palletType}</label>
-                      <select value={palletType} onChange={e=>{setPalletType(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14}}>
+                      <select value={palletType} onChange={e=>{setPalletType(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px'}}>
                         <option value="1030">1030mm x 1030mm</option>
                         <option value="sheet">{lang==='zh'?'Sheet パレット':'シートパレット'}</option>
                       </select>
                     </div>
                     <div>
                       <label className="left-label">{t.xAlignTitle}</label>
-                      <select value={xAlign} onChange={e=>{setXAlign(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14}}>
+                      <select value={xAlign} onChange={e=>{setXAlign(e.target.value);clearResult();}} className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px'}}>
                         <option value="left">{t.xAlignLeft}</option>
                         <option value="center">{t.xAlignCenter}</option>
                         <option value="distributed">{t.xAlignDist}</option>
@@ -1387,11 +1439,30 @@ function App(){
                     </label>
                     {interlockFirst && (
                       <div style={{paddingLeft:22,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
-                        {[['auto',t.intAuto,<Ico.Star s={18}/>],['single',t.intSingle,<Ico.WindSingle s={18}/>],['double',t.intDouble,<Ico.WindDouble s={18}/>]].map(([val,lbl,ico])=>(
-                          <button key={val} onClick={()=>{setInterlockType(val);clearResult();}} className={"int-btn "+(interlockType===val?'active':'')}>
-                            {ico}<span>{lbl}</span>
-                          </button>
-                        ))}
+                        {[['auto',t.intAuto,<Ico.Star s={18}/>],['single',t.intSingle,<Ico.WindSingle s={18}/>],['double',t.intDouble,<Ico.WindDouble s={18}/>]].map(([val,lbl,ico])=>{
+                          const isActive = interlockType === val;
+                          return (
+                            <div 
+                              key={val} 
+                              onClick={()=>{setInterlockType(val);clearResult();}} 
+                              style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                padding: '8px 4px', gap: '4px',
+                                borderRadius: '7px',
+                                border: isActive ? '1.5px solid var(--panel-text)' : '1.5px solid var(--panel-line)',
+                                background: isActive ? 'rgba(0,0,0,0.08)' : '#ffffff',
+                                cursor: 'pointer',
+                                fontSize: '13px', fontWeight: 700, 
+                                color: isActive ? 'var(--panel-text)' : 'var(--panel-sub)',
+                                transition: 'all .15s'
+                              }}
+                              onMouseEnter={e => { if(!isActive) { e.currentTarget.style.borderColor = 'var(--panel-text)'; e.currentTarget.style.color = 'var(--panel-text)'; e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; } }}
+                              onMouseLeave={e => { if(!isActive) { e.currentTarget.style.borderColor = 'var(--panel-line)'; e.currentTarget.style.color = 'var(--panel-sub)'; e.currentTarget.style.background = '#ffffff'; } }}
+                            >
+                              {ico}<span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -1399,15 +1470,15 @@ function App(){
               </div>
 
               <div style={{display:'grid',gridTemplateColumns:'1fr 1.35fr',gap:8,marginTop:12}}>
-                <button onClick={()=>doCalc(false)} disabled={loading} className="btn" style={{background:'var(--accent)', color:'#3b4632', padding:'10px 4px', fontSize:15, boxShadow:'0 2px 8px rgba(200,213,187,0.4)'}}>
+                <button onClick={()=>doCalc(false)} disabled={loading} className="btn" style={{background:'var(--accent)', color:'#ffffff', padding:'10px 4px', fontSize:15, boxShadow:'0 2px 8px rgba(232, 72, 85, 0.4)'}}>
                   {loading&&!graspOn?<><Ico.Spin s={14}/>{t.calcIng}</>:<><Ico.Play s={14}/>{t.calcBtn}</>}
                 </button>
                 <div style={{display:'flex',flexDirection:'column',gap:5, minWidth: 0}}>
-                  <button onClick={()=>doCalc(true)} disabled={loading} className="btn" style={{background:'var(--panel-ghost)', color:'#ffffff', padding:'10px 4px', fontSize:14, letterSpacing:'-0.2px', boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}>
+                  <button onClick={()=>doCalc(true)} disabled={loading} className="btn" style={{background:'var(--brand)', color:'#ffffff', padding:'10px 4px', fontSize:14, letterSpacing:'-0.2px', boxShadow:'0 2px 8px rgba(43, 58, 103, 0.3)'}}>
                     {graspOn?<><Ico.Spin s={14}/>{t.graspIng} {progress}%</>:<><Ico.Star s={14}/>{t.graspBtn}</>}
                   </button>
                   {graspOn && (
-                    <div style={{height:4,background:'rgba(255,255,255,0.2)',borderRadius:99,overflow:'hidden'}}>
+                    <div style={{height:4,background:'rgba(255,255,255,0.6)',borderRadius:99,overflow:'hidden'}}>
                       <div className="prog-bar" style={{width:progress+'%'}}></div>
                     </div>
                   )}
@@ -1425,7 +1496,7 @@ function App(){
               {result.stats === null && !loading && step === 0 && hasPacked===false ? null : (
                 result.stats === null && !loading && (
                   <div className="stale-overlay">
-                    <div style={{display:'flex',alignItems:'center',gap:7,background:'var(--warn-soft)',border:'1px solid rgba(220,165,45,.4)',borderRadius:10,padding:'9px 16px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:7,background:'var(--warn-soft)',border:'1px solid rgba(237, 174, 73, 0.6)',borderRadius:10,padding:'9px 16px'}}>
                       <Ico.Warn s={14}/><span style={{fontSize:15,fontWeight:700,color:'var(--warn)'}}>{t.staleWarning}</span>
                     </div>
                   </div>
@@ -1440,28 +1511,22 @@ function App(){
                 )}
               </div>
 
-              {/* View preset buttons */}
-              <div style={{position:'absolute',top:12,right:12,zIndex:10,display:'flex',flexWrap:'wrap',gap:4,justifyContent:'flex-end',maxWidth:260}}>
-                {[['iso',t.vIso],['top',t.vTop],['bottom',t.vBottom],['front',t.vFront],['back',t.vBack],['left',t.vLeft],['right',t.vRight]].map(([v,lbl])=>(
-                  <button key={v} onClick={()=>changeView(v)} className="view-btn">{lbl}</button>
-                ))}
+              {/* 3D Compass (ViewCube) */}
+              <div style={{position:'absolute',top:12,right:12,zIndex:30, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4}}>
+                <button onClick={()=>changeView('iso')} className="view-btn" style={{padding: '4px 8px', display:'flex', alignItems:'center', gap:4, boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}} title={lang==='zh'?'等角視圖':'等角投影'}>
+                  <Ico.Home s={14}/> {lang==='zh'?'等角':'等角'}
+                </button>
+                <div ref={compassRef} style={{width: 90, height: 90, background:'rgba(255,255,255,0.7)', borderRadius: '8px', border: '1px solid var(--line)', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}></div>
               </div>
 
               {/* Canvas */}
               <div ref={canvasRef} className="touch-none" id="canvas-wrap" style={{background:'var(--paper-warm)'}}></div>
 
-              {/* Hint */}
-              <div className="hint-overlay">
-                <span><span className="hint-key">{lang==='zh'?'左鍵':'左ボタン'}</span>{lang==='zh'?'旋轉':'回転'}</span>　
-                <span><span className="hint-key">{lang==='zh'?'右鍵':'右ボタン'}</span>{lang==='zh'?'平移':'移動'}</span>　
-                <span><span className="hint-key">{lang==='zh'?'滾輪':'ホイール'}</span>{lang==='zh'?'縮放':'拡縮'}</span>
-              </div>
-
               {/* Playback bar */}
               {hasPacked && (
-                <div style={{position:'absolute',bottom:10,left:10,right:10,zIndex:20,background:'rgba(255,255,255,.9)',backdropFilter:'blur(8px)',border:'1px solid var(--line)',borderRadius:10,padding:'9px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',boxShadow:'0 4px 16px rgba(165,154,202,0.15)'}}>
+                <div style={{position:'absolute',bottom:10,left:10,right:10,zIndex:20,background:'rgba(255,255,255,.9)',backdropFilter:'blur(8px)',border:'1px solid var(--line)',borderRadius:10,padding:'9px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',boxShadow:'0 4px 16px rgba(0,0,0,0.05)'}}>
                   <span style={{fontSize:14,fontWeight:700,color:'var(--brand)',background:'var(--tertiary-soft)',padding:'3px 8px',borderRadius:5,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>
-                    <Ico.Play s={11}/>{t.play}{step}/{result.packed.length}
+                    <Ico.Play s={11}/>{t.play} {isGrouped ? `${currentSliderVal}/${groupSteps.length - 1} ${t.groupUnit}` : `${step}/${result.packed.length}`}
                   </span>
                   <label style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:14,fontWeight:700,color:'var(--ink-mid)',whiteSpace:'nowrap'}}>
                     <input type="checkbox" checked={xray} onChange={e=>setXray(e.target.checked)}/>
@@ -1473,7 +1538,13 @@ function App(){
                   </label>
                   <div style={{flex:1,display:'flex',alignItems:'center',gap:6,minWidth:100}}>
                     <span style={{fontSize:12,fontWeight:700,color:'var(--ink-ghost)',whiteSpace:'nowrap'}}>{t.inner}</span>
-                    <input type="range" min="0" max={result.packed.length} value={step} onChange={e=>setStep(Number(e.target.value))} style={{flex:1,accentColor:'var(--brand)'}}/>
+                    <input type="range" 
+                      min="0" 
+                      max={isGrouped ? groupSteps.length - 1 : result.packed.length} 
+                      value={isGrouped ? currentSliderVal : step} 
+                      onChange={e=>setStep(isGrouped ? groupSteps[Number(e.target.value)] : Number(e.target.value))} 
+                      style={{flex:1,accentColor:'var(--brand)'}}
+                    />
                     <span style={{fontSize:12,fontWeight:700,color:'var(--ink-ghost)',whiteSpace:'nowrap'}}>{t.door}</span>
                   </div>
                 </div>
@@ -1501,7 +1572,7 @@ function App(){
                   {result.stats.palletCount>0 && (
                     <div className="stat-box">
                       <div className="text-caption">{t.palletUsage}</div>
-                      <div className="stat-num" style={{color:'#9a5a20'}}>{result.stats.palletCount}</div>
+                      <div className="stat-num" style={{color:'var(--highlight)'}}>{result.stats.palletCount}</div>
                     </div>
                   )}
                   <div className="stat-box" style={{gridColumn: result.stats.palletCount>0?'span 1':'span 1'}}>
@@ -1550,23 +1621,23 @@ function App(){
 
                 {/* Warnings */}
                 {result.stats.warns?.length>0 && (
-                  <div style={{marginTop:12,background:'var(--warn-soft)',border:'1px solid rgba(220,165,45,.4)',borderRadius:10,padding:14}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,fontSize:15,color:'var(--warn)',marginBottom:10}}>
+                  <div style={{marginTop:12,background:'var(--danger-soft)',border:'1px solid rgba(234, 43, 31, 0.4)',borderRadius:10,padding:14}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,fontSize:15,color:'var(--danger)',marginBottom:10}}>
                       <Ico.Warn s={14}/>{t.warnTitle}
                     </div>
                     <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:10}}>
                       {result.stats.warns.map((w,i)=>(
-                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'var(--paper-card)',padding:'7px 10px',borderRadius:8,border:'1px solid var(--warn)',fontSize:15}}>
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'var(--paper-card)',padding:'7px 10px',borderRadius:8,border:'1px solid var(--danger)',fontSize:15}}>
                           <span style={{display:'flex',alignItems:'center',gap:5,fontWeight:700}}>
                             <span style={{width:7,height:7,borderRadius:'50%',background:w.color,flexShrink:0,display:'inline-block'}}></span>
                             {w.name}
                           </span>
-                          <span style={{color:'var(--warn)',fontWeight:700,fontSize:14}}>{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req} / {t.wPack} {w.pk})</span>
+                          <span style={{color:'var(--danger)',fontWeight:700,fontSize:14}}>{t.wShort} {w.lack} {t.boxU} ({t.wReq} {w.req} / {t.wPack} {w.pk})</span>
                         </div>
                       ))}
                     </div>
-                    <p style={{fontSize:14,color:'var(--warn)',lineHeight:1.7}}>{t.wAnal}</p>
-                    <p style={{fontSize:14,color:'var(--warn)',lineHeight:1.7,marginTop:4}}>{t.wSug}</p>
+                    <p style={{fontSize:14,color:'var(--danger)',lineHeight:1.7}}>{t.wAnal}</p>
+                    <p style={{fontSize:14,color:'var(--danger)',lineHeight:1.7,marginTop:4}}>{t.wSug}</p>
                   </div>
                 )}
               </div>
