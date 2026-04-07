@@ -14,59 +14,53 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <script id="preloaded-state">window.PRELOADED_STATE = null;</script>
 <script id="worker-code-src">
-const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:0,H:0},'AB':{L:15,W:15,H:30},'A':{L:10,W:10,H:20},'B':{L:6,W:6,H:12},'EB':{L:9,W:9,H:18},'E':{L:3,W:3,H:6}};\nfunction isColliding(x,y,z,w,h,d,packed){for(const b of packed){if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS))return true;}return false;}\nfunction isSupported(x,y,z,w,h,d,packed,thresh){if(y<EPS)return true;let area=0;for(const b of packed){if(Math.abs((b.y+b.h)-y)<EPS){const ix1=Math.max(x,b.x),iz1=Math.max(z,b.z),ix2=Math.min(x+w,b.x+b.w),iz2=Math.min(z+d,b.z+b.d);if(ix1<ix2-EPS&&iz1<iz2-EPS)area+=(ix2-ix1)*(iz2-iz1);}}return area/(w*d)>=thresh;}\nfunction getOrientations(b,strat){const u=new Set(),res=[];for(const p of [[b.w,b.h,b.d],[b.d,b.h,b.w]]){const k=Math.round(p[0])+','+Math.round(p[1])+','+Math.round(p[2]);if(!u.has(k)){u.add(k);let pref=true;if(strat==='length'&&Math.abs(p[2]-b.d)>EPS)pref=false;if(strat==='width'&&Math.abs(p[2]-b.w)>EPS)pref=false;res.push({w:p[0],h:p[1],d:p[2],pref});}}return res;}\nfunction dedupPoints(pts){const s=new Set(),r=[];for(const p of pts){const k=Math.round(p.x)+','+Math.round(p.y)+','+Math.round(p.z);if(!s.has(k)){s.add(k);r.push(p);}}return r;}\nfunction ptInsideBox(p,b){return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;}\nfunction simulate(boxTypes,innerGap,maxX,maxY,maxZ,strat,thresh,randomize){\n  let pts=[{x:0,y:0,z:innerGap}],packed=[];const finInv=[],infInv=[];\n  boxTypes.forEach(b=>{const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];let aL=b.L+cb.L,aW=b.W+cb.W,aH=b.H+cb.H;if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}const item=Object.assign({},b,{w:aW,h:aH,d:aL});if(b.qty>0){item.remaining=b.qty;finInv.push(item);}else{item.remaining=Infinity;infInv.push(item);}});\n  let count=0;\n  for(const inv of [finInv,infInv]){\n    if(!inv.length)continue;let canPack=true;\n    while(canPack&&count<3000){\n      canPack=false;pts.sort((a,b)=>{if(Math.abs(a.z-b.z)>1)return a.z-b.z;if(randomize&&Math.random()<0.45)return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;});\n      for(const pt of pts){\n        let bIdx=-1,bOri=null,bVol=-1,bFit=-1,bD=-1,bPref=false;let idx=inv.map((_,i)=>i);\n        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));let tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}}\n        for(const i of idx){\n          const box=inv[i];if(box.remaining<=0)continue;let cs=strat;if(randomize&&Math.random()>0.65)cs=Math.random()>0.5?'length':'width';\n          for(const ori of getOrientations(box,cs)){\n            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS)continue;\n            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){\n              const vol=ori.w*ori.h*ori.d,fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);\n              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol,better=false;\n              if(bIdx===-1)better=true;else if(ori.pref&&!bPref)better=true;else if(!ori.pref&&bPref)better=false;else if(ev>bVol)better=true;else if(ev===bVol&&fit>bFit)better=true;else if(ev===bVol&&fit===bFit&&ori.d>bD)better=true;\n              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}\n            }\n          }\n        }\n        if(bIdx!==-1){\n          const bb=inv[bIdx];packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});bb.remaining--;count++;canPack=true;\n          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});\n          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));pts=dedupPoints(pts);break;\n        }\n      }\n    }\n  }\n  return {packed};\n}\n\nfunction simulateJapanPallet(boxTypes, innerGap, maxX, maxY, maxZ, palletType, interlockFirst, interlockType, xAlign) {\n    let box = null;\n    for (let b of boxTypes) {\n        const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];\n        let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;\n        if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}\n        box = Object.assign({},b,{ w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity }); break;\n    }\n    if (!box) return {packed: [], interlockFailed: false};\n\n    const availZ = maxZ - innerGap;\n    const isSheet = palletType === 'sheet';\n    const basePalletH = isSheet ? 1.5 : 120;\n    const cornerPadThick = isSheet ? 5 : 0;\n\n    let sheetMaxW = 1160;\n    let sheetMaxD = 1300; \n    let maxPatW = isSheet ? sheetMaxW - cornerPadThick*2 : 1030;\n    let maxPatD = isSheet ? sheetMaxD - cornerPadThick*2 : 1030;\n\n    function generateAllPatterns(L, W, maxW, maxD) {\n      if (L <= 0 || W <= 0) return [];\n      let patterns = [];\n      const addPat = (layout, uW, uD, isInter) => { if (uW <= maxW+EPS && uD <= maxD+EPS) patterns.push({layout: layout, uW: uW, uD: uD, isInterlock: isInter||false}); };\n      const fill = (w, d, ox, oz, boxL, boxW) => { let nx=Math.floor((w+EPS)/boxL), nz=Math.floor((d+EPS)/boxW), arr=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) arr.push({x:ox+i*boxL, z:oz+j*boxW, w:boxL, d:boxW}); return arr; };\n      const maxNX = Math.floor(maxW/Math.min(L,W))+1, maxNZ = Math.floor(maxD/Math.min(L,W))+1;\n\n      for(let nx=1; nx<=maxNX && nx*L<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*W<=maxD+EPS; nz++) { addPat(fill(nx*L, nz*W, 0, 0, L, W), nx*L, nz*W, false); }\n      for(let nx=1; nx<=maxNX && nx*W<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*L<=maxD+EPS; nz++) { addPat(fill(nx*W, nz*L, 0, 0, W, L), nx*W, nz*L, false); }\n\n      if (interlockFirst) {\n          if (interlockType === 'auto') {\n              for(let nz1=1; nz1<=maxNZ && nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz2<=maxNZ && nz2*W<=maxD+EPS; nz2++) { if (Math.abs(nz1*L - nz2*W) < EPS) { let depth = nz1*L; for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx1*W+nx2*L<=maxW+EPS; nx2++) { let p=fill(nx1*W,depth,0,0,W,L).concat(fill(nx2*L,depth,nx1*W,0,L,W)); addPat(p, nx1*W+nx2*L, depth, true); } } }\n              for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx2*L<=maxW+EPS; nx2++) { if (Math.abs(nx1*W - nx2*L) < EPS) { let width = nx1*W; for(let nz1=1; nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz1*L+nz2*W<=maxD+EPS; nz2++) { let p=fill(width,nz1*L,0,0,W,L).concat(fill(width,nz2*W,0,nz1*L,L,W)); addPat(p, width, nz1*L+nz2*W, true); } } }\n          }\n\n          let kStart = 1, kEnd = 2;\n          if (interlockType === 'single') { kStart = 1; kEnd = 1; }\n          else if (interlockType === 'double') { kStart = 2; kEnd = 2; }\n\n          for (let k = kStart; k <= kEnd; k++) {\n              let L1 = L, W1 = k * W;\n              if (L1+W1 <= Math.min(maxW,maxD)+EPS) { const pwS=L1+W1; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W1,L1,ox,oz,W,L)); p.push(...fill(L1,W1,ox,oz+L1,L,W)); p.push(...fill(W1,L1,ox+L1,oz+W1,W,L)); p.push(...fill(L1,W1,ox+W1,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n              let L2 = k * L, W2 = W;\n              if (L2+W2 <= Math.min(maxW,maxD)+EPS) { const pwS=L2+W2; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W2,L2,ox,oz,W,L)); p.push(...fill(L2,W2,ox,oz+L2,L,W)); p.push(...fill(W2,L2,ox+L2,oz+W2,W,L)); p.push(...fill(L2,W2,ox+W2,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n          }\n      }\n\n      let rotated = [];\n      for (let pat of patterns) { if (pat.uD <= maxW+EPS && pat.uW <= maxD+EPS) { rotated.push({ layout: pat.layout.map(p=>{ return {x:p.z,z:p.x,w:p.d,d:p.w}; }), uW: pat.uD, uD: pat.uW, isInterlock: pat.isInterlock }); } }\n      patterns = patterns.concat(rotated);\n      let uniquePats = [], sigs = new Set();\n      for(let pat of patterns) { const layoutSig = pat.layout.map(b=>Math.round(b.x)+Math.round(b.z)+Math.round(b.w)+Math.round(b.d)).sort().join('|'); const sig = Math.round(pat.uW)+'_'+Math.round(pat.uD)+'_'+layoutSig; if (!sigs.has(sig)) { sigs.add(sig); uniquePats.push(pat); } }\n      return uniquePats;\n    }\n\n    let patterns = generateAllPatterns(box.d, box.w, maxPatW, maxPatD);\n    if (!patterns.length) return {packed: [], interlockFailed: false};\n\n    let requireInterlock = interlockFirst;\n\n    let bestPat = null, bestIsInterlock = false, maxTotalBoxes = -1, bestShortSideCount = -1, bestPatArea = -1;\n    let bestUX = 0, bestUZ = 0, bestUY = 0, bestLayers = 0, bestActualW = 0, bestActualD = 0;\n\n    for (let pat of patterns) {\n        if (requireInterlock && !pat.isInterlock) continue;\n        \n        let packMinX=Infinity, packMinZ=Infinity, packMaxX=0, packMaxZ=0;\n        for (let b of pat.layout) {\n            if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n            if (b.x + b.w > packMaxX) packMaxX = b.x + b.w; if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;\n        }\n        let actualW = packMaxX - packMinX, actualD = packMaxZ - packMinZ;\n        \n        let stepX = isSheet ? actualW + cornerPadThick * 2 : 1030;\n        let stepZ = isSheet ? actualD + cornerPadThick * 2 : 1030;\n\n        let uX = Math.floor((maxX + EPS) / stepX);\n        let uZ = Math.floor((availZ + EPS) / stepZ);\n        \n        if (uX <= 0 || uZ <= 0) continue;\n\n        let uY = isSheet ? 2 : 1;\n        let lPerUnit = 1;\n        if (isSheet) {\n            let halfH = Math.floor((maxY+EPS) / 2);\n            lPerUnit = Math.floor((halfH - basePalletH) / box.h);\n            if (lPerUnit < 1) continue; \n        } else {\n            lPerUnit = Math.floor((maxY - basePalletH) / box.h);\n            if (lPerUnit < 1) continue;\n        }\n\n        let totalUnits = uX * uZ * uY;\n        let totalBoxes = totalUnits * pat.layout.length * lPerUnit;\n        if (box.remaining !== Infinity && totalBoxes > box.remaining) totalBoxes = box.remaining;\n        \n        let shortSides = 0; for(let b of pat.layout) if(b.w < b.d) shortSides++; shortSides *= lPerUnit * totalUnits;\n        let patArea = actualW * actualD;\n        \n        let replace = false;\n        if (!bestPat) replace = true;\n        else if (totalBoxes > maxTotalBoxes) replace = true;\n        else if (totalBoxes === maxTotalBoxes) {\n            if (interlockFirst && pat.isInterlock && !bestIsInterlock) replace = true;\n            else if (!interlockFirst || pat.isInterlock === bestIsInterlock) {\n                if (shortSides > bestShortSideCount) replace = true;\n                else if (shortSides === bestShortSideCount && patArea > bestPatArea) replace = true;\n            }\n        }\n        if (replace) { \n            maxTotalBoxes=totalBoxes; bestShortSideCount=shortSides; bestIsInterlock=pat.isInterlock; bestPatArea=patArea; \n            bestPat=pat; bestUX = uX; bestUZ = uZ; bestUY = uY; bestLayers = lPerUnit; \n            bestActualW = actualW; bestActualD = actualD;\n        }\n    }\n\n    if (!bestPat) return { packed: [], interlockFailed: interlockFirst };\n    \n    let finalPacked = [];\n    let pDetail = { boxesPerLayer: bestPat.layout.length, layers: bestLayers, totalPallets: bestUX * bestUZ * bestUY };\n    let boxesLeft = box.remaining;\n\n    let stepX = isSheet ? bestActualW + cornerPadThick * 2 : 1030;\n    let stepZ = isSheet ? bestActualD + cornerPadThick * 2 : 1030;\n    let totalBlockW = bestUX * stepX;\n    let unitH_total = bestLayers * box.h + basePalletH;\n\n    for (let y = 0; y < bestUY; y++) {\n        for (let z = 0; z < bestUZ; z++) {\n            for (let x = 0; x < bestUX; x++) {\n                if (boxesLeft <= 0) break;\n                \n                let px = 0;\n                if (xAlign === 'left') {\n                    px = x * stepX;\n                } else if (xAlign === 'distributed') {\n                    px = bestUX > 1 ? x * ((maxX - stepX) / (bestUX - 1)) : (maxX - stepX) / 2;\n                } else if (xAlign === 'distributed-around') {\n                    let gap = (maxX - totalBlockW) / (bestUX + 1);\n                    px = gap + x * (stepX + gap);\n                } else {\n                    px = Math.max(0, (maxX - totalBlockW) / 2) + x * stepX;\n                }\n                \n                let pz = innerGap + z * stepZ;\n                let py = y * unitH_total;\n\n                let packMinX=Infinity, packMinZ=Infinity;\n                for (let b of bestPat.layout) {\n                    if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n                }\n                \n                let innerOffsetX = isSheet ? cornerPadThick - packMinX : (1030 - bestActualW) / 2 - packMinX;\n                let innerOffsetZ = isSheet ? cornerPadThick - packMinZ : (1030 - bestActualD) / 2 - packMinZ;\n                \n                let bx0 = px + innerOffsetX + packMinX, bz0 = pz + innerOffsetZ + packMinZ, bx1 = bx0 + bestActualW, bz1 = bz0 + bestActualD;\n\n                if (isSheet) {\n                    finalPacked.push({isPallet:true,x:bx0-cornerPadThick,y:py,z:bz0-cornerPadThick,w:bestActualW+cornerPadThick*2,h:basePalletH,d:bestActualD+cornerPadThick*2,color:'#c8c8c0',typeId:'pallet',name:'シートパレット'});\n                    let padH=bestLayers * box.h, padC='#a8a8a0', pN='コーナーパッド', th=cornerPadThick, len=30;\n                    [[bx0-th,py+basePalletH,bz0-th,len,padH,th],[bx0-th,py+basePalletH,bz0-th,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz0-th,len,padH,th],[bx1,py+basePalletH,bz0-th,th,padH,len],\n                     [bx0-th,py+basePalletH,bz1,len,padH,th],[bx0-th,py+basePalletH,bz1+th-len,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz1,len,padH,th],[bx1,py+basePalletH,bz1+th-len,th,padH,len]\n                    ].forEach(arr=>finalPacked.push({isPallet:true,isPad:true,x:arr[0],y:arr[1],z:arr[2],w:arr[3],h:arr[4],d:arr[5],color:padC,typeId:'pad',name:pN}));\n                } else {\n                    finalPacked.push({isPallet:true,x:px,y:py,z:pz,w:1030,h:basePalletH,d:1030,color:'#b08050',typeId:'pallet',name:'パレット 1030×1030'});\n                }\n\n                // ── Cross-layer interlock (single / double windmill) ─────────────\n                // Even layers: bestPat.layout as-is (the selected windmill pattern)\n                // Odd  layers: bestPat.layout rotated 90° CCW around the pallet centre\n                //              so both layers share the same physical centre and\n                //              the outer edges align with the pallet boundary.\n                //\n                // Rotation 90° CCW: (x, z, w, d)  →  (z,  patW - x - w,  d,  w)\n                // After rotation oddActualW = bestActualD, oddActualD = bestActualW\n                // so we compute separate innerOffsets for each layout.\n                const doBrickBond = interlockFirst &&\n                    (interlockType === 'single' || interlockType === 'double') &&\n                    bestPat.isInterlock;\n\n                // ── evenLayout: original pattern, centred on pallet ──\n                // innerOffsetX/Z already computed above for bestPat\n                // ── oddLayout: 90° CCW rotation, re-centred on same pallet ──\n                let oddLayout = bestPat.layout;\n                let oddOffX = innerOffsetX;\n                let oddOffZ = innerOffsetZ;\n\n                if (doBrickBond && bestPat.layout.length > 0) {\n                    const patW = bestActualW;\n                    const patD = bestActualD;\n\n                    // 90° CCW: (x, z, w, d) → (z,  patW - x - w,  d,  w)\n                    let rotated = bestPat.layout.map(pos => ({\n                        x: pos.z,\n                        z: patW - pos.x - pos.w,\n                        w: pos.d,\n                        d: pos.w\n                    }));\n\n                    // Normalise to (0,0)\n                    let minX = Infinity, minZ = Infinity;\n                    for (const p of rotated) {\n                        if (p.x < minX) minX = p.x;\n                        if (p.z < minZ) minZ = p.z;\n                    }\n                    oddLayout = rotated.map(p => ({\n                        x: p.x - minX,\n                        z: p.z - minZ,\n                        w: p.w,\n                        d: p.d\n                    }));\n\n                    // Footprint of oddLayout (after normalise, min is 0)\n                    let oddMaxX = 0, oddMaxZ = 0;\n                    for (const p of oddLayout) {\n                        if (p.x + p.w > oddMaxX) oddMaxX = p.x + p.w;\n                        if (p.z + p.d > oddMaxZ) oddMaxZ = p.z + p.d;\n                    }\n                    // Centre oddLayout on the same pallet step (1030×1030 or sheet)\n                    oddOffX = isSheet ? cornerPadThick : (1030 - oddMaxX) / 2;\n                    oddOffZ = isSheet ? cornerPadThick : (1030 - oddMaxZ) / 2;\n                }\n\n                for (let l = 0; l < bestLayers; l++) {\n                    const isOddLayer = doBrickBond && (l % 2 === 1);\n                    const layout  = isOddLayer ? oddLayout  : bestPat.layout;\n                    const offX    = isOddLayer ? oddOffX    : innerOffsetX;\n                    const offZ    = isOddLayer ? oddOffZ    : innerOffsetZ;\n\n                    for (let pos of layout) {\n                        if (boxesLeft <= 0) break;\n                        finalPacked.push({\n                            x: px + offX + pos.x,\n                            y: py + basePalletH + l * box.h,\n                            z: pz + offZ + pos.z,\n                            w: pos.w, h: box.h, d: pos.d,\n                            color: box.color, typeId: box.id, name: box.name\n                        });\n                        boxesLeft--;\n                    }\n                }\n            }\n        }\n    }\n    return { packed: finalPacked, palletDetail: pDetail, interlockFailed: false };\n}\n\nself.onmessage = function(e) {\n  const {boxes,innerGap,maxX,maxY,maxZ,strat,thresh,isJapanBound,palletType,interlockFirst,interlockType,xAlign,ITER} = e.data;\n  let best=[], bestVol=-1, bestDetail=null, bestIntFail=false;\n  \n  const tryIt=(res)=>{\n    const arr = res.packed || [];\n    const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0);\n    if(v>bestVol){\n        bestVol=v; \n        best=arr;\n        bestDetail = res.palletDetail || null;\n        bestIntFail = res.interlockFailed || false;\n    }\n  };\n  \n  const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst,interlockType,xAlign):simulate(arr,innerGap,maxX,maxY,maxZ,s,thresh,rand);\n  \n  if(!isJapanBound){\n    if(strat==='auto'){tryIt(runSim(boxes,'length',false));tryIt(runSim(boxes,'width',false));}\n    else tryIt(runSim(boxes,strat,false));\n  } else { tryIt(runSim(boxes,strat,false)); }\n  \n  for(let cur=0;cur<ITER;cur++){\n    if(!isJapanBound){\n      let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat; tryIt(runSim(boxes,s2,true));\n      if(cur%10===0){tryIt(runSim(boxes,'length',true));tryIt(runSim(boxes,'width',true));}\n    }\n    if(cur%5===4) self.postMessage({type:'progress',pct:Math.round((cur+1)/ITER*100)});\n  }\n  self.postMessage({type:'done', packed:best, palletDetail: bestDetail, interlockFailed: bestIntFail});\n};\n";
+const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:0,H:0},'AB':{L:15,W:15,H:30},'A':{L:10,W:10,H:20},'B':{L:6,W:6,H:12},'EB':{L:9,W:9,H:18},'E':{L:3,W:3,H:6}};\nfunction isColliding(x,y,z,w,h,d,packed){for(const b of packed){if(!(x>=b.x+b.w-EPS||x+w<=b.x+EPS||y>=b.y+b.h-EPS||y+h<=b.y+EPS||z>=b.z+b.d-EPS||z+d<=b.z+EPS))return true;}return false;}\nfunction isSupported(x,y,z,w,h,d,packed,thresh){if(y<EPS)return true;let area=0;for(const b of packed){if(Math.abs((b.y+b.h)-y)<EPS){const ix1=Math.max(x,b.x),iz1=Math.max(z,b.z),ix2=Math.min(x+w,b.x+b.w),iz2=Math.min(z+d,b.z+b.d);if(ix1<ix2-EPS&&iz1<iz2-EPS)area+=(ix2-ix1)*(iz2-iz1);}}return area/(w*d)>=thresh;}\nfunction getOrientations(b,strat){const u=new Set(),res=[];for(const p of [[b.w,b.h,b.d],[b.d,b.h,b.w]]){const k=Math.round(p[0])+','+Math.round(p[1])+','+Math.round(p[2]);if(!u.has(k)){u.add(k);let pref=true;if(strat==='length'&&Math.abs(p[2]-b.d)>EPS)pref=false;if(strat==='width'&&Math.abs(p[2]-b.w)>EPS)pref=false;res.push({w:p[0],h:p[1],d:p[2],pref});}}return res;}\nfunction dedupPoints(pts){const s=new Set(),r=[];for(const p of pts){const k=Math.round(p.x)+','+Math.round(p.y)+','+Math.round(p.z);if(!s.has(k)){s.add(k);r.push(p);}}return r;}\nfunction ptInsideBox(p,b){return p.x>b.x+EPS&&p.x<b.x+b.w-EPS&&p.y>b.y+EPS&&p.y<b.y+b.h-EPS&&p.z>b.z+EPS&&p.z<b.z+b.d-EPS;}\nfunction simulate(boxTypes,innerGap,maxX,maxY,maxZ,strat,thresh,randomize){\n  let pts=[{x:0,y:0,z:innerGap}],packed=[];const finInv=[],infInv=[];\n  boxTypes.forEach(b=>{const cb=CARDBOARD_TYPES[b.cbType||'none']||CARDBOARD_TYPES['none'];let aL=b.L+cb.L,aW=b.W+cb.W,aH=b.H+cb.H;if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}const item=Object.assign({},b,{w:aW,h:aH,d:aL});if(b.qty>0){item.remaining=b.qty;finInv.push(item);}else{item.remaining=Infinity;infInv.push(item);}});\n  let count=0;\n  for(const inv of [finInv,infInv]){\n    if(!inv.length)continue;let canPack=true;\n    while(canPack&&count<3000){\n      canPack=false;pts.sort((a,b)=>{if(Math.abs(a.z-b.z)>1)return a.z-b.z;if(randomize&&Math.random()<0.45)return Math.random()<0.5?(Math.abs(a.x-b.x)>1?a.x-b.x:a.y-b.y):(Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x);return Math.abs(a.y-b.y)>1?a.y-b.y:a.x-b.x;});\n      for(const pt of pts){\n        let bIdx=-1,bOri=null,bVol=-1,bFit=-1,bD=-1,bPref=false;let idx=inv.map((_,i)=>i);\n        if(randomize){for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));let tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}}\n        for(const i of idx){\n          const box=inv[i];if(box.remaining<=0)continue;let cs=strat;if(randomize&&Math.random()>0.65)cs=Math.random()>0.5?'length':'width';\n          for(const ori of getOrientations(box,cs)){\n            if(pt.x+ori.w>maxX+EPS||pt.y+ori.h>maxY+EPS||pt.z+ori.d>maxZ+EPS)continue;\n            if(!isColliding(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed)&&isSupported(pt.x,pt.y,pt.z,ori.w,ori.h,ori.d,packed,thresh)){\n              const vol=ori.w*ori.h*ori.d,fit=Math.floor((maxX-pt.x)/ori.w)*Math.floor((maxY-pt.y)/ori.h)*Math.floor((maxZ-pt.z)/ori.d);\n              let ev=randomize?vol*(1+(Math.random()*0.16-0.08)):vol,better=false;\n              if(bIdx===-1)better=true;else if(ori.pref&&!bPref)better=true;else if(!ori.pref&&bPref)better=false;else if(ev>bVol)better=true;else if(ev===bVol&&fit>bFit)better=true;else if(ev===bVol&&fit===bFit&&ori.d>bD)better=true;\n              if(better){bVol=ev;bFit=fit;bD=ori.d;bIdx=i;bOri=ori;bPref=ori.pref;}\n            }\n          }\n        }\n        if(bIdx!==-1){\n          const bb=inv[bIdx];packed.push({x:pt.x,y:pt.y,z:pt.z,w:bOri.w,h:bOri.h,d:bOri.d,color:bb.color,typeId:bb.id,name:bb.name});bb.remaining--;count++;canPack=true;\n          pts.push({x:pt.x+bOri.w,y:pt.y,z:pt.z},{x:pt.x,y:pt.y+bOri.h,z:pt.z},{x:pt.x,y:pt.y,z:pt.z+bOri.d});\n          pts=pts.filter(p=>p!==pt&&p.x<maxX-EPS&&p.y<maxY-EPS&&p.z<maxZ-EPS&&!packed.some(b=>ptInsideBox(p,b)));pts=dedupPoints(pts);break;\n        }\n      }\n    }\n  }\n  return {packed};\n}\n\nfunction simulateJapanPallet(boxTypes, innerGap, maxX, maxY, maxZ, palletType, interlockFirst, interlockType, xAlign) {\n    let box = null;\n    for (let b of boxTypes) {\n        const cb = CARDBOARD_TYPES[b.cbType || 'none'] || CARDBOARD_TYPES['none'];\n        let aL = b.L + cb.L, aW = b.W + cb.W, aH = b.H + cb.H;\n        if(b.calcMode==='max'){aL+=b.tolPlus;aW+=b.tolPlus;aH+=b.tolPlus;}else if(b.calcMode==='min'){aL-=b.tolMinus;aW-=b.tolMinus;aH-=b.tolMinus;}else if(b.calcMode==='mid'){const d=(b.tolPlus-b.tolMinus)/2;aL+=d;aW+=d;aH+=d;}\n        box = Object.assign({},b,{ w: aW, h: aH, d: aL, remaining: b.qty > 0 ? b.qty : Infinity }); break;\n    }\n    if (!box) return {packed: [], interlockFailed: false};\n\n    const availZ = maxZ - innerGap;\n    const isSheet = palletType === 'sheet';\n    const basePalletH = isSheet ? 1.5 : 120;\n    const cornerPadThick = isSheet ? 5 : 0;\n\n    let sheetMaxW = 1160;\n    let sheetMaxD = 1300; \n    let maxPatW = isSheet ? sheetMaxW - cornerPadThick*2 : 1030;\n    let maxPatD = isSheet ? sheetMaxD - cornerPadThick*2 : 1030;\n\n    function generateAllPatterns(L, W, maxW, maxD) {\n      if (L <= 0 || W <= 0) return [];\n      let patterns = [];\n      const addPat = (layout, uW, uD, isInter) => { if (uW <= maxW+EPS && uD <= maxD+EPS) patterns.push({layout: layout, uW: uW, uD: uD, isInterlock: isInter||false}); };\n      const fill = (w, d, ox, oz, boxL, boxW) => { let nx=Math.floor((w+EPS)/boxL), nz=Math.floor((d+EPS)/boxW), arr=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) arr.push({x:ox+i*boxL, z:oz+j*boxW, w:boxL, d:boxW}); return arr; };\n      const maxNX = Math.floor(maxW/Math.min(L,W))+1, maxNZ = Math.floor(maxD/Math.min(L,W))+1;\n\n      for(let nx=1; nx<=maxNX && nx*L<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*W<=maxD+EPS; nz++) { addPat(fill(nx*L, nz*W, 0, 0, L, W), nx*L, nz*W, false); }\n      for(let nx=1; nx<=maxNX && nx*W<=maxW+EPS; nx++) for(let nz=1; nz<=maxNZ && nz*L<=maxD+EPS; nz++) { addPat(fill(nx*W, nz*L, 0, 0, W, L), nx*W, nz*L, false); }\n\n      if (interlockFirst) {\n          if (interlockType === 'auto') {\n              for(let nz1=1; nz1<=maxNZ && nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz2<=maxNZ && nz2*W<=maxD+EPS; nz2++) { if (Math.abs(nz1*L - nz2*W) < EPS) { let depth = nz1*L; for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx1*W+nx2*L<=maxW+EPS; nx2++) { let p=fill(nx1*W,depth,0,0,W,L).concat(fill(nx2*L,depth,nx1*W,0,L,W)); addPat(p, nx1*W+nx2*L, depth, true); } } }\n              for(let nx1=1; nx1*W<=maxW+EPS; nx1++) for(let nx2=1; nx2*L<=maxW+EPS; nx2++) { if (Math.abs(nx1*W - nx2*L) < EPS) { let width = nx1*W; for(let nz1=1; nz1*L<=maxD+EPS; nz1++) for(let nz2=1; nz1*L+nz2*W<=maxD+EPS; nz2++) { let p=fill(width,nz1*L,0,0,W,L).concat(fill(width,nz2*W,0,nz1*L,L,W)); addPat(p, width, nz1*L+nz2*W, true); } } }\n          }\n\n          let kStart = 1, kEnd = 2;\n          if (interlockType === 'single') { kStart = 1; kEnd = 1; }\n          else if (interlockType === 'double') { kStart = 2; kEnd = 2; }\n\n          for (let k = kStart; k <= kEnd; k++) {\n              let L1 = L, W1 = k * W;\n              if (L1+W1 <= Math.min(maxW,maxD)+EPS) { const pwS=L1+W1; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W1,L1,ox,oz,W,L)); p.push(...fill(L1,W1,ox,oz+L1,L,W)); p.push(...fill(W1,L1,ox+L1,oz+W1,W,L)); p.push(...fill(L1,W1,ox+W1,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n              let L2 = k * L, W2 = W;\n              if (L2+W2 <= Math.min(maxW,maxD)+EPS) { const pwS=L2+W2; for(let nx=1;nx*pwS<=maxW+EPS;nx++) for(let nz=1;nz*pwS<=maxD+EPS;nz++) { let p=[]; for(let i=0;i<nx;i++) for(let j=0;j<nz;j++) { let ox=i*pwS,oz=j*pwS; p.push(...fill(W2,L2,ox,oz,W,L)); p.push(...fill(L2,W2,ox,oz+L2,L,W)); p.push(...fill(W2,L2,ox+L2,oz+W2,W,L)); p.push(...fill(L2,W2,ox+W2,oz,L,W)); } addPat(p, nx*pwS, nz*pwS, true); } }\n          }\n      }\n\n      let rotated = [];\n      for (let pat of patterns) { if (pat.uD <= maxW+EPS && pat.uW <= maxD+EPS) { rotated.push({ layout: pat.layout.map(p=>{ return {x:p.z,z:p.x,w:p.d,d:p.w}; }), uW: pat.uD, uD: pat.uW, isInterlock: pat.isInterlock }); } }\n      patterns = patterns.concat(rotated);\n      let uniquePats = [], sigs = new Set();\n      for(let pat of patterns) { const layoutSig = pat.layout.map(b=>Math.round(b.x)+Math.round(b.z)+Math.round(b.w)+Math.round(b.d)).sort().join('|'); const sig = Math.round(pat.uW)+'_'+Math.round(pat.uD)+'_'+layoutSig; if (!sigs.has(sig)) { sigs.add(sig); uniquePats.push(pat); } }\n      return uniquePats;\n    }\n\n    let patterns = generateAllPatterns(box.d, box.w, maxPatW, maxPatD);\n    if (!patterns.length) return {packed: [], interlockFailed: false};\n\n    let requireInterlock = interlockFirst;\n\n    let bestPat = null, bestIsInterlock = false, maxTotalBoxes = -1, bestShortSideCount = -1, bestPatArea = -1;\n    let bestUX = 0, bestUZ = 0, bestUY = 0, bestLayers = 0, bestActualW = 0, bestActualD = 0;\n\n    for (let pat of patterns) {\n        if (requireInterlock && !pat.isInterlock) continue;\n        \n        let packMinX=Infinity, packMinZ=Infinity, packMaxX=0, packMaxZ=0;\n        for (let b of pat.layout) {\n            if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n            if (b.x + b.w > packMaxX) packMaxX = b.x + b.w; if (b.z + b.d > packMaxZ) packMaxZ = b.z + b.d;\n        }\n        let actualW = packMaxX - packMinX, actualD = packMaxZ - packMinZ;\n        \n        let stepX = isSheet ? actualW + cornerPadThick * 2 : 1030;\n        let stepZ = isSheet ? actualD + cornerPadThick * 2 : 1030;\n\n        let uX = Math.floor((maxX + EPS) / stepX);\n        let uZ = Math.floor((availZ + EPS) / stepZ);\n        \n        if (uX <= 0 || uZ <= 0) continue;\n\n        let uY = isSheet ? 2 : 1;\n        let lPerUnit = 1;\n        if (isSheet) {\n            let halfH = Math.floor((maxY+EPS) / 2);\n            lPerUnit = Math.floor((halfH - basePalletH) / box.h);\n            if (lPerUnit < 1) continue; \n        } else {\n            lPerUnit = Math.floor((maxY - basePalletH) / box.h);\n            if (lPerUnit < 1) continue;\n        }\n\n        let totalUnits = uX * uZ * uY;\n        let totalBoxes = totalUnits * pat.layout.length * lPerUnit;\n        if (box.remaining !== Infinity && totalBoxes > box.remaining) totalBoxes = box.remaining;\n        \n        let shortSides = 0; for(let b of pat.layout) if(b.w < b.d) shortSides++; shortSides *= lPerUnit * totalUnits;\n        let patArea = actualW * actualD;\n        \n        let replace = false;\n        if (!bestPat) replace = true;\n        else if (totalBoxes > maxTotalBoxes) replace = true;\n        else if (totalBoxes === maxTotalBoxes) {\n            if (interlockFirst && pat.isInterlock && !bestIsInterlock) replace = true;\n            else if (!interlockFirst || pat.isInterlock === bestIsInterlock) {\n                if (shortSides > bestShortSideCount) replace = true;\n                else if (shortSides === bestShortSideCount && patArea > bestPatArea) replace = true;\n            }\n        }\n        if (replace) { \n            maxTotalBoxes=totalBoxes; bestShortSideCount=shortSides; bestIsInterlock=pat.isInterlock; bestPatArea=patArea; \n            bestPat=pat; bestUX = uX; bestUZ = uZ; bestUY = uY; bestLayers = lPerUnit; \n            bestActualW = actualW; bestActualD = actualD;\n        }\n    }\n\n    if (!bestPat) return { packed: [], interlockFailed: interlockFirst };\n    \n    let finalPacked = [];\n    let pDetail = { boxesPerLayer: bestPat.layout.length, layers: bestLayers, totalPallets: bestUX * bestUZ * bestUY };\n    let boxesLeft = box.remaining;\n\n    let stepX = isSheet ? bestActualW + cornerPadThick * 2 : 1030;\n    let stepZ = isSheet ? bestActualD + cornerPadThick * 2 : 1030;\n    let totalBlockW = bestUX * stepX;\n    let unitH_total = bestLayers * box.h + basePalletH;\n\n    for (let y = 0; y < bestUY; y++) {\n        for (let z = 0; z < bestUZ; z++) {\n            for (let x = 0; x < bestUX; x++) {\n                if (boxesLeft <= 0) break;\n                \n                let px = 0;\n                if (xAlign === 'left') {\n                    px = x * stepX;\n                } else if (xAlign === 'distributed') {\n                    px = bestUX > 1 ? x * ((maxX - stepX) / (bestUX - 1)) : (maxX - stepX) / 2;\n                } else if (xAlign === 'distributed-around') {\n                    let gap = (maxX - totalBlockW) / (bestUX + 1);\n                    px = gap + x * (stepX + gap);\n                } else {\n                    px = Math.max(0, (maxX - totalBlockW) / 2) + x * stepX;\n                }\n                \n                let pz = innerGap + z * stepZ;\n                let py = y * unitH_total;\n\n                let packMinX=Infinity, packMinZ=Infinity;\n                for (let b of bestPat.layout) {\n                    if (b.x < packMinX) packMinX = b.x; if (b.z < packMinZ) packMinZ = b.z;\n                }\n                \n                let innerOffsetX = isSheet ? cornerPadThick - packMinX : (1030 - bestActualW) / 2 - packMinX;\n                let innerOffsetZ = isSheet ? cornerPadThick - packMinZ : (1030 - bestActualD) / 2 - packMinZ;\n                \n                let bx0 = px + innerOffsetX + packMinX, bz0 = pz + innerOffsetZ + packMinZ, bx1 = bx0 + bestActualW, bz1 = bz0 + bestActualD;\n\n                if (isSheet) {\n                    finalPacked.push({isPallet:true,x:bx0-cornerPadThick,y:py,z:bz0-cornerPadThick,w:bestActualW+cornerPadThick*2,h:basePalletH,d:bestActualD+cornerPadThick*2,color:'#c8c8c0',typeId:'pallet',name:'シートパレット'});\n                    let padH=bestLayers * box.h, padC='#a8a8a0', pN='コーナーパッド', th=cornerPadThick, len=30;\n                    [[bx0-th,py+basePalletH,bz0-th,len,padH,th],[bx0-th,py+basePalletH,bz0-th,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz0-th,len,padH,th],[bx1,py+basePalletH,bz0-th,th,padH,len],\n                     [bx0-th,py+basePalletH,bz1,len,padH,th],[bx0-th,py+basePalletH,bz1+th-len,th,padH,len],\n                     [bx1+th-len,py+basePalletH,bz1,len,padH,th],[bx1,py+basePalletH,bz1+th-len,th,padH,len]\n                    ].forEach(arr=>finalPacked.push({isPallet:true,isPad:true,x:arr[0],y:arr[1],z:arr[2],w:arr[3],h:arr[4],d:arr[5],color:padC,typeId:'pad',name:pN}));\n                } else {\n                    finalPacked.push({isPallet:true,x:px,y:py,z:pz,w:1030,h:basePalletH,d:1030,color:'#b08050',typeId:'pallet',name:'パレット 1030×1030'});\n                }\n\n                const doBrickBond = interlockFirst &&\n                    (interlockType === 'single' || interlockType === 'double') &&\n                    bestPat.isInterlock;\n\n                let oddLayout = bestPat.layout;\n                let oddOffX = innerOffsetX;\n                let oddOffZ = innerOffsetZ;\n\n                if (doBrickBond && bestPat.layout.length > 0) {\n                    const patW = bestActualW;\n                    const patD = bestActualD;\n\n                    let rotated = bestPat.layout.map(pos => ({\n                        x: pos.z,\n                        z: patW - pos.x - pos.w,\n                        w: pos.d,\n                        d: pos.w\n                    }));\n\n                    let minX = Infinity, minZ = Infinity;\n                    for (const p of rotated) {\n                        if (p.x < minX) minX = p.x;\n                        if (p.z < minZ) minZ = p.z;\n                    }\n                    oddLayout = rotated.map(p => ({\n                        x: p.x - minX,\n                        z: p.z - minZ,\n                        w: p.w,\n                        d: p.d\n                    }));\n\n                    let oddMaxX = 0, oddMaxZ = 0;\n                    for (const p of oddLayout) {\n                        if (p.x + p.w > oddMaxX) oddMaxX = p.x + p.w;\n                        if (p.z + p.d > oddMaxZ) oddMaxZ = p.z + p.d;\n                    }\n                    oddOffX = isSheet ? cornerPadThick : (1030 - oddMaxX) / 2;\n                    oddOffZ = isSheet ? cornerPadThick : (1030 - oddMaxZ) / 2;\n                }\n\n                for (let l = 0; l < bestLayers; l++) {\n                    const isOddLayer = doBrickBond && (l % 2 === 1);\n                    const layout  = isOddLayer ? oddLayout  : bestPat.layout;\n                    const offX    = isOddLayer ? oddOffX    : innerOffsetX;\n                    const offZ    = isOddLayer ? oddOffZ    : innerOffsetZ;\n\n                    for (let pos of layout) {\n                        if (boxesLeft <= 0) break;\n                        finalPacked.push({\n                            x: px + offX + pos.x,\n                            y: py + basePalletH + l * box.h,\n                            z: pz + offZ + pos.z,\n                            w: pos.w, h: box.h, d: pos.d,\n                            color: box.color, typeId: box.id, name: box.name\n                        });\n                        boxesLeft--;\n                    }\n                }\n            }\n        }\n    }\n    return { packed: finalPacked, palletDetail: pDetail, interlockFailed: false };\n}\n\nself.onmessage = function(e) {\n  const {boxes,innerGap,maxX,maxY,maxZ,strat,thresh,isJapanBound,palletType,interlockFirst,interlockType,xAlign,ITER} = e.data;\n  let best=[], bestVol=-1, bestDetail=null, bestIntFail=false;\n  \n  const tryIt=(res)=>{\n    const arr = res.packed || [];\n    const v=arr.reduce((s,p)=>s+(p.isPallet||p.isPad?0:p.w*p.h*p.d),0);\n    if(v>bestVol){\n        bestVol=v; \n        best=arr;\n        bestDetail = res.palletDetail || null;\n        bestIntFail = res.interlockFailed || false;\n    }\n  };\n  \n  const runSim = (arr,s,rand) => isJapanBound?simulateJapanPallet(arr,innerGap,maxX,maxY,maxZ,palletType,interlockFirst,interlockType,xAlign):simulate(arr,innerGap,maxX,maxY,maxZ,s,thresh,rand);\n  \n  if(!isJapanBound){\n    if(strat==='auto'){tryIt(runSim(boxes,'length',false));tryIt(runSim(boxes,'width',false));}\n    else tryIt(runSim(boxes,strat,false));\n  } else { tryIt(runSim(boxes,strat,false)); }\n  \n  for(let cur=0;cur<ITER;cur++){\n    if(!isJapanBound){\n      let s2=strat==='auto'?(Math.random()>0.5?'length':'width'):strat; tryIt(runSim(boxes,s2,true));\n      if(cur%10===0){tryIt(runSim(boxes,'length',true));tryIt(runSim(boxes,'width',true));}\n    }\n    if(cur%5===4) self.postMessage({type:'progress',pct:Math.round((cur+1)/ITER*100)});\n  }\n  self.postMessage({type:'done', packed:best, palletDetail: bestDetail, interlockFailed: bestIntFail});\n};\n";
 </script>
 
   <style>
     :root {
-      /* ── 核心設計系統更新 (Opacity 80%) ── */
-      /* ── 右側面板與全局 ── */
       --ink:        #2b2b2b;
       --ink-mid:    #4a4a4a;
       --ink-soft:   #666666;
       --ink-ghost:  #999999;
-      --line:       rgba(181, 107, 69, 0.2); /* Cinnamon Wood light */
-      --paper:      #ffffff; /* 背景為純白色 */
-      --paper-warm: rgba(249, 237, 204, 0.2); /* Cornsilk very light */
+      --line:       rgba(181, 107, 69, 0.2);
+      --paper:      #ffffff;
+      --paper-warm: rgba(249, 237, 204, 0.2);
       --paper-card: #ffffff; 
 
-      /* ── 左側面板：水色系 (Mizuiro) ── */
-      --panel-bg:   rgba(188, 226, 232, 0.8); /* 水色 #bce2e8 */
+      --panel-bg:   rgba(188, 226, 232, 0.8);
       --panel-mid:  rgba(255, 255, 255, 0.85); 
-      --panel-card: rgba(171, 206, 216, 0.6); /* 秘色色 #abced8 */
-      --panel-line: rgba(137, 195, 235, 0.8); /* 勿忘草色 #89c3eb */
+      --panel-card: rgba(171, 206, 216, 0.6);
+      --panel-line: rgba(137, 195, 235, 0.8);
       
-      --panel-text: #000000; /* 純黑色 */
+      --panel-text: #000000;
       --panel-sub:  #222222; 
       --panel-ghost:#444444;
       
-      --panel-accent: rgba(232, 72, 85, 0.8); /* Watermelon (Checkbox, borders) */
-      --highlight:    #db4d6d; /* 中紅 Nakabeni 用於亮點數字 */
+      --panel-accent: rgba(232, 72, 85, 0.8);
+      --highlight:    #db4d6d;
 
-      /* ── 左側面板新增點綴色 (和名粉色系) ── */
-      --panel-mizugaki: rgba(228, 171, 155, 0.55); /* 水柿 #e4ab9b */
-      --panel-tokigara: rgba(224, 158, 135, 0.55); /* ときがら茶 #e09e87 */
-      --panel-arazome:  rgba(214, 144, 144, 0.55); /* 退紅 #d69090 */
-      --panel-usugaki:  rgba(212, 172, 173, 0.55); /* 薄柿 #d4acad */
-      --panel-choshun:  rgba(201, 117, 134, 0.55); /* 長春色 #c97586 */
+      --panel-mizugaki: rgba(228, 171, 155, 0.55);
+      --panel-tokigara: rgba(224, 158, 135, 0.55);
+      --panel-arazome:  rgba(214, 144, 144, 0.55);
+      --panel-usugaki:  rgba(212, 172, 173, 0.55);
+      --panel-choshun:  rgba(201, 117, 134, 0.55);
 
-      /* ── Accent ── */
-      --brand:        rgba(43, 58, 103, 0.8); /* Twilight Indigo */
-      --accent:       rgba(232, 72, 85, 0.8); /* Watermelon */
-      --accent-mid:   rgba(234, 43, 31, 0.8); /* Burnt Tangerine */
+      --brand:        rgba(43, 58, 103, 0.8);
+      --accent:       rgba(232, 72, 85, 0.8);
+      --accent-mid:   rgba(234, 43, 31, 0.8);
       --accent-soft:  rgba(232, 72, 85, 0.15);
       --accent-pale:  rgba(232, 72, 85, 0.05);
 
-      /* ── 語義化顏色 ── */
-      --ok:           rgba(181, 107, 69, 0.8); /* Cinnamon Wood */
+      --ok:           rgba(181, 107, 69, 0.8);
       --ok-soft:      rgba(181, 107, 69, 0.15);
-      --warn:         rgba(237, 174, 73, 0.8); /* Honey Bronze */
+      --warn:         rgba(237, 174, 73, 0.8);
       --warn-soft:    rgba(237, 174, 73, 0.15);
-      --danger:       rgba(234, 43, 31, 0.8); /* Burnt Tangerine */
+      --danger:       rgba(234, 43, 31, 0.8);
       --danger-soft:  rgba(234, 43, 31, 0.15);
 
-      --tertiary:     rgba(97, 33, 15, 0.8); /* Dark Walnut */
-      --secondary:    rgba(255, 155, 113, 0.8); /* Tangerine Dream */
+      --tertiary:     rgba(97, 33, 15, 0.8);
+      --secondary:    rgba(255, 155, 113, 0.8);
     }
 
     * { box-sizing: border-box; }
@@ -78,12 +72,10 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── 捲軸樣式 ── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 99px; }
 
-    /* ── 左側面板 ── */
     .left-panel {
       background: var(--panel-bg);
       border-radius: 16px;
@@ -195,7 +187,6 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     }
     .box-card:hover .box-card-actions { opacity: 1; }
 
-    /* ── 右側面板 ── */
     .card {
       background: var(--paper-card);
       border: 1px solid var(--line);
@@ -226,7 +217,6 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     .tag-danger  { background: var(--danger-soft); color: var(--danger); }
     .tag-ink     { background: var(--paper-warm); color: var(--ink-mid); border: 1px solid var(--line); }
     
-    /* ── 按鈕系統 ── */
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
       gap: 5px; padding: 8px 16px; border-radius: 8px;
@@ -260,7 +250,6 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     }
     .btn-dark-del:hover { background: rgba(0,0,0,.1); }
 
-    /* ── 3D 視角按鈕 ── */
     .view-btn {
       padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 800;
       background: rgba(255,255,255,.9);
@@ -269,7 +258,6 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
     }
     .view-btn:hover { border-color: var(--brand); color: var(--brand); }
 
-    /* ── 其他 UI 元件 ── */
     .gap-pill {
       background: rgba(255,255,255,.95); border: 1.5px solid var(--line); 
       border-radius: 12px; padding: 12px 16px;
@@ -288,7 +276,6 @@ const WORKER_CODE = "\nconst EPS = 0.5;\nconst CARDBOARD_TYPES = {'none':{L:0,W:
       display: flex; align-items: center; justify-content: center;
     }
 
-    /* ── Modal ── */
     @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
     .modal-backdrop {
@@ -335,12 +322,9 @@ const CARDBOARD_TYPES = {
   'none': {L:0,W:0,H:0}, 'AB': {L:15,W:15,H:30}, 'A': {L:10,W:10,H:20},
   'B': {L:6,W:6,H:12}, 'EB': {L:9,W:9,H:18}, 'E': {L:3,W:3,H:6}
 };
-// Use new colors (Index 0 changed to Araisyu with 90% opacity)
 const COLORS = ['rgba(251,150,110,0.9)', 'rgba(232,72,85,0.8)', 'rgba(181,107,69,0.8)', 'rgba(255,155,113,0.8)', 'rgba(249,223,116,0.8)', 'rgba(237,174,73,0.8)', 'rgba(97,33,15,0.8)'];
-const APP_VER = '2.0';
-const APP_DATE = '2026/04/01';
-
-// WORKER_CODE is defined in the preceding <script> tag
+const APP_VER = '2.1';
+const APP_DATE = '2026/04/07';
 
 const T = {
   zh:{
@@ -362,7 +346,7 @@ const T = {
     sumTitle:'裝載結果', totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積', detail:'各類別裝載數量', boxU:'箱',
     warnTitle:'部分箱體未能完全裝入', wShort:'短缺', wReq:'需求', wPack:'實裝', wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。', wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。', staleWarning:'設定已變更，請重新計算',
     remTitle:'剩餘間隙', remD:'深度 (Z)', remW:'寬度 (X)', remH:'高度 (Y)', remInc:'含預留', helpBtn:'使用說明', helpTitle:'操作說明', closeBtn:'關閉',
-    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'移除浮水印文字，並將右上角按鈕整合成互動式 3D 視角方塊 (ViewCube)，帶來更直覺的視點切換體驗！',
+    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'修正 Sheet パレット 模式下剩餘間隙顯示偏差問題：護角(isPad)物件同時帶有 isPallet:true，導致前版修正未能正確納入護角厚度(5mm)的邊界計算。本版修正過濾邏輯，深度(Z)與寬度(X)含預留間隙現已顯示正確數值。',
     ctn20:"20呎標準櫃 (20' GP)", ctn40:"40呎標準櫃 (40' GP)", ctn40h:"40呎高櫃 (40' HQ)", preloadBanner:'✓ 已載入預存設定',
     groupUnit: '棧板',
   },
@@ -385,13 +369,12 @@ const T = {
     sumTitle:'積載結果', totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積', detail:'種類別積載数', boxU:'箱',
     warnTitle:'一部の箱が積載できませんでした', wShort:'不足', wReq:'要求', wPack:'実積載', wAnal:'🔍 原因：残りスペースが分断されており、箱を収められません。', wSug:'💡 提案：深層最適化 / 大きなコンテナに変更 / 余白を縮小。', staleWarning:'設定が変更されました。再計算してください',
     remTitle:'残りスペース', remD:'奥行（Z）', remW:'幅（X）', remH:'高さ（Y）', remInc:'余白含む', helpBtn:'ヘルプ', helpTitle:'操作ガイド', closeBtn:'閉じる',
-    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'ビューキューブ（3D視点切り替えブロック）を実装し、操作をより直感的にしました。',
+    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'シートパレットモードにおける残りスペース表示の誤差を修正：コーナーパッド(isPad)オブジェクトが isPallet:true も持つため、前バージョンの修正が有効ではありませんでした。フィルタロジックを修正し、奥行(Z)・幅(X)の余白含む隙間が正しい値で表示されるようになりました。',
     ctn20:"20フィート標準（20' GP）", ctn40:"40フィート標準（40' GP）", ctn40h:"40フィートHQ（40' HQ）", preloadBanner:'✓ 保存済み設定を読み込みました',
     groupUnit: 'パレット',
   }
 };
 
-// ── SVG Icons ──────────────────────────────────────────
 const Ico = {
   Pkg:  ({s})=><svg width={s||16} height={s||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
   Plus: ({s})=><svg width={s||16} height={s||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
@@ -418,9 +401,15 @@ const Ico = {
   Home: ({s})=><svg width={s||14} height={s||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
 };
 
-// ── Helpers ────────────────────────────────────────────
+// ── [BUG FIX v2.1] getGaps: correctly include isPad in boundary scan ──
+// isPad (corner pad) objects have BOTH isPallet:true AND isPad:true.
+// v2.0 fix `!p.isPallet` still excluded isPad because it also carries isPallet:true.
+// Correct fix: exclude only pure pallet bases (isPallet:true, isPad:undefined/false).
+// Retaining isPad ensures corner pad thickness (5mm) is counted → fixes ~5mm overestimate on X/Z.
 function getGaps(packed, container, axis, limit){
-  const realPacked = packed.filter(p => !p.isPallet && !p.isPad);
+  // FIXED v2.1: was `!p.isPallet` → still dropped pads (isPad also has isPallet:true)
+  // Now: keep isPad objects, exclude only pure pallet bases
+  const realPacked = packed.filter(p => !p.isPallet || p.isPad);
   if(!realPacked.length) return [0];
   const step=50, vis=new Set();
   if(axis==='X'){
@@ -438,10 +427,11 @@ function getGaps(packed, container, axis, limit){
   }
   const lims=Array.from(vis).sort((a,b)=>b-a);
   const gaps=lims.map(l=>Math.max(0,limit-l)).filter((g,i,a)=>g>=0&&a.indexOf(g)===i);
-  return gaps.length?gaps.slice(0,3):[0];
+  // Return only the minimum gap (tightest boundary = smallest remaining space)
+  // Previously slice(0,3) could return multiple values when isPad and box edges differ
+  return gaps.length?[Math.min(...gaps)]:[0];
 }
 
-// ── Modals ─────────────────────────────────────────────
 function BaseModal({onClose, title, children, footer, wide, accent}){
   return (
     <div className="modal-backdrop">
@@ -630,7 +620,6 @@ function HelpModal({onClose, lang}){
   );
 }
 
-// ── Main App ───────────────────────────────────────────
 function App(){
   const PS = window.PRELOADED_STATE;
   const [lang, setLang]     = useState(PS?.lang || 'zh');
@@ -676,7 +665,6 @@ function App(){
   const rendererRef  = useRef(null);
   const meshGroupRef = useRef(null);
 
-  // Compass 3D References
   const compassRef = useRef(null);
   const compassRendererRef = useRef(null);
   const compassSceneRef = useRef(null);
@@ -953,7 +941,6 @@ function App(){
     scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dpts),new THREE.LineBasicMaterial({color:0xc05858,linewidth:1.5})));
     camera.position.set(c.w*1.8,c.h*1.8,c.d*1.5); controls.update();
 
-    // ── Setup 3D Compass (ViewCube) ──
     if (compassRef.current) {
       compassRef.current.innerHTML = '';
       const cW = 100, cH = 100;
@@ -983,12 +970,12 @@ function App(){
       };
 
       const mats = [
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vRight, '#eb7a77')}), // +x (Right)
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vLeft, '#eb7a77')}),  // -x (Left)
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vTop, '#c8d5bb')}),   // +y (Top)
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBottom, '#c8d5bb')}),// -y (Bottom)
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vFront, '#51a8dd')}), // +z (Front)
-        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBack, '#51a8dd')})   // -z (Back)
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vRight, '#eb7a77')}),
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vLeft, '#eb7a77')}),
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vTop, '#c8d5bb')}),
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBottom, '#c8d5bb')}),
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vFront, '#51a8dd')}),
+        new THREE.MeshBasicMaterial({map: createTextTexture(t.vBack, '#51a8dd')})
       ];
       const compCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mats);
       compScene.add(compCube);
@@ -1034,7 +1021,6 @@ function App(){
       controls.update();
       renderer.render(scene,camera);
 
-      // Sync Compass
       if (compassRendererRef.current && compassSceneRef.current && compassCameraRef.current) {
         const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
         compassCameraRef.current.position.copy(offset).normalize().multiplyScalar(6);
@@ -1101,7 +1087,6 @@ function App(){
 
   const hasPacked=result.packed.length>0;
 
-  // ── 處理進度條群組化邏輯 ──
   const isGrouped = result.stats && result.stats.palletCount > 0;
   const groupSteps = useMemo(() => {
     if (!result.packed || result.packed.length === 0) return [0];
@@ -1127,7 +1112,6 @@ function App(){
     }
   }
 
-  // ── Label strip ──
   const LabelStrip = () => (
     <div style={{display:'flex',flexDirection:'column',gap:4}}>
       {boxes.map(b=>(
@@ -1139,7 +1123,6 @@ function App(){
     </div>
   );
 
-  // ── Gap strip ──
   const GapStrip = () => {
     if (!result.stats?.rem || !hasPacked) return null;
     const {w:gW,h:gH,d:gD}=result.stats.rem;
@@ -1169,7 +1152,6 @@ function App(){
 
   return (
     <div id="app-root" style={{minHeight:'100vh',padding:'20px 24px',background:'var(--paper)'}}>
-      {/* ── Modals ── */}
       {helpOpen && <HelpModal onClose={()=>setHelpOpen(false)} lang={lang}/>}
       {saveOpen && <SaveHtmlModal onClose={()=>setSaveOpen(false)} onSave={doSaveHtml} lang={lang} t={t}/>}
 
@@ -1210,7 +1192,6 @@ function App(){
 
       <div style={{maxWidth:1480,margin:'0 auto',display:'flex',flexDirection:'column',gap:16}}>
 
-        {/* ── Header ── */}
         <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 24px',background:'var(--paper-card)',borderRadius:'16px',marginBottom:'16px',border:'1px solid rgba(0,0,0,0.08)',gap:12,flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:40,height:40,background:'var(--brand)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',flexShrink:0}}>
@@ -1227,7 +1208,6 @@ function App(){
             </div>
           </div>
 
-          {/* Action buttons */}
           <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
             <button onClick={doReport} disabled={isReporting||boxes.length===0} className="btn btn-primary">
               {isReporting
@@ -1252,13 +1232,10 @@ function App(){
           </div>
         </header>
 
-        {/* ── Main layout ── */}
         <div style={{display:'grid',gridTemplateColumns:'368px 1fr',gap:16,alignItems:'start'}}>
 
-          {/* ══ LEFT PANEL ══ */}
           <div className="left-panel">
 
-            {/* ── Container Settings ── */}
             <div className="left-card">
               <div className="left-sec-header">
                 <div className="left-sec-dot"></div>
@@ -1320,7 +1297,6 @@ function App(){
               </div>
             </div>
 
-            {/* ── Box Settings ── */}
             <div className="left-card">
               <div className="left-sec-header">
                 <div className="left-sec-dot"></div>
@@ -1487,12 +1463,9 @@ function App(){
             </div>
           </div>
 
-          {/* ══ RIGHT PANEL ══ */}
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
 
-            {/* ── 3D Viewport ── */}
             <div className="card" style={{position:'relative',height:680}}>
-              {/* Stale overlay */}
               {result.stats === null && !loading && step === 0 && hasPacked===false ? null : (
                 result.stats === null && !loading && (
                   <div className="stale-overlay">
@@ -1503,7 +1476,6 @@ function App(){
                 )
               )}
 
-              {/* Box legend */}
               <div style={{position:'absolute',top:12,left:12,zIndex:10,display:'flex',flexDirection:'column',gap:4,pointerEvents:'none'}}>
                 <LabelStrip/>
                 {result.stats?.rem && hasPacked && (
@@ -1511,7 +1483,6 @@ function App(){
                 )}
               </div>
 
-              {/* 3D Compass (ViewCube) */}
               <div style={{position:'absolute',top:12,right:12,zIndex:30, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4}}>
                 <button onClick={()=>changeView('iso')} className="view-btn" style={{padding: '4px 8px', display:'flex', alignItems:'center', gap:4, boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}} title={lang==='zh'?'等角視圖':'等角投影'}>
                   <Ico.Home s={14}/> {lang==='zh'?'等角':'等角'}
@@ -1519,10 +1490,8 @@ function App(){
                 <div ref={compassRef} style={{width: 90, height: 90, background:'rgba(255,255,255,0.7)', borderRadius: '8px', border: '1px solid var(--line)', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}></div>
               </div>
 
-              {/* Canvas */}
               <div ref={canvasRef} className="touch-none" id="canvas-wrap" style={{background:'var(--paper-warm)'}}></div>
 
-              {/* Playback bar */}
               {hasPacked && (
                 <div style={{position:'absolute',bottom:10,left:10,right:10,zIndex:20,background:'rgba(255,255,255,.9)',backdropFilter:'blur(8px)',border:'1px solid var(--line)',borderRadius:10,padding:'9px 12px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',boxShadow:'0 4px 16px rgba(0,0,0,0.05)'}}>
                   <span style={{fontSize:14,fontWeight:700,color:'var(--brand)',background:'var(--tertiary-soft)',padding:'3px 8px',borderRadius:5,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>
@@ -1551,7 +1520,6 @@ function App(){
               )}
             </div>
 
-            {/* ── Result Summary ── */}
             {result.stats && (
               <div className="card" style={{padding:16}} key="result">
                 <div className="sec-header">
@@ -1559,7 +1527,6 @@ function App(){
                   <span style={{fontWeight:700,fontSize:16}}>{t.sumTitle}</span>
                 </div>
 
-                {/* Stats row */}
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8,marginBottom:14}}>
                   <div className="stat-box">
                     <div className="text-caption">{t.totBox}</div>
@@ -1584,7 +1551,6 @@ function App(){
                   </div>
                 </div>
 
-                {/* Pallet detail */}
                 {result.stats.palletDetail && (
                   <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',background:'var(--warn-pale)',border:'1px solid var(--warn)',borderRadius:8,marginBottom:12}}>
                     <Ico.Layers s={14}/><span style={{fontSize:15,fontWeight:700,color:'var(--ink-mid)'}}>{t.palletDetail}：</span>
@@ -1596,7 +1562,6 @@ function App(){
                   </div>
                 )}
 
-                {/* Per-box counts */}
                 <div>
                   <div style={{fontSize:14,fontWeight:700,color:'var(--ink-mid)',marginBottom:8}}>{t.detail}</div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
@@ -1619,7 +1584,6 @@ function App(){
                   </div>
                 </div>
 
-                {/* Warnings */}
                 {result.stats.warns?.length>0 && (
                   <div style={{marginTop:12,background:'var(--danger-soft)',border:'1px solid rgba(234, 43, 31, 0.4)',borderRadius:10,padding:14}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,fontSize:15,color:'var(--danger)',marginBottom:10}}>
