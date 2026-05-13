@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貨櫃裝載計算器 v2.1</title>
+  <title>貨櫃裝載計算器 v2.2</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -323,8 +323,8 @@ const CARDBOARD_TYPES = {
   'B': {L:6,W:6,H:12}, 'EB': {L:9,W:9,H:18}, 'E': {L:3,W:3,H:6}
 };
 const COLORS = ['rgba(251,150,110,0.9)', 'rgba(232,72,85,0.8)', 'rgba(181,107,69,0.8)', 'rgba(255,155,113,0.8)', 'rgba(249,223,116,0.8)', 'rgba(237,174,73,0.8)', 'rgba(97,33,15,0.8)'];
-const APP_VER = '2.1';
-const APP_DATE = '2026/04/12';
+const APP_VER = '2.2';
+const APP_DATE = '2026/05/13';
 
 const T = {
   zh:{
@@ -346,7 +346,7 @@ const T = {
     sumTitle:'裝載結果', totBox:'總裝載箱數', util:'空間利用率', effVol:'有效裝載體積', totVol:'總容積', detail:'各類別裝載數量', boxU:'箱',
     warnTitle:'部分箱體未能完全裝入', wShort:'短缺', wReq:'需求', wPack:'實裝', wAnal:'🔍 原因：剩餘空間已被切割成畸零碎片，無法容納剩餘箱體。', wSug:'💡 建議：嘗試深層優化 / 換更大貨櫃 / 縮減預留空間。', staleWarning:'設定已變更，請重新計算',
     remTitle:'剩餘間隙', remD:'深度 (Z)', remW:'寬度 (X)', remH:'高度 (Y)', remInc:'含預留', helpBtn:'使用說明', helpTitle:'操作說明', closeBtn:'關閉',
-    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'日本向模式新增「一組棧板預覽」視窗：顯示棧板俯視圖（含護角），支援多層切換。勾選「尺寸顯示」後可顯示箱體排列尺寸、含護角總尺寸（紅線）及單箱尺寸標示，各尺寸互不重疊。',
+    fixTitle:'v'+APP_VER+' 更新內容', fixNotes:'當切換「紙箱種類」時，會自動帶入預設的正負公差（AB段為5，其餘為3），減少手動輸入負擔。',
     ctn20:"20呎標準櫃 (20' GP)", ctn40:"40呎標準櫃 (40' GP)", ctn40h:"40呎高櫃 (40' HQ)", preloadBanner:'✓ 已載入預存設定',
     groupUnit: '棧板',
     pvTitle:'一組棧板預覽', pvDimShow:'尺寸顯示', pvTotal:'含護角總尺寸', pvBox:'紙箱排列尺寸', pvSingle:'單箱尺寸', pvLayer:'第', pvLayerSuffix:'層',
@@ -369,7 +369,7 @@ const T = {
     sumTitle:'積載結果', totBox:'総積載箱数', util:'空間利用率', effVol:'有効積載体積', totVol:'総容積', detail:'種類別積載数', boxU:'箱',
     warnTitle:'一部の箱が積載できませんでした', wShort:'不足', wReq:'要求', wPack:'実積載', wAnal:'🔍 原因：残りスペースが分断されており、箱を収められません。', wSug:'💡 提案：深層最適化 / 大きなコンテナに変更 / 余白を縮小。', staleWarning:'設定が変更されました。再計算してください',
     remTitle:'残りスペース', remD:'奥行（Z）', remW:'幅（X）', remH:'高さ（Y）', remInc:'余白含む', helpBtn:'ヘルプ', helpTitle:'操作ガイド', closeBtn:'閉じる',
-    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'日本向けモードに「1パレット プレビュー」ウィンドウを追加：パレット俯視図（コーナーパッド含む）を表示し、複数層の切り替えが可能です。「寸法表示」チェック時は箱組み寸法・護角含む総寸法（赤線）・単箱寸法を重なりなく表示します。',
+    fixTitle:'v'+APP_VER+' 更新内容', fixNotes:'「ダンボール種類」を変更すると、デフォルトのプラス・マイナス公差が自動入力されるようになりました（AB段は5、その他は3）。',
     ctn20:"20フィート標準（20' GP）", ctn40:"40フィート標準（40' GP）", ctn40h:"40フィートHQ（40' HQ）", preloadBanner:'✓ 保存済み設定を読み込みました',
     groupUnit: 'パレット',
     pvTitle:'1パレット プレビュー', pvDimShow:'寸法表示', pvTotal:'護角含む総寸法', pvBox:'箱組み寸法', pvSingle:'単箱寸法', pvLayer:'第', pvLayerSuffix:'層',
@@ -1653,7 +1653,19 @@ function App(){
                       </div>
                       <div style={{marginBottom:8}}>
                         <label className="left-label">{t.cbType}</label>
-                        <select value={box.cbType||'none'} onChange={e=>setBoxes(bs=>bs.map(b=>b.id===box.id?{...b,cbType:e.target.value}:b))} className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px'}}>
+                        <select 
+                          value={box.cbType||'none'} 
+                          onChange={e=>{
+                            const val = e.target.value;
+                            let tol = box.tolPlus;
+                            let tolM = box.tolMinus;
+                            if(val === 'AB') { tol = 5; tolM = 5; }
+                            else if(['A','B','EB','E'].includes(val)) { tol = 3; tolM = 3; }
+                            else if(val === 'none') { tol = 0; tolM = 0; }
+                            setBoxes(bs=>bs.map(b=>b.id===box.id?{...b, cbType:val, tolPlus:tol, tolMinus:tolM}:b))
+                          }} 
+                          className="ctrl-dark" style={{fontSize:14, height: '36px', padding: '0 8px'}}
+                        >
                           <option value="none">{lang==='zh'?'無（直接輸入外寸）':'なし（外寸を直接入力）'}</option>
                           <option value="AB">AB段 {lang==='zh'?'（長寬+15、高+30）':'（長幅+15、高+30）'}</option>
                           <option value="A">A段 {lang==='zh'?'（長寬+10、高+20）':'（長幅+10、高+20）'}</option>
