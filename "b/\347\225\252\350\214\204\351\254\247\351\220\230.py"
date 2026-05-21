@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""A simple command-line Pomodoro timer."""
+import argparse
+import time
+
+
+def format_time(seconds: int) -> str:
+    """Format seconds as MM:SS."""
+    minutes, secs = divmod(seconds, 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def countdown(label: str, duration: int) -> None:
+    """Display a countdown for the given duration."""
+    for remaining in range(duration, 0, -1):
+        print(f"{label} {format_time(remaining)}", end="\r", flush=True)
+        time.sleep(1)
+    print(f"{label} done!          ")
+
+
+def pomodoro(work: int, rest: int, cycles: int) -> None:
+    """Run a Pomodoro session."""
+    for cycle in range(1, cycles + 1):
+        print(f"Cycle {cycle}/{cycles}")
+        countdown("Work", work)
+        if cycle != cycles:
+            countdown("Break", rest)
+    print("Session complete!")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Pomodoro timer")
+    parser.add_argument("-w", "--work", type=int, default=25 * 60, help="Work duration in seconds")
+    parser.add_argument("-b", "--break-time", type=int, default=5 * 60, help="Break duration in seconds")
+    parser.add_argument("-c", "--cycles", type=int, default=4, help="Number of work/break cycles")
+    args = parser.parse_args()
+    pomodoro(args.work, args.break_time, args.cycles)
