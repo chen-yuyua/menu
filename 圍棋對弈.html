@@ -77,7 +77,7 @@ legend{font-size:.78rem;color:var(--muted);letter-spacing:.06em;margin-bottom:4p
 <div class="wrap">
   <header>
     <h1>Claude 圍棋對局</h1>
-    <span class="rule" id="rule">19路 / 中國規則 / 貼7.5目</span>
+    <span class="rule" id="rule">19路 / 日韓規則 / 貼6.5目</span>
   </header>
 
   <div class="players">
@@ -130,6 +130,11 @@ legend{font-size:.78rem;color:var(--muted);letter-spacing:.06em;margin-bottom:4p
         <input type="radio" name="size" id="sz13" value="13"><label for="sz13">13路<small>中盤</small></label>
         <input type="radio" name="size" id="sz19" value="19" checked><label for="sz19">19路<small>正式</small></label>
       </div></fieldset>
+    <fieldset><legend>規則</legend>
+      <div class="seg">
+        <input type="radio" name="rule" id="rJK" value="jk" checked><label for="rJK">日韓規則<small>數目法 / 貼 6.5 目</small></label>
+        <input type="radio" name="rule" id="rCN" value="cn"><label for="rCN">中國規則<small>數子法 / 貼 7.5 目</small></label>
+      </div></fieldset>
     <fieldset><legend>你執</legend>
       <div class="seg">
         <input type="radio" name="color" id="cB" value="1" checked><label for="cB">黑棋<small>先手</small></label>
@@ -147,7 +152,7 @@ legend{font-size:.78rem;color:var(--muted);letter-spacing:.06em;margin-bottom:4p
     </div>
   </section>
 
-  <p class="foot" id="foot">規則：中國規則（數子法），貼 7.5 目，禁止自殺手，採用全局同形禁止（超級劫）。雙方連續停一手即終局計分。</p>
+  <p class="foot" id="foot"></p>
 </div>
 
 <script>
@@ -203,12 +208,17 @@ const name = c => c===1 ? "黑" : "白";
 const who = c => c===S.human ? "你" : "Claude";
 
 /* ---------- 狀態 ---------- */
-function newGame(size,human,tier){
-  S={v:1,size,komi:7.5,human,tier,board:Array(size*size).fill(0),toPlay:1,snaps:[],
+function newGame(size,human,tier,rule){
+  rule=rule||"jk";
+  S={v:1,size,rule,komi:rule==="jk"?6.5:7.5,calls:0,human,tier,board:Array(size*size).fill(0),toPlay:1,snaps:[],
      caps:[0,0,0],passes:0,last:-1,moves:[],phase:"play",dead:[],result:"",comment:"",engine:"claude"};
   buildNB(size); rebuildSeen(); pending=-1;
 }
-function rebuildSeen(){ seen=new Set(S.snaps.map(s=>s.board)); seen.add(S.board.join("")); }
+// 日韓規則：一般劫（不能立刻提回）；中國規則：全局同形禁止
+function rebuildSeen(){
+  if (S.rule==="jk"){ seen=new Set(S.snaps.length?[S.snaps[S.snaps.length-1].board]:[]); return; }
+  seen=new Set(S.snaps.map(s=>s.board)); seen.add(S.board.join(""));
+}
 function snapshot(){ return {board:S.board.join(""),toPlay:S.toPlay,caps:S.caps.slice(),passes:S.passes,last:S.last,mv:S.moves.length,comment:S.comment}; }
 function restore(sn){
   S.board=sn.board.split("").map(Number); S.toPlay=sn.toPlay; S.caps=sn.caps.slice();
@@ -217,7 +227,7 @@ function restore(sn){
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
 function load(data){
   try{ const d=data || JSON.parse(localStorage.getItem(KEY)||"null");
-    if(d && d.v===1 && d.board){ S=d; buildNB(S.size); rebuildSeen(); return true; } }catch(e){}
+    if(d && d.v===1 && d.board){ S=d; S.rule=S.rule||"cn"; S.calls=S.calls||0; buildNB(S.size); rebuildSeen(); return true; } }catch(e){}
   return false;
 }
 
@@ -227,8 +237,8 @@ function commit(i,c){
   if (i<0){ S.snaps.push(sn); S.passes++; S.last=-1; S.moves.push(name(c)+" pass"); }
   else { const r=tryPlay(S.board,i,c); if(typeof r==="string") return r;
     S.snaps.push(sn); S.board=r.b; S.caps[c]+=r.captured; S.passes=0; S.last=i; S.moves.push(name(c)+" "+coord(i));
-    seen.add(S.board.join("")); click(); }
-  S.toPlay=3-c; pending=-1;
+    click(); }
+  S.toPlay=3-c; pending=-1; rebuildSeen();
   if (S.passes>=2) enterScoring();
   save(); return null;
 }
@@ -242,7 +252,13 @@ function scoreNow(deadSet){
     for (let k=0;k<reg.length;k++) for (const m of NB[reg[k]]){ if(b[m]) border.add(b[m]); else if(!vis[m]){vis[m]=1;reg.push(m);} }
     if (border.size===1){ const o=[...border][0]; for(const p of reg) terr[p]=o; } }
   let sb=0,sw=0,tb=0,tw=0;
-  for (let i=0;i<n*n;i++){ if(b[i]===1)sb++; else if(b[i]===2)sw++; if(terr[i]===1)tb++; else if(terr[i]===2)tw++; }
+  let db=0,dw=0; // 死子（日韓規則算作提子）
+  for (let i=0;i<n*n;i++){ if(b[i]===1)sb++; else if(b[i]===2)sw++; if(terr[i]===1)tb++; else if(terr[i]===2)tw++;
+    if(S.board[i] && !b[i]){ if(S.board[i]===1)db++; else dw++; } }
+  if (S.rule==="jk"){ // 數目法：地 ＋ 提子 ＋ 死子
+    const pb=S.caps[1]+dw, pw=S.caps[2]+db;
+    return {sb,sw,tb,tw,pb,pw,black:tb+pb,white:tw+pw+S.komi,terr};
+  }
   return {sb,sw,tb,tw,black:sb+tb,white:sw+tw+S.komi,terr};
 }
 // 以周圍棋子的影響力推測死子，玩家可再修正
@@ -311,15 +327,17 @@ function buildPrompt(note){
   const est=scoreNow(null);
   return [
 `You are playing a serious game of Go as ${me===1?"Black (X)":"White (O)"} against a human playing ${me===1?"White (O)":"Black (X)"}. Play the strongest move you can find.`,
-`Rules: ${n}x${n} board, Chinese area scoring, komi ${S.komi}, suicide is illegal, positional superko.`,
+S.rule==="jk"
+  ? `Rules: ${n}x${n} board, Japanese/Korean rules as used in international professional tournaments: territory scoring (score = surrounded empty points + prisoners, captured and dead stones), komi ${S.komi}, suicide is illegal, basic ko rule (you may not immediately retake a ko). Playing inside your own territory costs one point; filling neutral points (dame) gains nothing.`
+  : `Rules: ${n}x${n} board, Chinese area scoring, komi ${S.komi}, suicide is illegal, positional superko.`,
 `Coordinates: columns ${LET.slice(0,n)} from left to right (no letter I), rows ${n} at the top down to 1 at the bottom. X = Black, O = White, . = empty.`,
 "", boardText(),
 `Stones captured so far: Black has captured ${S.caps[1]}, White has captured ${S.caps[2]}.`,
 `Move number: ${S.moves.length+1}. Opponent's last move: ${lastOpp}.`,
 `Recent moves (oldest first): ${S.moves.slice(-24).join(", ")||"none"}.`,
 atari.length?`Groups in atari: ${atari.join("; ")}.`:"No group is in atari.",
-banned.length?`Forbidden for you right now (ko/superko): ${banned.join(", ")}.`:"",
-S.passes===1?`The opponent just PASSED. If you pass too, the game ends and is scored. Rough area count if every stone on the board were alive: Black ${est.black}, White ${est.white} (incl. komi). Only pass if all borders are settled and no point remains to gain; otherwise keep playing.`:"",
+banned.length?`Forbidden for you right now (ko): ${banned.join(", ")}.`:"",
+S.passes===1?`The opponent just PASSED. If you pass too, the game ends and is scored. Rough score if every stone on the board were alive: Black ${est.black}, White ${est.white} (incl. komi). Only pass if all borders are settled and no point remains to gain; otherwise keep playing.`:"",
 note?`IMPORTANT: ${note}`:"",
 "",
 "Think about the whole board: life and death, captures and escapes, connections and cuts, sente, big points and territory. Never fill your own eyes. Make sure the point you choose is empty on the board above.",
@@ -349,6 +367,7 @@ async function claudeTurn(note, retried){
   try{
     const r = await sample.json(buildPrompt(note), {modelTier:S.tier, signal:ctl.signal, cache:false});
     if (tok!==turnToken) return;
+    S.calls=(S.calls||0)+1;
     const mv = parseCoord(r && r.move);
     const cmt = r && typeof r.comment==="string" ? r.comment.slice(0,60) : "";
     if (mv===-2){ busy=false; S.phase="over"; S.result=`${name(me)}（Claude）認輸，${name(S.human)}（你）中盤勝`; S.comment=cmt||"我認輸了，你下得很好。"; save(); render(); return; }
@@ -419,7 +438,12 @@ function render(){
   if (pending>=0 && S.phase==="play"){ const [x,y]=P(pending); h+=`<circle cx="${x}" cy="${y}" r="18.6" fill="url(#${S.human===1?"gb":"gw"})" opacity=".55"/><circle cx="${x}" cy="${y}" r="4" fill="#d23b1e"/>`; }
   svg.innerHTML=h;
 
-  $("rule").textContent=`${n}路 / 中國規則 / 貼${S.komi}目`;
+  const jk=S.rule==="jk";
+  $("rule").textContent=`${n}路 / ${jk?"日韓規則":"中國規則"} / 貼${S.komi}目`;
+  $("foot").textContent = (jk
+    ? `規則：日韓規則（國際職業賽事通用，數目法），貼 ${S.komi} 目，禁止自殺手，一般劫不能立刻提回。終局時以「地 ＋ 提子 ＋ 死子」計算。`
+    : `規則：中國規則（數子法），貼 ${S.komi} 目，禁止自殺手，採用全局同形禁止（超級劫）。終局時以「棋子 ＋ 地」計算。`)
+    + `雙方連續停一手即終局。` + (S.engine==="claude" ? `本局已請 Claude 下了 ${S.calls||0} 手。` : "");
   const nmFor=c=> c===S.human ? "你" : (S.engine==="local"?"本機程式":"Claude");
   $("nmB").textContent=nmFor(1); $("nmW").textContent=nmFor(2);
   $("subB").textContent=`提子 ${S.caps[1]}`; $("subW").textContent=`提子 ${S.caps[2]}`;
@@ -448,7 +472,9 @@ function render(){
   const ss=$("scoreSheet"); ss.hidden = S.phase==="play";
   if (sc){
     const fmt=x=>Number.isInteger(x)?x:x.toFixed(1);
-    $("scoreTable").innerHTML=`<span>黑（${nmFor(1)}）</span><span>棋子 ${sc.sb} ＋ 地 ${sc.tb} ＝ ${fmt(sc.black)}</span><span>白（${nmFor(2)}）</span><span>棋子 ${sc.sw} ＋ 地 ${sc.tw} ＋ 貼 ${S.komi} ＝ ${fmt(sc.white)}</span>`;
+    $("scoreTable").innerHTML = jk
+      ? `<span>黑（${nmFor(1)}）</span><span>地 ${sc.tb} ＋ 提子與死子 ${sc.pb} ＝ ${fmt(sc.black)}</span><span>白（${nmFor(2)}）</span><span>地 ${sc.tw} ＋ 提子與死子 ${sc.pw} ＋ 貼 ${S.komi} ＝ ${fmt(sc.white)}</span>`
+      : `<span>黑（${nmFor(1)}）</span><span>棋子 ${sc.sb} ＋ 地 ${sc.tb} ＝ ${fmt(sc.black)}</span><span>白（${nmFor(2)}）</span><span>棋子 ${sc.sw} ＋ 地 ${sc.tw} ＋ 貼 ${S.komi} ＝ ${fmt(sc.white)}</span>`;
   } else $("scoreTable").innerHTML="";
   if (S.phase==="over"){
     $("scoreTitle").textContent="對局結果"; $("scoreHint").hidden=true; $("scoreBtns").hidden=true;
@@ -506,15 +532,15 @@ $("btnCancelSetup").onclick=()=>{ $("setup").hidden=true; };
 $("btnStart").onclick=()=>{
   abortThink(); confirmAct=null; setRetry(false); hideNote();
   const sz=+document.querySelector('input[name=size]:checked').value, col=+document.querySelector('input[name=color]:checked').value,
-        tier=document.querySelector('input[name=tier]:checked').value;
-  newGame(sz,col,tier); if (sampleFn===null) S.engine="local";
+        tier=document.querySelector('input[name=tier]:checked').value, rule=document.querySelector('input[name=rule]:checked').value;
+  newGame(sz,col,tier,rule); if (sampleFn===null) S.engine="local";
   S.comment = col===1 ? "請先下。" : "我先下了。";
   $("setup").hidden=true; save(); render(); window.scrollTo({top:0,behavior:"smooth"}); nextTurn();
 };
 
 /* ---------- 啟動 ---------- */
 function start(data){
-  if (!load(data && data.S)) newGame(19,1,"default");
+  if (!load(data && data.S)) newGame(19,1,"default","jk");
   render();
   getSample();
   // 重新開啟時若輪到 Claude，等玩家按鈕再呼叫
