@@ -1,0 +1,528 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<title>Claude 圍棋對局</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* 版面：單欄、棋盤置中為主角，上方對局資訊，下方 Claude 評語與操作列 */
+:root{
+  --bg:#e6e9e5; --panel:#f5f6f3; --fg:#1b211e; --muted:#5a6560; --line:#c6cdc7;
+  --accent:#2d4c7c; --accent-fg:#ffffff; --warn:#a2452c;
+  --wood-1:#e3bd73; --wood-2:#cf9f52; --grid:#3a2810;
+  --f-display:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141917; --panel:#1d2421; --fg:#e5e9e5; --muted:#97a39d; --line:#2e3834;
+  --accent:#8eb0e8; --accent-fg:#0f1a2c; --warn:#e58d72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141917; --panel:#1d2421; --fg:#e5e9e5; --muted:#97a39d; --line:#2e3834;
+  --accent:#8eb0e8; --accent-fg:#0f1a2c; --warn:#e58d72; color-scheme:dark}
+
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-tap-highlight-color:transparent}
+.wrap{max-width:640px;margin:0 auto;padding-block:12px 28px;display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-size:1.45rem;margin:0;letter-spacing:.04em;text-wrap:balance}
+.rule{font-size:.78rem;color:var(--muted);letter-spacing:.04em}
+
+.players{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pl{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);min-width:0}
+.pl.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.dot{width:22px;height:22px;border-radius:50%;flex:none}
+.dot.b{background:radial-gradient(circle at 35% 30%,#666,#111 60%)}
+.dot.w{background:radial-gradient(circle at 35% 30%,#fff,#d4d4d0 70%);border:1px solid #aaa}
+.pl .nm{font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .sub{font-size:.75rem;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.boardbox{position:relative;width:100%;max-width:100%;aspect-ratio:1/1;border-radius:6px;
+  background:linear-gradient(135deg,var(--wood-1),var(--wood-2));box-shadow:0 6px 18px rgba(0,0,0,.22);touch-action:manipulation}
+#board{width:100%;height:100%;display:block;cursor:pointer;user-select:none;-webkit-user-select:none}
+
+.status{display:flex;align-items:center;gap:10px;min-height:2.2em;font-weight:500}
+.status .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:sp 0.9s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.status .spin{animation:none}}
+.say{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.92rem;min-height:1.5em}
+.say b{font-family:var(--f-display);margin-right:6px;color:var(--accent)}
+.note{font-size:.8rem;color:var(--warn)}
+
+.ctrl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+button{font:inherit;font-size:.92rem;font-weight:500;padding:10px 6px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;min-height:44px}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+button.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row button{flex:1 1 120px}
+
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.sheet h2{font-family:var(--f-display);font-size:1.1rem;margin:0}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+legend{font-size:.78rem;color:var(--muted);letter-spacing:.06em;margin-bottom:4px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border:1px solid var(--line);border-radius:9px;cursor:pointer;text-align:center;min-height:44px;font-weight:500}
+.seg label small{font-weight:400;font-size:.72rem;color:var(--muted)}
+.seg input:checked+label{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);color:var(--accent)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:2px}
+.score{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.88rem;display:grid;grid-template-columns:auto 1fr;gap:2px 14px}
+.result{font-family:var(--f-display);font-size:1.15rem}
+.foot{font-size:.75rem;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Claude 圍棋對局</h1>
+    <span class="rule" id="rule">19路 / 中國規則 / 貼7.5目</span>
+  </header>
+
+  <div class="players">
+    <div class="pl" id="plB"><span class="dot b"></span><div style="min-width:0"><div class="nm" id="nmB">你</div><div class="sub" id="subB">提子 0</div></div></div>
+    <div class="pl" id="plW"><span class="dot w"></span><div style="min-width:0"><div class="nm" id="nmW">Claude</div><div class="sub" id="subW">提子 0</div></div></div>
+  </div>
+
+  <div class="boardbox"><svg id="board" role="img" aria-label="圍棋棋盤"></svg></div>
+
+  <div class="status" id="status" aria-live="polite"></div>
+  <div class="say" id="say"><b>Claude</b><span id="sayText">準備好了，請落子。點一下棋盤會先出現預覽，再點同一點或按「落子」確定。</span></div>
+  <div class="note" id="note" hidden></div>
+
+  <div class="ctrl" id="ctrlPlay">
+    <button class="pri" id="btnPlace" disabled>落子</button>
+    <button id="btnPass">停一手</button>
+    <button id="btnUndo">悔棋</button>
+    <button id="btnResign">認輸</button>
+  </div>
+  <div class="row" id="ctrlRetry" hidden>
+    <button class="pri" id="btnAsk">請 Claude 下一手</button>
+    <button id="btnLocal">改由本機代下</button>
+  </div>
+  <div class="row" id="ctrlThink" hidden>
+    <button id="btnStop">停止思考</button>
+  </div>
+  <div class="row" id="ctrlConfirm" hidden>
+    <button class="pri" id="btnYes">確定</button>
+    <button id="btnNo">取消</button>
+  </div>
+
+  <section class="sheet" id="scoreSheet" hidden>
+    <h2 id="scoreTitle">計算勝負</h2>
+    <div class="foot" id="scoreHint">雙方都停一手，對局結束。已自動推測死子（打叉的棋子），點擊棋子可切換死活，確認後計分。</div>
+    <div class="score" id="scoreTable"></div>
+    <div class="result" id="resultText"></div>
+    <div class="row" id="scoreBtns">
+      <button class="pri" id="btnScore">確認計分</button>
+      <button id="btnResume">回到對局</button>
+    </div>
+  </section>
+
+  <div class="row"><button id="btnNew">新對局</button></div>
+
+  <section class="sheet" id="setup" hidden>
+    <h2>新對局設定</h2>
+    <fieldset><legend>棋盤</legend>
+      <div class="seg">
+        <input type="radio" name="size" id="sz9" value="9"><label for="sz9">9路<small>入門</small></label>
+        <input type="radio" name="size" id="sz13" value="13"><label for="sz13">13路<small>中盤</small></label>
+        <input type="radio" name="size" id="sz19" value="19" checked><label for="sz19">19路<small>正式</small></label>
+      </div></fieldset>
+    <fieldset><legend>你執</legend>
+      <div class="seg">
+        <input type="radio" name="color" id="cB" value="1" checked><label for="cB">黑棋<small>先手</small></label>
+        <input type="radio" name="color" id="cW" value="2"><label for="cW">白棋<small>後手 / 得貼目</small></label>
+      </div></fieldset>
+    <fieldset><legend>Claude 的思考深度</legend>
+      <div class="seg">
+        <input type="radio" name="tier" id="tQ" value="quick"><label for="tQ">快速<small>約 1 到 3 秒</small></label>
+        <input type="radio" name="tier" id="tD" value="default" checked><label for="tD">標準<small>約 5 到 30 秒</small></label>
+        <input type="radio" name="tier" id="tC" value="complex"><label for="tC">深思<small>較慢 / 較強</small></label>
+      </div></fieldset>
+    <div class="row">
+      <button class="pri" id="btnStart">開始對局</button>
+      <button id="btnCancelSetup">取消</button>
+    </div>
+  </section>
+
+  <p class="foot" id="foot">規則：中國規則（數子法），貼 7.5 目，禁止自殺手，採用全局同形禁止（超級劫）。雙方連續停一手即終局計分。</p>
+</div>
+
+<script>
+(() => {
+const LET = "ABCDEFGHJKLMNOPQRST";
+const KEY = "claude-go-v1";
+const $ = id => document.getElementById(id);
+
+let S = null;            // 對局狀態（可序列化）
+let NB = [];             // 每個點的相鄰點
+let seen = new Set();    // 出現過的局面（超級劫判定）
+let pending = -1;        // 預覽中的點
+let busy = false;        // Claude 思考中
+let ctl = null;          // AbortController
+let turnToken = 0;
+let confirmAct = null;
+let samplePromise = null;
+let sampleFn = undefined; // undefined：尚未得知 / null：無法使用
+
+/* ---------- 基本規則 ---------- */
+function buildNB(n){
+  NB = [];
+  for (let i=0;i<n*n;i++){ const x=i%n,y=(i/n)|0,a=[];
+    if(x>0)a.push(i-1); if(x<n-1)a.push(i+1); if(y>0)a.push(i-n); if(y<n-1)a.push(i+n); NB.push(a); }
+}
+function group(b,i){
+  const c=b[i], st=[i], seenG=new Set([i]), libs=new Set();
+  for (let k=0;k<st.length;k++){ for (const m of NB[st[k]]){
+    if (b[m]===0) libs.add(m);
+    else if (b[m]===c && !seenG.has(m)){ seenG.add(m); st.push(m); } } }
+  return {stones:st, libs};
+}
+// 回傳 {b, captured} / "occupied" / "suicide" / "ko"
+function tryPlay(b,i,c){
+  if (b[i]!==0) return "occupied";
+  const nb=b.slice(); nb[i]=c; const o=3-c; let cap=0;
+  for (const m of NB[i]) if (nb[m]===o){ const g=group(nb,m); if(g.libs.size===0){ for(const s of g.stones) nb[s]=0; cap+=g.stones.length; } }
+  if (group(nb,i).libs.size===0) return "suicide";
+  if (seen.has(nb.join(""))) return "ko";
+  return {b:nb, captured:cap};
+}
+const coord = i => i<0 ? "pass" : LET[i%S.size] + (S.size - ((i/S.size)|0));
+function parseCoord(s){
+  s=String(s||"").trim().toUpperCase();
+  if (/^PASS$/.test(s)) return -1;
+  if (/^RESIGN$/.test(s)) return -2;
+  const m=s.match(/^([A-HJ-T])\s*(\d{1,2})$/); if(!m) return null;
+  const x=LET.indexOf(m[1]), r=+m[2], n=S.size;
+  if (x<0||x>=n||r<1||r>n) return null;
+  return (n-r)*n + x;
+}
+const name = c => c===1 ? "黑" : "白";
+const who = c => c===S.human ? "你" : "Claude";
+
+/* ---------- 狀態 ---------- */
+function newGame(size,human,tier){
+  S={v:1,size,komi:7.5,human,tier,board:Array(size*size).fill(0),toPlay:1,snaps:[],
+     caps:[0,0,0],passes:0,last:-1,moves:[],phase:"play",dead:[],result:"",comment:"",engine:"claude"};
+  buildNB(size); rebuildSeen(); pending=-1;
+}
+function rebuildSeen(){ seen=new Set(S.snaps.map(s=>s.board)); seen.add(S.board.join("")); }
+function snapshot(){ return {board:S.board.join(""),toPlay:S.toPlay,caps:S.caps.slice(),passes:S.passes,last:S.last,mv:S.moves.length,comment:S.comment}; }
+function restore(sn){
+  S.board=sn.board.split("").map(Number); S.toPlay=sn.toPlay; S.caps=sn.caps.slice();
+  S.passes=sn.passes; S.last=sn.last; S.moves.length=sn.mv; S.comment=sn.comment||"";
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function load(data){
+  try{ const d=data || JSON.parse(localStorage.getItem(KEY)||"null");
+    if(d && d.v===1 && d.board){ S=d; buildNB(S.size); rebuildSeen(); return true; } }catch(e){}
+  return false;
+}
+
+// 落子（i=-1 為停一手）
+function commit(i,c){
+  const sn=snapshot();
+  if (i<0){ S.snaps.push(sn); S.passes++; S.last=-1; S.moves.push(name(c)+" pass"); }
+  else { const r=tryPlay(S.board,i,c); if(typeof r==="string") return r;
+    S.snaps.push(sn); S.board=r.b; S.caps[c]+=r.captured; S.passes=0; S.last=i; S.moves.push(name(c)+" "+coord(i));
+    seen.add(S.board.join("")); click(); }
+  S.toPlay=3-c; pending=-1;
+  if (S.passes>=2) enterScoring();
+  save(); return null;
+}
+
+/* ---------- 計分 ---------- */
+function scoreNow(deadSet){
+  const n=S.size, b=S.board.map((v,i)=>deadSet&&deadSet.has(i)?0:v);
+  const terr=Array(n*n).fill(0), vis=new Uint8Array(n*n);
+  for (let i=0;i<n*n;i++){ if(b[i]||vis[i]) continue;
+    const reg=[i], border=new Set(); vis[i]=1;
+    for (let k=0;k<reg.length;k++) for (const m of NB[reg[k]]){ if(b[m]) border.add(b[m]); else if(!vis[m]){vis[m]=1;reg.push(m);} }
+    if (border.size===1){ const o=[...border][0]; for(const p of reg) terr[p]=o; } }
+  let sb=0,sw=0,tb=0,tw=0;
+  for (let i=0;i<n*n;i++){ if(b[i]===1)sb++; else if(b[i]===2)sw++; if(terr[i]===1)tb++; else if(terr[i]===2)tw++; }
+  return {sb,sw,tb,tw,black:sb+tb,white:sw+tw+S.komi,terr};
+}
+// 以周圍棋子的影響力推測死子，玩家可再修正
+function guessDead(){
+  const n=S.size,b=S.board,dead=new Set(),done=new Set();
+  for (let i=0;i<n*n;i++){ if(!b[i]||done.has(i)) continue;
+    const g=group(b,i); g.stones.forEach(s=>done.add(s));
+    const own=new Set(g.stones), c=b[i], area=[...g.stones,...g.libs];
+    let sc=0;
+    for (const p of area){ const px=p%n,py=(p/n)|0;
+      for (let dy=-3;dy<=3;dy++) for (let dx=-3;dx<=3;dx++){ const d=Math.abs(dx)+Math.abs(dy); if(d>3||d===0) continue;
+        const x=px+dx,y=py+dy; if(x<0||y<0||x>=n||y>=n) continue; const q=y*n+x; if(!b[q]||own.has(q)) continue;
+        sc += (b[q]===c?1:-1)*(4-d); } }
+    // 眼位：只被自己包圍的空地
+    const sb=scoreNow(null); let eyes=0; for(const l of g.libs) if(sb.terr[l]===c) eyes++;
+    if (sc/area.length < -1.6 && g.libs.size<=6 && eyes<2) g.stones.forEach(s=>dead.add(s));
+  }
+  return [...dead];
+}
+function enterScoring(){ S.phase="score"; S.dead=guessDead(); S.result=""; abortThink(); }
+function resultText(sc){
+  const d=sc.black-sc.white;
+  return d>0 ? `黑勝 ${d} 目` : `白勝 ${-d} 目`;
+}
+
+/* ---------- 本機備用棋力（Claude 無法使用時） ---------- */
+function localMove(c){
+  const n=S.size,b=S.board,o=3-c,early=S.moves.length<n*1.6;
+  let best=-1,bs=-1e9;
+  for (let i=0;i<n*n;i++){ if(b[i]) continue;
+    const r=tryPlay(b,i,c); if(typeof r==="string") continue;
+    let s=Math.random()*4;
+    const nbs=NB[i];
+    if (r.captured===0 && nbs.every(k=>b[k]===c)) s-=500;      // 不填自己的眼
+    s += r.captured*45;
+    const g=group(r.b,i), L=g.libs.size;
+    if (L===1) s -= 40+g.stones.length*20; else if (L===2) s-=6;
+    for (const k of nbs){
+      if (b[k]===c){ const gg=group(b,k); if(gg.libs.size===1 && L>1) s+=40*gg.stones.length; }
+      if (r.b[k]===o){ const gg=group(r.b,k); if(gg.libs.size===1) s+=14*gg.stones.length; else if(gg.libs.size===2) s+=3; }
+    }
+    const x=i%n,y=(i/n)|0,e=Math.min(x,y,n-1-x,n-1-y);
+    if (early){ if(e===2||e===3) s+=10; if(e<=1) s-=12; } else if(e===0) s-=5;
+    let near=0; for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const xx=x+dx,yy=y+dy; if(xx>=0&&yy>=0&&xx<n&&yy<n&&b[yy*n+xx]) near++;}
+    if (!early && near===0) s-=6; if (near>0 && near<6) s+=3;
+    if (s>bs){bs=s;best=i;}
+  }
+  return bs<-20 ? -1 : best;
+}
+
+/* ---------- Claude ---------- */
+function boardText(){
+  const n=S.size; let t="   "+[...LET.slice(0,n)].join(" ")+"\n";
+  for (let y=0;y<n;y++){ const r=n-y; t+=String(r).padStart(2," ")+" ";
+    for (let x=0;x<n;x++){ const v=S.board[y*n+x]; t+=(v===1?"X":v===2?"O":".")+(x<n-1?" ":""); }
+    t+=" "+r+"\n"; }
+  return t;
+}
+function buildPrompt(note){
+  const me=3-S.human, n=S.size, b=S.board;
+  const atari=[], done=new Set();
+  for (let i=0;i<n*n;i++){ if(!b[i]||done.has(i)) continue; const g=group(b,i); g.stones.forEach(s=>done.add(s));
+    if (g.libs.size===1) atari.push(`${b[i]===1?"Black":"White"} group at ${g.stones.map(coord).join(",")} (last liberty ${coord([...g.libs][0])})`); }
+  const banned=[]; for(let i=0;i<n*n;i++) if(!b[i]){ const r=tryPlay(b,i,me); if(r==="ko") banned.push(coord(i)); }
+  const lastOpp=S.moves.length?S.moves[S.moves.length-1]:"none (you move first)";
+  const est=scoreNow(null);
+  return [
+`You are playing a serious game of Go as ${me===1?"Black (X)":"White (O)"} against a human playing ${me===1?"White (O)":"Black (X)"}. Play the strongest move you can find.`,
+`Rules: ${n}x${n} board, Chinese area scoring, komi ${S.komi}, suicide is illegal, positional superko.`,
+`Coordinates: columns ${LET.slice(0,n)} from left to right (no letter I), rows ${n} at the top down to 1 at the bottom. X = Black, O = White, . = empty.`,
+"", boardText(),
+`Stones captured so far: Black has captured ${S.caps[1]}, White has captured ${S.caps[2]}.`,
+`Move number: ${S.moves.length+1}. Opponent's last move: ${lastOpp}.`,
+`Recent moves (oldest first): ${S.moves.slice(-24).join(", ")||"none"}.`,
+atari.length?`Groups in atari: ${atari.join("; ")}.`:"No group is in atari.",
+banned.length?`Forbidden for you right now (ko/superko): ${banned.join(", ")}.`:"",
+S.passes===1?`The opponent just PASSED. If you pass too, the game ends and is scored. Rough area count if every stone on the board were alive: Black ${est.black}, White ${est.white} (incl. komi). Only pass if all borders are settled and no point remains to gain; otherwise keep playing.`:"",
+note?`IMPORTANT: ${note}`:"",
+"",
+"Think about the whole board: life and death, captures and escapes, connections and cuts, sente, big points and territory. Never fill your own eyes. Make sure the point you choose is empty on the board above.",
+"Pass only when the game is truly over. Answer \"resign\" only if you are clearly losing by a large margin late in the game.",
+`Reply with only a JSON object: {"move": "<coordinate like ${LET[3]}${n-3}>" | "pass" | "resign", "comment": "<one short remark about your move, at most 25 characters, in Traditional Chinese (繁體中文, never Simplified Chinese)>"}`
+  ].filter(s=>s!=="").join("\n");
+}
+function getSample(){
+  if (!samplePromise){
+    samplePromise = (async () => {
+      if (!window.claude || !window.claude.use) return null;
+      try { return await window.claude.use("sample"); } catch(e){ return null; }
+    })().then(f => { sampleFn=f; if(!f && S.engine==="claude"){ S.engine="local"; showNote("目前不在 Claude 的頁面中開啟，無法連線 Claude，改由本機程式對弈（棋力較弱）。"); render(); } return f; });
+  }
+  return samplePromise;
+}
+async function claudeTurn(note, retried){
+  const me=3-S.human; if (S.phase!=="play" || S.toPlay!==me) return;
+  const tok=++turnToken;
+  if (S.engine==="local"){ busy=true; render(); setTimeout(()=>{ if(tok!==turnToken) return; busy=false; playLocal(); },350); return; }
+  busy=true; setRetry(false); render();
+  const sample = await getSample();
+  if (tok!==turnToken) return;
+  if (!sample){ busy=false; playLocal(); return; }
+  ctl=new AbortController(); const t0=Date.now();
+  const tick=setInterval(()=>{ if(busy) setStatus(`Claude 思考中… ${Math.round((Date.now()-t0)/1000)} 秒`,true); },1000);
+  try{
+    const r = await sample.json(buildPrompt(note), {modelTier:S.tier, signal:ctl.signal, cache:false});
+    if (tok!==turnToken) return;
+    const mv = parseCoord(r && r.move);
+    const cmt = r && typeof r.comment==="string" ? r.comment.slice(0,60) : "";
+    if (mv===-2){ busy=false; S.phase="over"; S.result=`${name(me)}（Claude）認輸，${name(S.human)}（你）中盤勝`; S.comment=cmt||"我認輸了，你下得很好。"; save(); render(); return; }
+    let err = mv===null ? "bad" : (mv>=0 ? tryPlay(S.board,mv,me) : null);
+    if (err && typeof err!=="string") err=null;
+    if (err){
+      busy=false; clearInterval(tick);
+      if (!retried){ return claudeTurn(`Your previous answer "${r&&r.move}" was illegal (${err==="ko"?"ko/superko":err==="occupied"?"that point is already occupied":err==="suicide"?"suicide":"not a valid coordinate"}). Choose a different legal move.`, true); }
+      showNote("Claude 連續給出不合法的位置，這一手改由本機代下。"); playLocal(); return;
+    }
+    busy=false; S.comment=cmt; S.lastBy="claude"; commit(mv,me); hideNote(); render();
+  }catch(e){
+    if (tok!==turnToken) return;
+    busy=false;
+    const code=e&&e.code;
+    if (code==="cancelled"){ setRetry(true); showNote("已停止。可以再請 Claude 下，或改由本機代下這一手。"); }
+    else if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(code)){
+      S.engine="local"; showNote("未取得使用 Claude 的權限，改由本機程式對弈（棋力較弱）。"); playLocal(); }
+    else if (code==="rate_limited"){ setRetry(true); showNote("Claude 的使用量暫時達到上限，請稍後再按「請 Claude 下一手」。"); }
+    else if (code==="session_expired"){ setRetry(true); showNote("登入已過期，請重新登入 Claude 後再試。"); }
+    else if (code==="invalid_json" && !retried){ return claudeTurn("Your previous reply was not valid JSON. Reply with only the JSON object.", true); }
+    else { setRetry(true); showNote("連線 Claude 時發生問題，請再試一次。"); }
+    render();
+  }finally{ clearInterval(tick); }
+}
+function playLocal(){
+  const me=3-S.human; if (S.phase!=="play"||S.toPlay!==me) return;
+  const mv=localMove(me); S.comment = S.engine==="local" ? "" : "（本機代下）";
+  commit(mv,me); render();
+}
+function abortThink(){ turnToken++; if(ctl){ try{ctl.abort();}catch(e){} ctl=null; } busy=false; }
+function nextTurn(){ if (S.phase==="play" && S.toPlay!==S.human) claudeTurn(); }
+
+/* ---------- 音效 ---------- */
+let AC=null;
+function click(){
+  try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const t=AC.currentTime;
+    const o=AC.createOscillator(), g=AC.createGain(); o.type="triangle"; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(220,t+0.06);
+    g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.09); o.connect(g).connect(AC.destination); o.start(t); o.stop(t+0.1);
+  }catch(e){}
+}
+
+/* ---------- 畫面 ---------- */
+const C=40, M=34;
+function render(){
+  const n=S.size, W=(n-1)*C+M*2, svg=$("board");
+  svg.setAttribute("viewBox",`0 0 ${W} ${W}`);
+  const P=i=>[M+(i%n)*C, M+((i/n)|0)*C];
+  let h=`<defs><radialGradient id="gb" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#6a6a6a"/><stop offset=".55" stop-color="#1a1a1a"/><stop offset="1" stop-color="#050505"/></radialGradient>
+  <radialGradient id="gw" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#e6e4dd"/><stop offset="1" stop-color="#b9b6ad"/></radialGradient></defs>`;
+  h+=`<g stroke="#3a2810" stroke-width="1.3">`;
+  for (let k=0;k<n;k++){ const p=M+k*C; h+=`<line x1="${M}" y1="${p}" x2="${M+(n-1)*C}" y2="${p}"/><line x1="${p}" y1="${M}" x2="${p}" y2="${M+(n-1)*C}"/>`; }
+  h+=`<rect x="${M}" y="${M}" width="${(n-1)*C}" height="${(n-1)*C}" fill="none" stroke-width="2.4"/></g>`;
+  const stars = n===19?[3,9,15]:n===13?[3,6,9]:[2,4,6];
+  for (const sy of stars) for (const sx of stars){ if(n===9 && (sx===4)!==(sy===4) ) continue; h+=`<circle cx="${M+sx*C}" cy="${M+sy*C}" r="4.2" fill="#3a2810"/>`; }
+  h+=`<g font-family="IBM Plex Mono,monospace" font-size="12" fill="#5b4220" text-anchor="middle">`;
+  for (let k=0;k<n;k++){ const p=M+k*C; h+=`<text x="${p}" y="${M-20}">${LET[k]}</text><text x="${p}" y="${W-M+28}">${LET[k]}</text><text x="${M-22}" y="${p+4}">${n-k}</text><text x="${W-M+22}" y="${p+4}">${n-k}</text>`; }
+  h+=`</g>`;
+  const deadSet=new Set(S.dead), sc=(S.phase!=="play")?scoreNow(deadSet):null;
+  for (let i=0;i<n*n;i++){ const v=S.board[i]; if(!v) continue; const [x,y]=P(i), d=deadSet.has(i)&&S.phase!=="play";
+    h+=`<circle cx="${x+1.2}" cy="${y+1.8}" r="18.6" fill="rgba(0,0,0,.28)"/>`;
+    h+=`<circle cx="${x}" cy="${y}" r="18.6" fill="url(#${v===1?"gb":"gw"})" ${v===2?'stroke="#9c998f" stroke-width=".8"':''} ${d?'opacity=".45"':''}/>`;
+    if (d) h+=`<path d="M${x-7} ${y-7}L${x+7} ${y+7}M${x+7} ${y-7}L${x-7} ${y+7}" stroke="${v===1?"#fff":"#000"}" stroke-width="2.6" stroke-linecap="round"/>`;
+  }
+  if (sc){ for (let i=0;i<n*n;i++){ const t=sc.terr[i]; if(!t) continue; if(S.board[i] && !deadSet.has(i)) continue; const [x,y]=P(i);
+      h+=`<rect x="${x-6}" y="${y-6}" width="12" height="12" fill="${t===1?"#111":"#f4f2ec"}" stroke="${t===1?"none":"#777"}" stroke-width=".8"/>`; } }
+  if (S.last>=0 && S.board[S.last]){ const [x,y]=P(S.last); h+=`<circle cx="${x}" cy="${y}" r="7" fill="none" stroke="${S.board[S.last]===1?"#fff":"#111"}" stroke-width="2.4"/>`; }
+  if (pending>=0 && S.phase==="play"){ const [x,y]=P(pending); h+=`<circle cx="${x}" cy="${y}" r="18.6" fill="url(#${S.human===1?"gb":"gw"})" opacity=".55"/><circle cx="${x}" cy="${y}" r="4" fill="#d23b1e"/>`; }
+  svg.innerHTML=h;
+
+  $("rule").textContent=`${n}路 / 中國規則 / 貼${S.komi}目`;
+  const nmFor=c=> c===S.human ? "你" : (S.engine==="local"?"本機程式":"Claude");
+  $("nmB").textContent=nmFor(1); $("nmW").textContent=nmFor(2);
+  $("subB").textContent=`提子 ${S.caps[1]}`; $("subW").textContent=`提子 ${S.caps[2]}`;
+  $("plB").classList.toggle("on", S.phase==="play"&&S.toPlay===1);
+  $("plW").classList.toggle("on", S.phase==="play"&&S.toPlay===2);
+  document.querySelector(".say b").textContent = S.engine==="local" ? "本機程式" : "Claude";
+  if (S.comment) $("sayText").textContent=S.comment;
+
+  // 狀態列
+  if (S.phase==="play"){
+    if (busy) setStatus(S.engine==="local"?"本機程式思考中…":"Claude 思考中…", true);
+    else if (S.toPlay===S.human) setStatus(`輪到你（${name(S.human)}）　第 ${S.moves.length+1} 手`+(S.passes===1?"　對手停了一手，你也停一手就終局":""));
+    else setStatus(`輪到 ${nmFor(S.toPlay)}（${name(S.toPlay)}）`);
+  } else if (S.phase==="score") setStatus("終局：請確認死子後計分");
+  else setStatus("對局結束");
+
+  const myTurn=S.phase==="play"&&S.toPlay===S.human&&!busy;
+  $("btnPlace").disabled=!(myTurn&&pending>=0);
+  $("btnPass").disabled=!myTurn; $("btnResign").disabled=S.phase!=="play";
+  $("btnUndo").disabled=!(S.phase==="play" && S.snaps.length && S.moves.length);
+  $("ctrlPlay").hidden = S.phase!=="play" || !!confirmAct;
+  $("ctrlThink").hidden = !(busy && S.engine==="claude");
+  $("ctrlConfirm").hidden = !confirmAct;
+  if (S.phase!=="play") $("ctrlRetry").hidden=true;
+
+  const ss=$("scoreSheet"); ss.hidden = S.phase==="play";
+  if (sc){
+    const fmt=x=>Number.isInteger(x)?x:x.toFixed(1);
+    $("scoreTable").innerHTML=`<span>黑（${nmFor(1)}）</span><span>棋子 ${sc.sb} ＋ 地 ${sc.tb} ＝ ${fmt(sc.black)}</span><span>白（${nmFor(2)}）</span><span>棋子 ${sc.sw} ＋ 地 ${sc.tw} ＋ 貼 ${S.komi} ＝ ${fmt(sc.white)}</span>`;
+  } else $("scoreTable").innerHTML="";
+  if (S.phase==="over"){
+    $("scoreTitle").textContent="對局結果"; $("scoreHint").hidden=true; $("scoreBtns").hidden=true;
+    $("resultText").textContent=S.result;
+    if (S.result.includes("認輸")) $("scoreTable").innerHTML="";
+  } else { $("scoreTitle").textContent="計算勝負"; $("scoreHint").hidden=false; $("scoreBtns").hidden=false;
+    $("resultText").textContent= sc ? "目前推算："+resultText(sc) : ""; }
+}
+function setStatus(t,spin){ $("status").innerHTML = (spin?'<span class="spin"></span>':'')+'<span></span>'; $("status").lastChild.textContent=t; }
+function showNote(t){ $("note").textContent=t; $("note").hidden=false; }
+function hideNote(){ $("note").hidden=true; }
+function setRetry(on){ $("ctrlRetry").hidden=!on; }
+function ask(text,fn){ confirmAct=fn; setStatus(text); $("ctrlConfirm").hidden=false; $("ctrlPlay").hidden=true; }
+
+/* ---------- 操作 ---------- */
+$("board").addEventListener("click", ev=>{
+  const svg=$("board"), r=svg.getBoundingClientRect(), n=S.size, W=(n-1)*C+M*2;
+  const x=Math.round(((ev.clientX-r.left)/r.width*W - M)/C), y=Math.round(((ev.clientY-r.top)/r.height*W - M)/C);
+  if (x<0||y<0||x>=n||y>=n) return; const i=y*n+x;
+  if (S.phase==="score"){ if(!S.board[i]) return; const g=group(S.board,i).stones, d=new Set(S.dead), on=!d.has(i);
+    // 同色相連且被同一片空地包圍的棋子一起切換
+    g.forEach(s=>on?d.add(s):d.delete(s)); S.dead=[...d]; save(); render(); return; }
+  if (S.phase!=="play"||busy||S.toPlay!==S.human||confirmAct) return;
+  if (S.board[i]) return;
+  const t=tryPlay(S.board,i,S.human);
+  if (typeof t==="string"){ showNote(t==="ko"?"此處是劫，不能立刻提回，請先在別處下一手。":"這裡是自殺手，規則不允許。"); pending=-1; render(); return; }
+  hideNote();
+  if (pending===i) return placeMove();
+  pending=i; render();
+});
+function placeMove(){
+  if (pending<0) return; const e=commit(pending,S.human); if(e) return;
+  S.comment=S.comment; render(); nextTurn();
+}
+$("btnPlace").onclick=placeMove;
+$("btnPass").onclick=()=>ask("確定要停一手嗎？",()=>{ commit(-1,S.human); render(); nextTurn(); });
+$("btnResign").onclick=()=>ask("確定要認輸嗎？",()=>{ abortThink(); S.phase="over"; S.result=`你認輸，${name(3-S.human)}（${S.engine==="local"?"本機程式":"Claude"}）中盤勝`; save(); render(); });
+$("btnYes").onclick=()=>{ const f=confirmAct; confirmAct=null; f&&f(); render(); };
+$("btnNo").onclick=()=>{ confirmAct=null; render(); };
+$("btnUndo").onclick=()=>{
+  abortThink(); setRetry(false); hideNote();
+  if (!S.snaps.length) return;
+  restore(S.snaps.pop());
+  while (S.toPlay!==S.human && S.snaps.length) restore(S.snaps.pop());
+  rebuildSeen(); pending=-1; save(); render(); nextTurn();
+};
+$("btnStop").onclick=()=>{ if(ctl) ctl.abort(); };
+$("btnAsk").onclick=()=>{ hideNote(); setRetry(false); claudeTurn(); };
+$("btnLocal").onclick=()=>{ hideNote(); setRetry(false); playLocal(); };
+$("btnScore").onclick=()=>{ const sc=scoreNow(new Set(S.dead)); S.phase="over"; S.result=resultText(sc);
+  const d=sc.black-sc.white, win=d>0?1:2; S.result += win===S.human ? "　恭喜你獲勝！" : (S.engine==="local"?"　本機程式獲勝":"　Claude 獲勝"); save(); render(); };
+$("btnResume").onclick=()=>{ S.phase="play"; S.passes=0; S.dead=[]; save(); render(); nextTurn(); };
+$("btnNew").onclick=()=>{ $("setup").hidden=false; $("setup").scrollIntoView({behavior:"smooth",block:"start"}); };
+$("btnCancelSetup").onclick=()=>{ $("setup").hidden=true; };
+$("btnStart").onclick=()=>{
+  abortThink(); confirmAct=null; setRetry(false); hideNote();
+  const sz=+document.querySelector('input[name=size]:checked').value, col=+document.querySelector('input[name=color]:checked').value,
+        tier=document.querySelector('input[name=tier]:checked').value;
+  newGame(sz,col,tier); if (sampleFn===null) S.engine="local";
+  S.comment = col===1 ? "請先下。" : "我先下了。";
+  $("setup").hidden=true; save(); render(); window.scrollTo({top:0,behavior:"smooth"}); nextTurn();
+};
+
+/* ---------- 啟動 ---------- */
+function start(data){
+  if (!load(data && data.S)) newGame(19,1,"default");
+  render();
+  getSample();
+  // 重新開啟時若輪到 Claude，等玩家按鈕再呼叫
+  if (S.phase==="play" && S.toPlay!==S.human){ setRetry(true); }
+}
+window.claude?.hot?.snapshot?.(() => ({S}));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+</body></html>
